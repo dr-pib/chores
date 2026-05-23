@@ -255,9 +255,8 @@ export default function EditEmployeePage() {
               <div>
                 <label htmlFor="shift-length" className={labelClass}>Default shift length</label>
                 <select id="shift-length" value={defaultShiftLengthHours} onChange={e => setDefaultShiftLengthHours(Number(e.target.value))} className={inputClass}>
-                  <option value={8}>8 hours</option>
-                  <option value={12}>12 hours</option>
                   <option value={24}>24 hours</option>
+                  <option value={48}>48 hours</option>
                 </select>
               </div>
               <div>

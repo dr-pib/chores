@@ -45,7 +45,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } = body
 
   const employeeId = Number(id)
-  const newPartnerId: number | null = default_partner_id || null
+
+  // Only update default_partner_id if the partner field is explicitly present in the body.
+  // This lets the partner grid send a partial body without blanking unrelated fields.
+  const partnerProvided = 'default_partner_id' in body
+  const newPartnerId: number | null = partnerProvided ? (default_partner_id || null) : undefined!
 
   // Read the current partner before updating so we can unlink them if needed
   const current = await prisma.employee.findUnique({
@@ -57,24 +61,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const updated = await prisma.employee.update({
     where: { id: employeeId },
     data: {
-      name,
-      email: email || null,
-      email_username,
-      licensure_level,
-      role,
-      status,
-      default_station_id: default_station_id || null,
-      default_crew_post_id: default_crew_post_id || null,
-      default_shift_length_hours: Number(default_shift_length_hours),
-      default_partner_id: newPartnerId,
+      // Only include fields that were explicitly sent in the request body
+      ...(name !== undefined && { name }),
+      ...(email !== undefined && { email: email || null }),
+      ...(email_username !== undefined && { email_username }),
+      ...(licensure_level !== undefined && { licensure_level }),
+      ...(role !== undefined && { role }),
+      ...(status !== undefined && { status }),
+      ...(default_station_id !== undefined && { default_station_id: default_station_id || null }),
+      ...(default_crew_post_id !== undefined && { default_crew_post_id: default_crew_post_id || null }),
+      ...(default_shift_length_hours !== undefined && { default_shift_length_hours: Number(default_shift_length_hours) }),
+      ...(partnerProvided && { default_partner_id: newPartnerId }),
     },
     include: {
       default_partner: { select: { id: true, name: true } },
     },
   })
 
-  // Mirror the partner relationship bidirectionally
-  if (newPartnerId !== oldPartnerId) {
+  // Mirror the partner relationship bidirectionally (only when partner was part of the request)
+  if (partnerProvided && newPartnerId !== oldPartnerId) {
     // If there was a previous partner who pointed back at this employee, clear them
     if (oldPartnerId) {
       await prisma.employee.updateMany({

@@ -73,9 +73,17 @@ export default function EmployeesPage() {
     <div className="min-h-screen bg-zinc-950">
       <NavBar userName={user.name} userRole={user.role} />
       <div className="mx-auto max-w-4xl px-4 py-6 sm:py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-zinc-100">Employees</h1>
-          <p className="mt-1 text-sm text-zinc-500">{employees.length} total · click a row to edit</p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-100">Employees</h1>
+            <p className="mt-1 text-sm text-zinc-500">{employees.length} total · click a row to edit</p>
+          </div>
+          <Link
+            href="/employees/partners"
+            className="shrink-0 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-700 transition-colors"
+          >
+            Partner Grid
+          </Link>
         </div>
 
         <div className="space-y-6">
