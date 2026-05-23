@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Employee {
+  id                         Int      @id @default(autoincrement())
+  name                       String
+  email_username             String   @unique
+  emt_number                 String   @unique
+  licensure_level            String
+  role                       String   @default("Employee")
+  default_crew_post_id       Int?
+  default_shift_length_hours Int      @default(24)
+  default_partner_id         Int?
+  created_at                 DateTime @default(now())
+
+  default_partner   Employee?        @relation("EmployeePartner", fields: [default_partner_id], references: [id])
+  partner_of        Employee[]       @relation("EmployeePartner")
+  default_post      CrewPost?        @relation("EmployeeDefaultPost", fields: [default_crew_post_id], references: [id])
+  primary_logs      OperationsLog[]  @relation("PrimaryEmployee")
+  partner_logs      OperationsLog[]  @relation("PartnerEmployee")
+  completed_chores  Chore[]          @relation("ChoreCompletedBy")
+
+  @@map("employees")
+}
+
+model Station {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  created_at DateTime @default(now())
+
+  crew_posts      CrewPost[]
+  operations_logs OperationsLog[]
+
+  @@map("stations")
+}
+
+model Unit {
+  id          Int      @id @default(autoincrement())
+  unit_number Int      @unique
+  unit_type   String
+  created_at  DateTime @default(now())
+
+  default_for_posts CrewPost[]
+  primary_in_logs   OperationsLog[]    @relation("PrimaryUnit")
+  in_bays           OperationsLogBay[]
+  in_chores         Chore[]            @relation("ChoreUnit")
+
+  @@map("units")
+}
+
+model CrewPost {
+  id                         Int      @id @default(autoincrement())
+  name                       String   @unique
+  station_id                 Int
+  default_start_time         String
+  default_shift_length_hours Int      @default(24)
+  default_unit_id            Int?
+  created_at                 DateTime @default(now())
+
+  station           Station         @relation(fields: [station_id], references: [id])
+  default_unit      Unit?           @relation(fields: [default_unit_id], references: [id])
+  bays              CrewPostBay[]
+  operations_logs   OperationsLog[]
+  default_employees Employee[]      @relation("EmployeeDefaultPost")
+
+  @@map("crew_posts")
+}
+
+model CrewPostBay {
+  id           Int    @id @default(autoincrement())
+  crew_post_id Int
+  bay_label    String
+  sort_order   Int
+
+  crew_post CrewPost @relation(fields: [crew_post_id], references: [id])
+
+  @@unique([crew_post_id, bay_label])
+  @@map("crew_post_bays")
+}
+
+model OperationsLog {
+  id                  Int      @id @default(autoincrement())
+  service_date        DateTime @db.Date
+  crew_post_id        Int
+  station_id          Int
+  primary_employee_id Int
+  partner_employee_id Int?
+  primary_unit_id     Int
+  actual_start        DateTime
+  actual_end          DateTime
+  status              String   @default("confirmed")
+  notes               String?
+  created_at          DateTime @default(now())
+
+  crew_post        CrewPost           @relation(fields: [crew_post_id], references: [id])
+  station          Station            @relation(fields: [station_id], references: [id])
+  primary_employee Employee           @relation("PrimaryEmployee", fields: [primary_employee_id], references: [id])
+  partner_employee Employee?          @relation("PartnerEmployee", fields: [partner_employee_id], references: [id])
+  primary_unit     Unit               @relation("PrimaryUnit", fields: [primary_unit_id], references: [id])
+  bays             OperationsLogBay[]
+  chores           Chore[]
+
+  @@map("operations_logs")
+}
+
+model OperationsLogBay {
+  id                Int    @id @default(autoincrement())
+  operations_log_id Int
+  bay_label         String
+  unit_id           Int?
+  unit_status       String
+  sort_order        Int
+
+  operations_log OperationsLog @relation(fields: [operations_log_id], references: [id], onDelete: Cascade)
+  unit           Unit?         @relation(fields: [unit_id], references: [id])
+
+  @@unique([operations_log_id, bay_label])
+  @@map("operations_log_bays")
+}
+
+model ChoreTemplate {
+  id               Int     @id @default(autoincrement())
+  name             String  @unique
+  lifecycle_type   String
+  due_offset_hours Float?
+
+  chores Chore[]
+
+  @@map("chore_templates")
+}
+
+model Chore {
+  id                Int       @id @default(autoincrement())
+  operations_log_id Int
+  chore_template_id Int
+  unit_id           Int?
+  bay_label         String?
+  status            String    @default("pending")
+  due_at            DateTime?
+  completed_at      DateTime?
+  completed_by_id   Int?
+  notes             String?
+  created_at        DateTime  @default(now())
+
+  operations_log OperationsLog @relation(fields: [operations_log_id], references: [id], onDelete: Cascade)
+  chore_template ChoreTemplate @relation(fields: [chore_template_id], references: [id])
+  unit           Unit?         @relation("ChoreUnit", fields: [unit_id], references: [id])
+  completed_by   Employee?     @relation("ChoreCompletedBy", fields: [completed_by_id], references: [id])
+
+  @@map("chores")
+}
