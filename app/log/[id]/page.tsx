@@ -49,10 +49,39 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
   if (!log) notFound()
 
+  const currentUnitIds = log.bays
+    .filter((bay) => bay.unit_status === 'unit_present' && bay.unit_id !== null)
+    .map((bay) => bay.unit_id!)
+  const previousPersistentChores = currentUnitIds.length > 0
+    ? await prisma.chore.findMany({
+        where: {
+          status: 'pending',
+          unit_id: { in: currentUnitIds },
+          chore_template: { lifecycle_type: 'persistent_until_complete' },
+          operations_log: { service_date: { lt: log.service_date } },
+        },
+        include: {
+          chore_template: true,
+          unit: true,
+          completed_by: true,
+          operations_log: { include: { crew_post: true } },
+        },
+        orderBy: [
+          { due_at: 'asc' },
+          { created_at: 'asc' },
+        ],
+      })
+    : []
+
   const sorted = sortChores(log.chores)
   const dailyChores = sorted.filter(c => c.chore_template.lifecycle_type === 'daily_reset')
   const persistentChores = sorted.filter(c => c.chore_template.lifecycle_type === 'persistent_until_complete')
+  const sortedPreviousPersistentChores = sortChores(previousPersistentChores)
   const isMyLog = log.primary_employee_id === session.userId
+  const myChoresForProgress = isMyLog
+    ? [...dailyChores, ...persistentChores, ...sortedPreviousPersistentChores]
+    : []
+  const myChoresDone = myChoresForProgress.filter((chore) => chore.status === 'completed').length
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -79,6 +108,23 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
             <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">Submitted</span>
           )}
         </div>
+
+        {isMyLog && myChoresForProgress.length > 0 && (
+          <div className="mb-6">
+            <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
+              <span>{myChoresDone}/{myChoresForProgress.length} chores complete</span>
+              {sortedPreviousPersistentChores.length > 0 && (
+                <span className="text-red-400">{sortedPreviousPersistentChores.length} previous unfinished</span>
+              )}
+            </div>
+            <div className="h-1.5 rounded-full bg-zinc-800">
+              <div
+                className="h-1.5 rounded-full bg-blue-500 transition-all"
+                style={{ width: `${Math.round((myChoresDone / myChoresForProgress.length) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -126,6 +172,24 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               <div className="space-y-2">
                 {dailyChores.map(chore => (
                   <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isMyLog && sortedPreviousPersistentChores.length > 0 && (
+            <div className="bg-zinc-900 border border-red-500/60 rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
+                Unfinished Chores From Previous Shifts
+              </h2>
+              <div className="space-y-2">
+                {sortedPreviousPersistentChores.map(chore => (
+                  <div key={chore.id}>
+                    <ChoreItem chore={chore} userRole={session.role} />
+                    <div className="ml-8 text-xs text-zinc-500">
+                      From {chore.operations_log.crew_post.name} · {formatDate(chore.operations_log.service_date)}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
