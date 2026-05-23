@@ -2,7 +2,8 @@ export type UnitStatus = 'unit_present' | 'empty_bay' | 'unit_at_shop'
 export type ChoreStatus = 'pending' | 'completed' | 'skipped'
 export type LogStatus = 'confirmed'
 export type Role = 'Dom' | 'Admin' | 'Supervisor' | 'Employee'
-export type LicensureLevel = 'EMT' | 'EMT-A' | 'NRP'
+export type LicensureLevel = 'EMT' | 'EMTA' | 'NRP'
+export type EmployeeStatus = 'Active' | 'PRN' | 'Inactive'
 export type LifecycleType = 'daily_reset' | 'persistent_until_complete'
 
 export interface BayInput {

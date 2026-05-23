@@ -1,5 +1,7 @@
+import 'dotenv/config'
 import { PrismaClient } from '../app/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { existsSync, readFileSync } from 'node:fs'
 
 const dbUrl =
   process.env.DATABASE_URL ||
@@ -7,8 +9,76 @@ const dbUrl =
   process.env.POSTGRES_URL ||
   process.env.POSTGRES_PRIVATE_URL
 
+if (!dbUrl) {
+  throw new Error('No database URL found for seeding')
+}
+
 const adapter = new PrismaPg({ connectionString: dbUrl! })
 const prisma = new PrismaClient({ adapter })
+
+type EmployeeCsvRow = {
+  name: string
+  email: string
+  email_username: string
+  emt_number: string
+  licensure_level: string
+  role: string
+  status: string
+  default_station: string
+  default_shift: string
+  default_shift_length_hours: string
+  default_partner_email_username: string
+}
+
+function parseCsv(text: string): EmployeeCsvRow[] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let cell = ''
+  let inQuotes = false
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i]
+    const next = text[i + 1]
+
+    if (char === '"' && inQuotes && next === '"') {
+      cell += '"'
+      i += 1
+    } else if (char === '"') {
+      inQuotes = !inQuotes
+    } else if (char === ',' && !inQuotes) {
+      row.push(cell)
+      cell = ''
+    } else if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && next === '\n') i += 1
+      row.push(cell)
+      if (row.some((value) => value.length > 0)) rows.push(row)
+      row = []
+      cell = ''
+    } else {
+      cell += char
+    }
+  }
+
+  if (cell || row.length > 0) {
+    row.push(cell)
+    if (row.some((value) => value.length > 0)) rows.push(row)
+  }
+
+  const [headers, ...dataRows] = rows
+  return dataRows.map((values) => Object.fromEntries(
+    headers.map((header, index) => [header, values[index] ?? ''])
+  ) as EmployeeCsvRow)
+}
+
+function loadEmployees() {
+  const employeeCsv = new URL('./data/employees.csv', import.meta.url)
+  if (!existsSync(employeeCsv)) {
+    console.warn('No prisma/data/employees.csv found; skipping employee import.')
+    return []
+  }
+  const csv = readFileSync(employeeCsv, 'utf8')
+  return parseCsv(csv)
+}
 
 async function main() {
   console.log('Seeding...')
@@ -98,32 +168,77 @@ async function main() {
   }
 
   // Employees
-  const emp = async (data: {
-    name: string; email_username: string; emt_number: string
-    licensure_level: string; role: string
-    default_crew_post_id?: number; default_shift_length_hours?: number
-  }) => prisma.employee.upsert({ where: { email_username: data.email_username }, update: {}, create: data })
+  const postsByName = new Map([
+    [supervisorPost.name, supervisorPost.id],
+    [post247.name, post247.id],
+    [post248.name, post248.id],
+    [swingPost.name, swingPost.id],
+    [dcAlsPost.name, dcAlsPost.id],
+    [ncAlsPost.name, ncAlsPost.id],
+  ])
+  const stationsByName = new Map([
+    [harrison.name, harrison.id],
+    [diamondCity.name, diamondCity.id],
+    [newtonCounty.name, newtonCounty.id],
+  ])
+  const employeeRows = loadEmployees()
 
-  await emp({ name: 'Admin User', email_username: 'admin', emt_number: '0001', licensure_level: 'NRP', role: 'Dom' })
-  await emp({ name: 'Alex Rivera', email_username: 'arivera', emt_number: '1001', licensure_level: 'NRP', role: 'Supervisor', default_crew_post_id: supervisorPost.id })
-  const jones = await emp({ name: 'Jordan Jones', email_username: 'jjones', emt_number: '2001', licensure_level: 'NRP', role: 'Employee', default_crew_post_id: post247.id })
-  const smith = await emp({ name: 'Sam Smith', email_username: 'ssmith', emt_number: '2002', licensure_level: 'EMT-A', role: 'Employee', default_crew_post_id: post247.id })
-  const davis = await emp({ name: 'Casey Davis', email_username: 'cdavis', emt_number: '3001', licensure_level: 'NRP', role: 'Employee', default_crew_post_id: post248.id })
-  const miller = await emp({ name: 'Morgan Miller', email_username: 'mmiller', emt_number: '3002', licensure_level: 'EMT', role: 'Employee', default_crew_post_id: post248.id })
-  await emp({ name: 'Riley Wilson', email_username: 'rwilson', emt_number: '4001', licensure_level: 'NRP', role: 'Employee', default_crew_post_id: swingPost.id })
-  await emp({ name: 'Taylor Moore', email_username: 'tmoore', emt_number: '5001', licensure_level: 'NRP', role: 'Employee', default_crew_post_id: dcAlsPost.id })
-  await emp({ name: 'Drew Taylor', email_username: 'dtaylor', emt_number: '6001', licensure_level: 'EMT-A', role: 'Employee', default_crew_post_id: ncAlsPost.id })
+  if (employeeRows.length > 0) {
+    for (const employee of employeeRows) {
+      await prisma.employee.upsert({
+        where: { email_username: employee.email_username },
+        update: {
+          name: employee.name,
+          email: employee.email || null,
+          emt_number: employee.emt_number,
+          licensure_level: employee.licensure_level,
+          role: employee.role,
+          status: employee.status || 'Active',
+          default_station_id: employee.default_station ? stationsByName.get(employee.default_station) ?? null : null,
+          default_crew_post_id: employee.default_shift ? postsByName.get(employee.default_shift) ?? null : null,
+          default_shift_length_hours: Number(employee.default_shift_length_hours) || 48,
+        },
+        create: {
+          name: employee.name,
+          email: employee.email || null,
+          email_username: employee.email_username,
+          emt_number: employee.emt_number,
+          licensure_level: employee.licensure_level,
+          role: employee.role,
+          status: employee.status || 'Active',
+          default_station_id: employee.default_station ? stationsByName.get(employee.default_station) ?? null : null,
+          default_crew_post_id: employee.default_shift ? postsByName.get(employee.default_shift) ?? null : null,
+          default_shift_length_hours: Number(employee.default_shift_length_hours) || 48,
+        },
+      })
+    }
 
-  // Set default partners
-  await prisma.employee.update({ where: { id: jones.id }, data: { default_partner_id: smith.id } })
-  await prisma.employee.update({ where: { id: davis.id }, data: { default_partner_id: miller.id } })
+    await prisma.employee.updateMany({
+      where: {
+        email_username: { notIn: employeeRows.map((employee) => employee.email_username) },
+      },
+      data: { status: 'Inactive' },
+    })
+
+    for (const employee of employeeRows.filter((row) => row.default_partner_email_username)) {
+      const partner = await prisma.employee.findUnique({ where: { email_username: employee.default_partner_email_username } })
+      if (partner) {
+        await prisma.employee.update({
+          where: { email_username: employee.email_username },
+          data: { default_partner_id: partner.id },
+        })
+      }
+    }
+  }
 
   console.log('Seed complete.')
   console.log('Login credentials: email_username / emt_number')
-  console.log('  admin / 0001 (Dom)')
-  console.log('  arivera / 1001 (Supervisor)')
-  console.log('  jjones / 2001 (Employee, 24-7)')
-  console.log('  cdavis / 3001 (Employee, 24-8)')
+  console.log(`Imported ${employeeRows.length} employees.`)
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect())
+main()
+  .catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+  .finally(() => prisma.$disconnect())

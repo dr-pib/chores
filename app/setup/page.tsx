@@ -199,7 +199,7 @@ export default function SetupPage() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-zinc-100">Crew &amp; schedule</h2>
-                <p className="mt-1 text-sm text-zinc-500">Defaults are filled from your profile and can be changed for today.</p>
+                <p className="mt-1 text-sm text-zinc-500">Defaults are filled from your profile and can be changed for today. You can change your defaults in your profile for long-term changes.</p>
               </div>
             </div>
             <div className="space-y-4">

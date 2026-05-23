@@ -12,7 +12,11 @@ export async function POST(req: NextRequest) {
   let employee
   try {
     employee = await prisma.employee.findFirst({
-      where: { email_username: email_username.toLowerCase().trim(), emt_number: emt_number.trim() },
+      where: {
+        email_username: email_username.toLowerCase().trim(),
+        emt_number: emt_number.trim(),
+        status: { not: 'Inactive' },
+      },
       include: { default_post: true },
     })
   } catch (error) {
