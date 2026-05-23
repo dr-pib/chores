@@ -12,7 +12,7 @@ interface NavBarProps {
 const BASE_LINKS = [
   { href: '/setup', label: 'Shift Setup' },
   { href: '/my-chores', label: 'My Chores' },
-  { href: '/log', label: 'Operations Log' },
+  { href: '/log', label: "Today's Roster" },
   { href: '/chores', label: "Everyone's Chores" },
 ]
 

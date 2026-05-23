@@ -20,11 +20,22 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
 
   const isSupervisor = SUPERVISOR_ROLES.includes(session.role)
 
-  // Daily chores lock at 02:00 AM the following day (US Central / CDT = UTC-5 → UTC+31h)
+  // Daily chores: enforce both an early-availability and a late-lockout window
   if (chore.chore_template.lifecycle_type === 'daily_reset' && !isSupervisor) {
     const choreDay = new Date(chore.chore_date ?? chore.operations_log.service_date)
+    const now = new Date()
+
+    // Can't complete before midnight UTC of the chore date (Day 2 chores visible but locked)
+    if (now < choreDay) {
+      return NextResponse.json(
+        { error: 'These chores are not available until midnight' },
+        { status: 403 },
+      )
+    }
+
+    // Lock at 02:00 AM CDT the following day (chore date + 31h in UTC)
     const lockAfter = new Date(choreDay.getTime() + 31 * 60 * 60 * 1000)
-    if (new Date() > lockAfter) {
+    if (now > lockAfter) {
       return NextResponse.json(
         { error: 'Daily chores lock at 2:00 AM — ask a supervisor to mark this complete' },
         { status: 403 },

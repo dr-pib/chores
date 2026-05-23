@@ -40,63 +40,72 @@ export async function POST(req: NextRequest) {
   const crewPost = await prisma.crewPost.findUnique({ where: { id: crew_post_id } })
   if (!crewPost) return NextResponse.json({ error: 'Crew post not found' }, { status: 404 })
 
-  const startDate = new Date(actual_start)
-  const serviceDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+  const startDt = new Date(actual_start)
+  const endDt = new Date(actual_end)
+  const serviceDate = new Date(startDt.getFullYear(), startDt.getMonth(), startDt.getDate())
+  const is48h = endDt.getTime() - startDt.getTime() >= 48 * 3600 * 1000
 
-  // Get chore templates (needed for both create and update paths)
   const templates = await prisma.choreTemplate.findMany()
   const truckCheck = templates.find((t) => t.name === 'Truck Check')!
 
-  const startDt = new Date(actual_start)
-  const truckCheckChores = bays
-    .filter((b) => b.unit_status === 'unit_present' && b.unit_id)
-    .map((b) => ({
-      chore_template_id: truckCheck.id,
-      unit_id: b.unit_id,
-      bay_label: b.bay_label,
-      status: 'pending',
-      due_at: new Date(startDt.getTime() + 60 * 60 * 1000),
-      chore_date: serviceDate,
-    }))
+  function buildTruckChecks(date: Date) {
+    const truckDue = new Date(date.getTime() + 60 * 60 * 1000) // +1h from day start
+    return bays
+      .filter((b) => b.unit_status === 'unit_present' && b.unit_id)
+      .map((b) => ({
+        chore_template_id: truckCheck.id,
+        unit_id: b.unit_id,
+        bay_label: b.bay_label,
+        status: 'pending',
+        due_at: truckDue,
+        chore_date: date,
+      }))
+  }
+
+  const day1TruckChecks = buildTruckChecks(serviceDate)
 
   // Check if this employee already has a log today for this post
   const existing = await prisma.operationsLog.findFirst({
     where: { service_date: serviceDate, crew_post_id, primary_employee_id: session.userId },
   })
   if (existing) {
-    // Update instead of create — replace bays and Truck Check chores to match
+    // Update — replace all truck check chores (day 1 + day 2) to match current bays
+    const day2Date = is48h ? new Date(serviceDate.getTime() + 24 * 3600 * 1000) : null
+    const day2TruckChecks = day2Date ? buildTruckChecks(day2Date) : []
+
     const updated = await prisma.operationsLog.update({
       where: { id: existing.id },
       data: {
         partner_employee_id,
         primary_unit_id,
-        actual_start: new Date(actual_start),
-        actual_end: new Date(actual_end),
+        actual_start: startDt,
+        actual_end: endDt,
         bays: {
           deleteMany: {},
           create: bays.map((b) => ({ bay_label: b.bay_label, unit_id: b.unit_id, unit_status: b.unit_status, sort_order: b.sort_order })),
         },
         chores: {
           deleteMany: { chore_template_id: truckCheck.id },
-          create: truckCheckChores,
+          create: [...day1TruckChecks, ...day2TruckChecks],
         },
       },
       include: { bays: true, chores: { include: { chore_template: true } } },
     })
     return NextResponse.json(updated)
   }
-  const endDt = new Date(actual_end)
 
-  // One station chore per Harrison crew based on monthly rotation; remote posts get none
+  // --- New shift creation ---
   const serviceMonth = serviceDate.getMonth() + 1
   const stationChoreName = getStationChoreForPost(crewPost.name, serviceMonth)
   const stationTemplate = stationChoreName ? templates.find((t) => t.name === stationChoreName) ?? null : null
+
+  // Day 1 scheduled persistent chores (dedup across same service_date)
   const scheduledPersistentTemplates = templates.filter((t) =>
     t.lifecycle_type === 'persistent_until_complete'
     && t.name !== 'Additional Chore'
     && shouldGenerateScheduledChore(t.name, serviceDate)
   )
-  const existingScheduledPersistent = scheduledPersistentTemplates.length > 0
+  const existingDay1Scheduled = scheduledPersistentTemplates.length > 0
     ? await prisma.chore.findMany({
         where: {
           chore_template_id: { in: scheduledPersistentTemplates.map((t) => t.id) },
@@ -105,15 +114,60 @@ export async function POST(req: NextRequest) {
         select: { chore_template_id: true },
       })
     : []
-  const existingScheduledTemplateIds = new Set(existingScheduledPersistent.map((chore) => chore.chore_template_id))
+  const existingDay1TemplateIds = new Set(existingDay1Scheduled.map((c) => c.chore_template_id))
 
   const choresToCreate = [
-    ...truckCheckChores,
+    ...day1TruckChecks,
     ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: endDt, chore_date: serviceDate }] : []),
     ...scheduledPersistentTemplates
-      .filter((t) => !existingScheduledTemplateIds.has(t.id))
+      .filter((t) => !existingDay1TemplateIds.has(t.id))
       .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: endDt })),
   ]
+
+  // Day 2 chores for 48h shifts — created immediately so they're visible from the start
+  if (is48h) {
+    const day2Date = new Date(serviceDate.getTime() + 24 * 3600 * 1000)
+    const day2TruckDue = new Date(day2Date.getTime() + 60 * 60 * 1000) // 01:00 AM
+
+    const day2TruckChecks = bays
+      .filter((b) => b.unit_status === 'unit_present' && b.unit_id)
+      .map((b) => ({
+        chore_template_id: truckCheck.id,
+        unit_id: b.unit_id,
+        bay_label: b.bay_label,
+        status: 'pending',
+        due_at: day2TruckDue,
+        chore_date: day2Date,
+      }))
+
+    const day2StationChoreName = getStationChoreForPost(crewPost.name, day2Date.getMonth() + 1)
+    const day2StationTemplate = day2StationChoreName ? templates.find((t) => t.name === day2StationChoreName) ?? null : null
+
+    // Day 2 scheduled persistent chores — dedup by chore_date across all logs
+    const scheduledDay2Templates = templates.filter((t) =>
+      t.lifecycle_type === 'persistent_until_complete'
+      && t.name !== 'Additional Chore'
+      && shouldGenerateScheduledChore(t.name, day2Date)
+    )
+    const existingDay2Scheduled = scheduledDay2Templates.length > 0
+      ? await prisma.chore.findMany({
+          where: {
+            chore_template_id: { in: scheduledDay2Templates.map((t) => t.id) },
+            chore_date: day2Date,
+          },
+          select: { chore_template_id: true },
+        })
+      : []
+    const existingDay2TemplateIds = new Set(existingDay2Scheduled.map((c) => c.chore_template_id))
+
+    choresToCreate.push(
+      ...day2TruckChecks,
+      ...(day2StationTemplate ? [{ chore_template_id: day2StationTemplate.id, status: 'pending', due_at: endDt, chore_date: day2Date }] : []),
+      ...scheduledDay2Templates
+        .filter((t) => !existingDay2TemplateIds.has(t.id))
+        .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: endDt, chore_date: day2Date })),
+    )
+  }
 
   const log = await prisma.operationsLog.create({
     data: {
