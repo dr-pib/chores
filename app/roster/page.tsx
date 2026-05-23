@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
+import ConfirmShiftButton from '@/components/ConfirmShiftButton'
 
 function formatTime(dt: Date | string) {
   return new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
@@ -29,6 +30,8 @@ export default async function RosterPage() {
   const today = new Date()
   const serviceDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
 
+  const canConfirm = ['Dom', 'Admin', 'Supervisor'].includes(session.role)
+
   const allPosts = await prisma.crewPost.findMany({
     include: { station: true, default_unit: true },
     orderBy: { name: 'asc' },
@@ -41,6 +44,7 @@ export default async function RosterPage() {
       primary_employee: true,
       partner_employee: true,
       primary_unit: true,
+      supervisor_confirmed_by: true,
       bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } },
       chores: { include: { chore_template: true } },
     },
@@ -48,13 +52,16 @@ export default async function RosterPage() {
   })
 
   const confirmedPostIds = new Set(logs.map(l => l.crew_post_id))
-  const rosterStatus = logs.length === 0 ? 'Not Started' : confirmedPostIds.size >= allPosts.length ? 'Confirmed' : 'In Progress'
+  const allSupervisorConfirmed = logs.length > 0 && logs.every(l => l.supervisor_confirmed_at !== null) && confirmedPostIds.size >= allPosts.length
+  const rosterStatus = logs.length === 0 ? 'Not Started' : allSupervisorConfirmed ? 'Confirmed' : 'In Progress'
 
   const statusBadge: Record<string, string> = {
     'Not Started': 'bg-zinc-800 text-zinc-400',
     'In Progress': 'bg-yellow-500/20 text-yellow-400',
     'Confirmed': 'bg-green-500/20 text-green-400',
   }
+
+  const myLog = logs.find(l => l.primary_employee_id === session.userId)
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -69,61 +76,73 @@ export default async function RosterPage() {
             <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusBadge[rosterStatus]}`}>
               {rosterStatus}
             </span>
-            <Link href="/setup" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium transition-colors">
-              Set My Shift
-            </Link>
+            {myLog ? (
+              <Link href={`/log/${myLog.id}`} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm rounded-lg font-medium transition-colors">
+                My Log
+              </Link>
+            ) : (
+              <Link href="/setup" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium transition-colors">
+                Set My Shift
+              </Link>
+            )}
           </div>
         </div>
 
-        {/* Confirmed crews */}
+        {/* Submitted / confirmed crews */}
         {logs.length > 0 && (
           <div className="space-y-3 mb-8">
             {logs.map(log => {
               const pendingChores = log.chores.filter(c => c.status === 'pending').length
               const doneChores = log.chores.filter(c => c.status === 'completed').length
+              const isSupervisorConfirmed = !!log.supervisor_confirmed_at
               return (
-                <Link key={log.id} href={`/log/${log.id}`} className="block">
-                  <div className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-4 transition-colors">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-zinc-100">{log.crew_post.name}</span>
-                          <span className="text-zinc-500 text-sm">·</span>
-                          <span className="text-zinc-400 text-sm">{log.crew_post.station.name}</span>
-                          <span className="ml-1 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">Confirmed</span>
-                        </div>
-                        <div className="text-zinc-400 text-sm">
-                          {log.primary_employee.name}
-                          {log.partner_employee && <span> &amp; {log.partner_employee.name}</span>}
-                          <span className="text-zinc-600 mx-1.5">·</span>
-                          {formatTime(log.actual_start)} – {formatTime(log.actual_end)}
-                        </div>
-                        <div className="flex items-center gap-4 mt-2">
-                          {log.bays.map(bay => (
-                            <span key={bay.bay_label} className="text-xs text-zinc-500">
-                              {bay.bay_label}:{' '}
-                              {bay.unit ? (
-                                <span className={statusColors[bay.unit_status]}>
-                                  Unit {bay.unit.unit_number} ({statusLabels[bay.unit_status]})
-                                </span>
-                              ) : (
-                                <span className={statusColors[bay.unit_status]}>{statusLabels[bay.unit_status]}</span>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-xs text-zinc-500">
-                          {doneChores}/{log.chores.length} chores
-                        </div>
-                        {pendingChores > 0 && (
-                          <div className="text-xs text-yellow-400 mt-0.5">{pendingChores} pending</div>
+                <div key={log.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <Link href={`/log/${log.id}`} className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-zinc-100">{log.crew_post.name}</span>
+                        <span className="text-zinc-500 text-sm">·</span>
+                        <span className="text-zinc-400 text-sm">{log.crew_post.station.name}</span>
+                        {!canConfirm && (
+                          <span className={`ml-1 px-2 py-0.5 text-xs rounded-full font-medium ${isSupervisorConfirmed ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                            {isSupervisorConfirmed ? 'Confirmed' : 'Submitted'}
+                          </span>
                         )}
                       </div>
+                      <div className="text-zinc-400 text-sm">
+                        {log.primary_employee.name}
+                        {log.partner_employee && <span> &amp; {log.partner_employee.name}</span>}
+                        <span className="text-zinc-600 mx-1.5">·</span>
+                        {formatTime(log.actual_start)} – {formatTime(log.actual_end)}
+                      </div>
+                      <div className="flex items-center gap-4 mt-2">
+                        {log.bays.map(bay => (
+                          <span key={bay.bay_label} className="text-xs text-zinc-500">
+                            {bay.bay_label}:{' '}
+                            {bay.unit ? (
+                              <span className={statusColors[bay.unit_status]}>
+                                Unit {bay.unit.unit_number} ({statusLabels[bay.unit_status]})
+                              </span>
+                            ) : (
+                              <span className={statusColors[bay.unit_status]}>{statusLabels[bay.unit_status]}</span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </Link>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      {canConfirm && (
+                        <ConfirmShiftButton logId={log.id} confirmed={isSupervisorConfirmed} />
+                      )}
+                      <div className="text-xs text-zinc-500">
+                        {doneChores}/{log.chores.length} chores
+                      </div>
+                      {pendingChores > 0 && (
+                        <div className="text-xs text-yellow-400">{pendingChores} pending</div>
+                      )}
                     </div>
                   </div>
-                </Link>
+                </div>
               )
             })}
           </div>
@@ -150,7 +169,7 @@ export default async function RosterPage() {
 
         {logs.length === 0 && (
           <div className="text-center py-16">
-            <p className="text-zinc-500 mb-4">No shifts confirmed yet for today.</p>
+            <p className="text-zinc-500 mb-4">No shifts submitted yet for today.</p>
             <Link href="/setup" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">
               Set up your shift
             </Link>

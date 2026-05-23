@@ -19,12 +19,13 @@ model Employee {
   default_partner_id         Int?
   created_at                 DateTime @default(now())
 
-  default_partner   Employee?        @relation("EmployeePartner", fields: [default_partner_id], references: [id])
-  partner_of        Employee[]       @relation("EmployeePartner")
-  default_post      CrewPost?        @relation("EmployeeDefaultPost", fields: [default_crew_post_id], references: [id])
-  primary_logs      OperationsLog[]  @relation("PrimaryEmployee")
-  partner_logs      OperationsLog[]  @relation("PartnerEmployee")
-  completed_chores  Chore[]          @relation("ChoreCompletedBy")
+  default_partner          Employee?        @relation("EmployeePartner", fields: [default_partner_id], references: [id])
+  partner_of               Employee[]       @relation("EmployeePartner")
+  default_post             CrewPost?        @relation("EmployeeDefaultPost", fields: [default_crew_post_id], references: [id])
+  primary_logs             OperationsLog[]  @relation("PrimaryEmployee")
+  partner_logs             OperationsLog[]  @relation("PartnerEmployee")
+  completed_chores         Chore[]          @relation("ChoreCompletedBy")
+  supervisor_confirmed_logs OperationsLog[] @relation("SupervisorConfirmedBy")
 
   @@map("employees")
 }
@@ -85,26 +86,29 @@ model CrewPostBay {
 }
 
 model OperationsLog {
-  id                  Int      @id @default(autoincrement())
-  service_date        DateTime @db.Date
-  crew_post_id        Int
-  station_id          Int
-  primary_employee_id Int
-  partner_employee_id Int?
-  primary_unit_id     Int
-  actual_start        DateTime
-  actual_end          DateTime
-  status              String   @default("confirmed")
-  notes               String?
-  created_at          DateTime @default(now())
+  id                       Int       @id @default(autoincrement())
+  service_date             DateTime  @db.Date
+  crew_post_id             Int
+  station_id               Int
+  primary_employee_id      Int
+  partner_employee_id      Int?
+  primary_unit_id          Int
+  actual_start             DateTime
+  actual_end               DateTime
+  status                   String    @default("submitted")
+  supervisor_confirmed_at  DateTime?
+  supervisor_confirmed_by_id Int?
+  notes                    String?
+  created_at               DateTime  @default(now())
 
-  crew_post        CrewPost           @relation(fields: [crew_post_id], references: [id])
-  station          Station            @relation(fields: [station_id], references: [id])
-  primary_employee Employee           @relation("PrimaryEmployee", fields: [primary_employee_id], references: [id])
-  partner_employee Employee?          @relation("PartnerEmployee", fields: [partner_employee_id], references: [id])
-  primary_unit     Unit               @relation("PrimaryUnit", fields: [primary_unit_id], references: [id])
-  bays             OperationsLogBay[]
-  chores           Chore[]
+  crew_post                CrewPost           @relation(fields: [crew_post_id], references: [id])
+  station                  Station            @relation(fields: [station_id], references: [id])
+  primary_employee         Employee           @relation("PrimaryEmployee", fields: [primary_employee_id], references: [id])
+  partner_employee         Employee?          @relation("PartnerEmployee", fields: [partner_employee_id], references: [id])
+  primary_unit             Unit               @relation("PrimaryUnit", fields: [primary_unit_id], references: [id])
+  supervisor_confirmed_by  Employee?          @relation("SupervisorConfirmedBy", fields: [supervisor_confirmed_by_id], references: [id])
+  bays                     OperationsLogBay[]
+  chores                   Chore[]
 
   @@map("operations_logs")
 }
