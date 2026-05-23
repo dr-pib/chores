@@ -22,6 +22,8 @@ interface BayState {
   sort_order: number
 }
 
+const inputClass = 'px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50'
+
 function formatLocalDatetime(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
@@ -86,6 +88,7 @@ export default function SetupPage() {
     const end = new Date(start.getTime() + shiftHours * 60 * 60 * 1000)
     setStartDt(formatLocalDatetime(start))
     setEndDt(formatLocalDatetime(end))
+    // One bay row per crew post default bay; use per-bay unit_id (fallback to crew default for bay 1 only)
     const defaultBays = post.bays.length > 0
       ? post.bays.map((b, i) => ({
           bay_label: BAY_OPTIONS.includes(normalizeBayLabel(b.bay_label)) ? normalizeBayLabel(b.bay_label) : '',
@@ -127,6 +130,7 @@ export default function SetupPage() {
     setBays(prev => prev.filter((_, i) => i !== index).map((b, i) => ({ ...b, sort_order: i + 1 })))
   }
 
+  // Bays already used in other rows (to flag duplicates)
   const usedBays = (currentIndex: number) =>
     bays.filter((_, i) => i !== currentIndex).map(b => b.bay_label).filter(Boolean)
 
@@ -134,11 +138,14 @@ export default function SetupPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!selectedPostId || !startDt || !endDt) { setError('Fill all required fields'); return }
+    if (!selectedPostId || !startDt || !endDt) { setError('Please fill all required fields'); return }
+
     const unnamedBay = bays.find(b => !b.bay_label)
     if (unnamedBay) { setError('Select a bay for each row, or remove empty rows'); return }
+
     const dupBay = bays.find((b, i) => usedBays(i).includes(b.bay_label))
-    if (dupBay) { setError(`Bay ${dupBay.bay_label} listed more than once`); return }
+    if (dupBay) { setError(`Bay ${dupBay.bay_label} is listed more than once`); return }
+
     const primaryUnit = bays.find(b => b.unit_status === 'unit_present')?.unit_id
     if (!primaryUnit) { setError('At least one bay must have a unit present'); return }
 
@@ -167,190 +174,208 @@ export default function SetupPage() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
-        <span className="font-mono text-xs text-zinc-600 uppercase tracking-widest">LOADING…</span>
-      </div>
-    )
+    return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-400">Loading…</div>
   }
 
-  const hasDupBay = bays.some((b, i) => usedBays(i).includes(b.bay_label) && b.bay_label !== '')
-
   return (
-    <div className="min-h-screen bg-[#09090b]">
+    <div className="min-h-screen bg-zinc-950">
       <NavBar userName={user.name} userRole={user.role} />
-      <div className="max-w-[720px] mx-auto px-4 py-4">
-
-        {/* Page header */}
-        <div className="flex items-center justify-between mb-4">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="font-mono text-sm font-bold uppercase tracking-wide text-zinc-100">SHIFT SETUP</h1>
-            <div className="font-mono text-[10px] text-zinc-600 mt-0.5">
-              {user.name.toUpperCase()}
-              {selectedPost && <span className="ml-2 text-zinc-700">· {selectedPost.name} · {selectedPost.station.name}</span>}
-            </div>
+            <p className="text-sm font-medium text-blue-300">Welcome, {user.name}</p>
+            <h1 className="mt-1 text-2xl font-bold text-zinc-100">Set up your shift</h1>
           </div>
+          {selectedPost && (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
+              {selectedPost.name} · {selectedPost.station.name}
+            </div>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-
-          {/* ── Crew & schedule ─────────────────────────────────── */}
-          <div className="op-panel">
-            <div className="px-3 py-1 border-b border-[#1e2028] bg-[#0a0b0d]">
-              <span className="op-section-label">CREW &amp; SCHEDULE</span>
-            </div>
-            <div className="px-3 py-3 space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Post & schedule */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <label className="op-label block mb-1" htmlFor="crew-post">CREW POST</label>
-                <select
-                  id="crew-post"
-                  value={selectedPostId ?? ''}
-                  onChange={e => handlePostChange(Number(e.target.value))}
-                  className="op-input"
-                >
-                  <option value="">Select crew…</option>
-                  {crewPosts.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} — {p.station.name}</option>
-                  ))}
-                </select>
+                <h2 className="text-base font-semibold text-zinc-100">Crew &amp; schedule</h2>
+                <p className="mt-1 text-sm text-zinc-500">Defaults are filled from your profile and can be changed for today. You can change your defaults in your profile for long-term changes.</p>
               </div>
-
-              {selectedPost && (
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="op-label block mb-1" htmlFor="shift-start">START</label>
-                    <input id="shift-start" type="datetime-local" value={startDt} onChange={e => setStartDt(e.target.value)} className="op-input" />
-                  </div>
-                  <div>
-                    <label className="op-label block mb-1" htmlFor="shift-end">END</label>
-                    <input id="shift-end" type="datetime-local" value={endDt} onChange={e => setEndDt(e.target.value)} className="op-input" />
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
-
-          {/* ── Partner ─────────────────────────────────────────── */}
-          <div className="op-panel">
-            <div className="px-3 py-1 border-b border-[#1e2028] bg-[#0a0b0d]">
-              <span className="op-section-label">PARTNER</span>
-            </div>
-            <div className="px-3 py-3">
+            <div className="space-y-4">
+            <div>
+              <label htmlFor="crew-post" className="block text-sm text-zinc-300 mb-1.5">Crew</label>
               <select
-                id="partner"
-                value={partnerId}
-                onChange={e => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
-                className="op-input"
+                id="crew-post"
+                value={selectedPostId ?? ''}
+                onChange={(e) => handlePostChange(Number(e.target.value))}
+                className={`w-full ${inputClass}`}
               >
-                <option value="">Solo / No partner</option>
-                {employees.filter(e => e.id !== user.id).map(e => (
-                  <option key={e.id} value={e.id}>{e.name} ({e.licensure_level})</option>
+                <option value="">Select crew…</option>
+                {crewPosts.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} — {p.station.name}</option>
                 ))}
               </select>
             </div>
-          </div>
 
-          {/* ── Trucks / Bays ────────────────────────────────────── */}
-          <div className="op-panel">
-            <div className="flex items-center justify-between px-3 py-1 border-b border-[#1e2028] bg-[#0a0b0d]">
-              <span className="op-section-label">TRUCKS / BAYS</span>
-              <button type="button" onClick={addBay} className="op-btn op-btn-ghost text-[9px]">+ ADD</button>
-            </div>
-
-            <div className="px-3 py-2 space-y-2">
-              {bays.length === 0 && (
-                <p className="font-mono text-[10px] text-zinc-700 py-2 text-center uppercase tracking-wider border border-dashed border-zinc-800">
-                  No trucks added
-                </p>
-              )}
-
-              {bays.length > 0 && (
-                <div className="hidden sm:grid grid-cols-[5rem_1fr_7rem_1.5rem] gap-2 pb-1">
-                  {['BAY', 'UNIT', 'STATUS', ''].map(h => (
-                    <span key={h} className="op-label">{h}</span>
-                  ))}
+            {selectedPost && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="shift-start" className="block text-sm text-zinc-300 mb-1.5">Start</label>
+                  <input id="shift-start" type="datetime-local" value={startDt} onChange={e => setStartDt(e.target.value)} className={`w-full ${inputClass}`} />
                 </div>
-              )}
-
-              {bays.map((bay, i) => {
-                const alreadyUsed = usedBays(i).includes(bay.bay_label) && bay.bay_label !== ''
-                return (
-                  <div key={i} className="grid grid-cols-1 sm:grid-cols-[5rem_1fr_7rem_1.5rem] gap-2 items-center border-b border-[#1a1c24] pb-2 sm:border-0 sm:pb-0">
-                    <div>
-                      <label className="op-label block mb-0.5 sm:hidden">BAY</label>
-                      <select
-                        value={bay.bay_label}
-                        onChange={e => updateBay(i, 'bay_label', e.target.value)}
-                        className={`op-input ${alreadyUsed ? 'border-amber-600' : ''}`}
-                        aria-label="Bay"
-                      >
-                        <option value="">Bay…</option>
-                        {BAY_OPTIONS.map(b => <option key={b} value={b}>Bay {b}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="op-label block mb-0.5 sm:hidden">UNIT</label>
-                      <select
-                        value={bay.unit_id ?? ''}
-                        onChange={e => updateBay(i, 'unit_id', e.target.value ? Number(e.target.value) : null)}
-                        disabled={bay.unit_status !== 'unit_present'}
-                        className="op-input"
-                        aria-label="Unit"
-                      >
-                        <option value="">No unit</option>
-                        {units.map(u => <option key={u.id} value={u.id}>{formatUnit(u)}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="op-label block mb-0.5 sm:hidden">STATUS</label>
-                      <select
-                        value={bay.unit_status}
-                        onChange={e => {
-                          updateBay(i, 'unit_status', e.target.value)
-                          if (e.target.value !== 'unit_present') updateBay(i, 'unit_id', null)
-                        }}
-                        className="op-input"
-                        aria-label="Status"
-                      >
-                        <option value="unit_present">Present</option>
-                        <option value="empty_bay">Empty bay</option>
-                        <option value="unit_at_shop">At shop</option>
-                      </select>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeBay(i)}
-                      className="text-zinc-700 hover:text-red-500 transition-colors p-0.5 self-center"
-                      aria-label="Remove bay"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                )
-              })}
-
-              {hasDupBay && (
-                <p className="font-mono text-[10px] text-amber-500">⚠ DUPLICATE BAY — each bay can only appear once</p>
-              )}
+                <div>
+                  <label htmlFor="shift-end" className="block text-sm text-zinc-300 mb-1.5">End</label>
+                  <input id="shift-end" type="datetime-local" value={endDt} onChange={e => setEndDt(e.target.value)} className={`w-full ${inputClass}`} />
+                </div>
+              </div>
+            )}
             </div>
           </div>
 
-          {/* Error */}
+          {/* Partner */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
+            <label htmlFor="partner" className="mb-3 block text-base font-semibold text-zinc-100">Partner</label>
+            <select
+              id="partner"
+              value={partnerId}
+              onChange={e => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
+              className={`w-full ${inputClass}`}
+            >
+              <option value="">No partner / solo</option>
+              {employees.filter(e => e.id !== user.id).map(e => (
+                <option key={e.id} value={e.id}>{e.name} ({e.licensure_level})</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Trucks */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-100">Trucks</h2>
+                <p className="mt-1 text-sm text-zinc-500">Add each bay your crew is responsible for today.</p>
+              </div>
+              <button
+                type="button"
+                onClick={addBay}
+                className="shrink-0 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20"
+              >
+                + Add truck
+              </button>
+            </div>
+
+            {bays.length === 0 && (
+              <p className="rounded-lg border border-dashed border-zinc-700 px-4 py-5 text-center text-sm text-zinc-500">
+                No trucks added yet.
+              </p>
+            )}
+
+            {bays.length > 0 && (
+              <div className="hidden items-center gap-2 pb-2 sm:flex">
+                <span className="w-28 text-xs font-medium text-zinc-500 uppercase tracking-wider">Bay</span>
+                <span className="flex-1 text-xs font-medium text-zinc-500 uppercase tracking-wider">Unit</span>
+                <span className="w-36 text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</span>
+                <span className="w-6" />
+              </div>
+            )}
+
+            {bays.map((bay, i) => {
+              const alreadyUsed = usedBays(i).includes(bay.bay_label) && bay.bay_label !== ''
+              return (
+                <div key={i} className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3 sm:grid-cols-[7rem_minmax(0,1fr)_9rem_1.5rem] sm:items-end sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0">
+                  {/* Bay selector */}
+                  <div>
+                    <label htmlFor={`bay-${i}`} className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">
+                      Bay
+                    </label>
+                    <select
+                      id={`bay-${i}`}
+                      value={bay.bay_label}
+                      onChange={e => updateBay(i, 'bay_label', e.target.value)}
+                      className={`w-full ${inputClass} ${alreadyUsed ? 'border-yellow-600' : ''}`}
+                      aria-label="Bay"
+                    >
+                      <option value="">Bay…</option>
+                      {BAY_OPTIONS.map(b => (
+                        <option key={b} value={b}>Bay {b}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Unit selector */}
+                  <div>
+                    <label htmlFor={`unit-${i}`} className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">
+                      Unit
+                    </label>
+                    <select
+                      id={`unit-${i}`}
+                      value={bay.unit_id ?? ''}
+                      onChange={e => updateBay(i, 'unit_id', e.target.value ? Number(e.target.value) : null)}
+                      disabled={bay.unit_status !== 'unit_present'}
+                      className={`w-full ${inputClass}`}
+                      aria-label="Unit"
+                    >
+                      <option value="">No unit</option>
+                      {units.map(u => (
+                        <option key={u.id} value={u.id}>{formatUnit(u)}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Status selector */}
+                  <div>
+                    <label htmlFor={`status-${i}`} className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">
+                      Status
+                    </label>
+                    <select
+                      id={`status-${i}`}
+                      value={bay.unit_status}
+                      onChange={e => {
+                        updateBay(i, 'unit_status', e.target.value)
+                        if (e.target.value !== 'unit_present') updateBay(i, 'unit_id', null)
+                      }}
+                      className={`w-full ${inputClass}`}
+                      aria-label="Status"
+                    >
+                      <option value="unit_present">Present</option>
+                      <option value="empty_bay">Empty bay</option>
+                      <option value="unit_at_shop">At shop</option>
+                    </select>
+                  </div>
+
+                  {/* Remove */}
+                  <button
+                    type="button"
+                    onClick={() => removeBay(i)}
+                    className="rounded p-2 text-zinc-600 transition-colors hover:text-red-400 sm:p-1"
+                    aria-label="Remove bay"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )
+            })}
+
+            {bays.some((b, i) => usedBays(i).includes(b.bay_label) && b.bay_label !== '') && (
+              <p className="text-yellow-400 text-xs">Duplicate bay selected — each bay can only appear once.</p>
+            )}
+          </div>
+
           {error && (
-            <div className="border border-red-800/50 bg-red-950/20 px-3 py-2">
-              <p className="font-mono text-[10px] text-red-400 uppercase tracking-wide">⚠ {error}</p>
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-red-400 text-sm">
+              {error}
             </div>
           )}
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={isPending || !selectedPostId}
-            className="w-full op-btn op-btn-primary py-2.5 text-xs tracking-widest"
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold rounded-xl transition-colors text-sm"
           >
-            {isPending ? 'SUBMITTING…' : 'CONFIRM SHIFT'}
+            {isPending ? 'Setting shift…' : 'Set Shift'}
           </button>
         </form>
       </div>

@@ -5,12 +5,14 @@ import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import { formatUnit } from '@/lib/units'
 
-function toDateParam(d: Date) { return d.toISOString().slice(0, 10) }
-function fmtDate(d: Date) {
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+function formatRosterDate(d: Date) {
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
-function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+function formatTime(d: Date | string) {
+  return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+function toDateParam(d: Date) {
+  return d.toISOString().slice(0, 10)
 }
 
 export default async function RosterPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
@@ -18,6 +20,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
   if (!session.isLoggedIn) redirect('/login')
 
   const { date: dateParam } = await searchParams
+
   const now = new Date()
   const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 
@@ -52,123 +55,132 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
     }),
   ])
 
+  // Build a map: crew_post_id → log (most recent if multiple somehow exist)
   const logByPost: Record<number, typeof logs[0]> = {}
-  for (const log of logs) logByPost[log.crew_post_id] = log
+  for (const log of logs) {
+    logByPost[log.crew_post_id] = log
+  }
 
+  // Group crew posts by station name
   const stationOrder: string[] = []
   const postsByStation: Record<string, typeof crewPosts> = {}
   for (const post of crewPosts) {
-    const s = post.station.name
-    if (!postsByStation[s]) { postsByStation[s] = []; stationOrder.push(s) }
-    postsByStation[s].push(post)
+    const sName = post.station.name
+    if (!postsByStation[sName]) {
+      postsByStation[sName] = []
+      stationOrder.push(sName)
+    }
+    postsByStation[sName].push(post)
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b]">
+    <div className="min-h-screen bg-zinc-950">
       <NavBar userName={session.name} userRole={session.role} />
-
-      <div className="max-w-[1100px] mx-auto px-4 py-4">
-        {/* ── Date nav header ─────────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Link href={`/log?date=${toDateParam(prevDate)}`}
-              className="font-mono text-[10px] text-zinc-600 hover:text-zinc-300 px-2 py-1 border border-[#1e2028] hover:border-zinc-600 transition-colors rounded-sm"
-              aria-label="Previous day">
-              ◄
-            </Link>
-            <div>
-              <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-500 mr-2">
-                {isToday ? 'TODAY' : ''}
-              </span>
-              <span className="font-mono text-xs text-zinc-200">{fmtDate(serviceDate).toUpperCase()}</span>
-            </div>
-            {!isToday ? (
-              <Link href={`/log?date=${toDateParam(nextDate)}`}
-                className="font-mono text-[10px] text-zinc-600 hover:text-zinc-300 px-2 py-1 border border-[#1e2028] hover:border-zinc-600 transition-colors rounded-sm"
-                aria-label="Next day">
-                ►
-              </Link>
-            ) : (
-              <span className="w-8" />
-            )}
-          </div>
-          <Link href="/setup"
-            className="op-btn op-btn-primary">
-            + NEW SHIFT
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <h1 className="text-xl font-bold text-zinc-100">Today&apos;s Roster</h1>
+          <Link href="/setup" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium transition-colors">
+            + New Shift
           </Link>
         </div>
 
-        {/* ── Roster table ─────────────────────────────────────────── */}
-        <div className="op-panel">
-          {/* Table header */}
-          <div className="hidden sm:grid grid-cols-[140px_1fr_100px_130px_90px] gap-x-4 px-3 py-1.5 border-b border-[#1e2028]">
-            {['POST', 'PERSONNEL', 'UNIT(S)', 'SHIFT', 'CHORES'].map(h => (
-              <span key={h} className="op-label">{h}</span>
-            ))}
-          </div>
+        {/* Date navigation */}
+        <div className="flex items-center gap-2 mb-6">
+          <Link
+            href={`/log?date=${toDateParam(prevDate)}`}
+            className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors"
+            aria-label="Previous day"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <span className="text-zinc-100 font-medium text-sm">
+            {isToday && <span className="text-blue-400 mr-1.5">Today —</span>}
+            {formatRosterDate(serviceDate)}
+          </span>
+          {!isToday ? (
+            <Link
+              href={`/log?date=${toDateParam(nextDate)}`}
+              className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors"
+              aria-label="Next day"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          ) : (
+            <span className="w-8" />
+          )}
+        </div>
 
-          {/* Rows */}
+        {/* Roster by station */}
+        <div className="space-y-6">
           {stationOrder.map(stationName => (
             <div key={stationName}>
-              {/* Station separator */}
-              <div className="px-3 py-1 border-b border-[#1e2028] bg-[#0a0b0d]">
-                <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-zinc-600">{stationName}</span>
-              </div>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">{stationName}</h2>
+              <div className="space-y-2">
+                {postsByStation[stationName].map(post => {
+                  const log = logByPost[post.id]
+                  if (log) {
+                    const done = log.chores.filter(c => c.status === 'completed').length
+                    const total = log.chores.length
+                    const allDone = total > 0 && done === total
+                    return (
+                      <Link key={post.id} href={`/log/${log.id}`} className="block">
+                        <div className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-4 transition-colors">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-zinc-100">{post.name}</span>
+                                {log.supervisor_confirmed_at && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">Confirmed</span>
+                                )}
+                              </div>
+                              <div className="text-zinc-400 text-sm mt-0.5">
+                                {log.primary_employee.name}
+                                {log.partner_employee && <span> &amp; {log.partner_employee.name}</span>}
+                                <span className="text-zinc-600 mx-1.5">·</span>
+                                {formatTime(log.actual_start)}–{formatTime(log.actual_end)}
+                                <span className="text-zinc-600 mx-1.5">·</span>
+                                {formatUnit(log.primary_unit, false)}
+                                {(() => {
+                                  const secondUnit = log.bays.find(b => b.unit && b.unit_id !== log.primary_unit_id)?.unit
+                                  return secondUnit ? <span className="text-zinc-600"> ({formatUnit(secondUnit, false)})</span> : null
+                                })()}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div className={`text-xs ${allDone ? 'text-green-400' : 'text-zinc-500'}`}>
+                                {done}/{total} chores
+                              </div>
+                              <svg className="w-4 h-4 text-zinc-600 mt-1 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  }
 
-              {postsByStation[stationName].map(post => {
-                const log = logByPost[post.id]
-
-                if (log) {
-                  const done = log.chores.filter(c => c.status === 'completed').length
-                  const total = log.chores.length
-                  const allDone = total > 0 && done === total
-                  const secondUnit = log.bays.find(b => b.unit && b.unit_id !== log.primary_unit_id)?.unit
-
+                  // Unbuilt shift — muted placeholder
                   return (
-                    <Link key={post.id} href={`/log/${log.id}`} className="block">
-                      <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr_100px_130px_90px] gap-x-4 px-3 py-2 op-row hover:bg-[#0f1015] transition-colors items-center">
-                        {/* Post */}
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-zinc-100 font-semibold">{post.name}</span>
-                          {log.supervisor_confirmed_at && (
-                            <span className="font-mono text-[9px] text-cyan-500 border border-cyan-800/50 px-1">CNF</span>
-                          )}
+                    <div key={post.id} className="bg-zinc-900/30 border border-zinc-800/40 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-medium text-zinc-600">{post.name}</span>
+                          <div className="text-zinc-700 text-sm mt-0.5">
+                            {post.default_unit ? formatUnit(post.default_unit, false) : '—'}
+                          </div>
                         </div>
-                        {/* Personnel */}
-                        <div className="font-mono text-xs text-zinc-300 truncate">
-                          {log.primary_employee.name}
-                          {log.partner_employee && <span className="text-zinc-500"> / {log.partner_employee.name}</span>}
-                        </div>
-                        {/* Unit(s) */}
-                        <div className="font-mono text-xs text-zinc-300">
-                          {formatUnit(log.primary_unit, false)}
-                          {secondUnit && <span className="text-zinc-600"> ({formatUnit(secondUnit, false)})</span>}
-                        </div>
-                        {/* Shift times */}
-                        <div className="font-mono text-xs text-zinc-400">
-                          {fmtTime(log.actual_start)}–{fmtTime(log.actual_end)}
-                        </div>
-                        {/* Chore progress */}
-                        <div className={`font-mono text-xs ${allDone ? 'text-cyan-400' : 'text-zinc-500'}`}>
-                          {total === 0 ? '—' : `${done}/${total}`}
-                          {allDone && <span className="ml-1">●</span>}
-                        </div>
+                        <span className="text-xs text-zinc-700 uppercase tracking-wider font-medium">No shift</span>
                       </div>
-                    </Link>
+                    </div>
                   )
-                }
-
-                // Unbuilt shift
-                return (
-                  <div key={post.id} className="grid grid-cols-1 sm:grid-cols-[140px_1fr_100px_130px_90px] gap-x-4 px-3 py-2 op-row items-center opacity-35">
-                    <span className="font-mono text-xs text-zinc-500">{post.name}</span>
-                    <span className="font-mono text-[10px] text-zinc-700 col-span-3">
-                      {post.default_unit ? formatUnit(post.default_unit, false) : '—'}
-                    </span>
-                    <span className="font-mono text-[9px] tracking-wide uppercase text-zinc-700">NO SHIFT</span>
-                  </div>
-                )
-              })}
+                })}
+              </div>
             </div>
           ))}
         </div>

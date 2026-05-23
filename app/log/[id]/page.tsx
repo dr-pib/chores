@@ -7,27 +7,26 @@ import ChoreItem from '@/components/ChoreItem'
 import { formatUnit } from '@/lib/units'
 import { sortChores, getStationChoreForPost } from '@/lib/chore-rotation'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
-import ConfirmShiftButton from '@/components/ConfirmShiftButton'
 
-function fmtDate(d: Date | string) {
-  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).toUpperCase()
+function formatDate(d: Date | string) {
+  return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 }
-function fmtShortDate(d: Date | string) {
-  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' }).toUpperCase()
+function formatShortDate(d: Date | string) {
+  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })
 }
-function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+function formatTime(d: Date | string) {
+  return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-const BAY_STATUS_COLOR: Record<string, string> = {
-  unit_present: 'text-cyan-400',
-  empty_bay: 'text-zinc-600',
-  unit_at_shop: 'text-amber-400',
+const statusColors: Record<string, string> = {
+  unit_present: 'text-green-400',
+  empty_bay: 'text-zinc-500',
+  unit_at_shop: 'text-yellow-400',
 }
-const BAY_STATUS_LABEL: Record<string, string> = {
-  unit_present: 'PRESENT',
-  empty_bay: 'EMPTY',
-  unit_at_shop: 'AT SHOP',
+const statusLabels: Record<string, string> = {
+  unit_present: 'Present',
+  empty_bay: 'Empty bay',
+  unit_at_shop: 'At shop',
 }
 
 const LOG_INCLUDE = {
@@ -51,15 +50,6 @@ const LOG_INCLUDE = {
   },
 } as const
 
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <div className="op-section mb-2">
-      <span className="op-section-label">{label}</span>
-      <div className="op-section-rule" />
-    </div>
-  )
-}
-
 export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session.isLoggedIn) redirect('/login')
@@ -68,7 +58,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   let log = await prisma.operationsLog.findUnique({ where: { id: Number(id) }, include: LOG_INCLUDE })
   if (!log) notFound()
 
-  // Lazy Day 2 generation (fallback for older shifts)
+  // Auto-generate Day 2 daily chores once midnight of service_date+1 has passed
   const shiftMs = log.actual_end.getTime() - log.actual_start.getTime()
   if (shiftMs >= 48 * 3600 * 1000) {
     const day2Date = new Date(log.service_date.getTime() + 24 * 3600 * 1000)
@@ -80,7 +70,8 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       if (!hasDay2) {
         const templates = await prisma.choreTemplate.findMany()
         const truckCheck = templates.find(t => t.name === 'Truck Check')!
-        const day2TruckDue = new Date(day2Date.getTime() + 3600 * 1000)
+        const day2TruckDue = new Date(day2Date.getTime() + 3600 * 1000) // 01:00 AM
+
         const day2Chores = [
           ...log.bays
             .filter(b => b.unit_status === 'unit_present' && b.unit_id)
@@ -108,8 +99,8 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   }
 
   const currentUnitIds = log.bays
-    .filter(b => b.unit_status === 'unit_present' && b.unit_id !== null)
-    .map(b => b.unit_id!)
+    .filter(bay => bay.unit_status === 'unit_present' && bay.unit_id !== null)
+    .map(bay => bay.unit_id!)
 
   const previousPersistentChores = await prisma.chore.findMany({
     where: {
@@ -144,166 +135,171 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   const sorted = sortChores(log.chores)
   const allDailyChores = sorted.filter(c => c.chore_template.lifecycle_type === 'daily_reset')
   const persistentChores = sorted.filter(c => c.chore_template.lifecycle_type === 'persistent_until_complete')
+
+  // Split daily chores into Day 1 / Day 2 by chore_date
   const day2Date = new Date(log.service_date.getTime() + 24 * 3600 * 1000)
   const day1Chores = allDailyChores.filter(c => !c.chore_date || c.chore_date.getTime() < day2Date.getTime())
   const day2Chores = allDailyChores.filter(c => c.chore_date && c.chore_date.getTime() >= day2Date.getTime())
+
   const sortedPreviousPersistentChores = sortChores(previousPersistentChores)
-
   const isMyLog = log.primary_employee_id === session.userId
-  const canManage = isMyLog || ['Dom', 'Admin', 'Supervisor'].includes(session.role)
-  const isSupervisor = ['Dom', 'Admin', 'Supervisor'].includes(session.role)
-
-  const allChores = [...allDailyChores, ...persistentChores, ...sortedPreviousPersistentChores]
-  const doneCount = allChores.filter(c => c.status === 'completed').length
-  const totalCount = allChores.length
-  const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0
-
-  const secondUnit = log.bays.find(b => b.unit && b.unit_id !== log.primary_unit_id)?.unit
+  const myChoresForProgress = isMyLog
+    ? [...allDailyChores, ...persistentChores, ...sortedPreviousPersistentChores]
+    : []
+  const myChoresDone = myChoresForProgress.filter(c => c.status === 'completed').length
 
   return (
-    <div className="min-h-screen bg-[#09090b]">
+    <div className="min-h-screen bg-zinc-950">
       <NavBar userName={session.name} userRole={session.role} />
-
-      <div className="max-w-[900px] mx-auto px-4 py-4 space-y-3">
-
-        {/* ── Page header ───────────────────────────────────────────── */}
-        <div className="flex items-start justify-between gap-4">
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className={`flex items-center mb-1 ${isMyLog ? 'justify-end' : 'justify-between'}`}>
+          {!isMyLog && (
+            <Link href="/log" className="text-zinc-500 hover:text-zinc-300 text-sm">← Today&apos;s Roster</Link>
+          )}
+          {(isMyLog || ['Dom', 'Admin', 'Supervisor'].includes(session.role)) && (
+            <DeleteShiftButton logId={log.id} />
+          )}
+        </div>
+        <div className="flex items-start justify-between mb-6">
           <div>
-            <div className="flex items-center gap-3 mb-0.5">
-              <Link href="/log" className="font-mono text-[10px] uppercase tracking-wider text-zinc-600 hover:text-zinc-300 transition-colors">
-                ← ROSTER
-              </Link>
-              <span className="text-zinc-700">│</span>
-              <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
-                {log.crew_post.name} · {log.station.name}
-              </span>
-            </div>
-            <h1 className="font-mono text-sm font-bold text-zinc-100 uppercase tracking-wide">
-              {isMyLog ? 'MY CHORES' : log.crew_post.name}
-            </h1>
-            <div className="font-mono text-[10px] text-zinc-600 mt-0.5">{fmtDate(log.service_date)}</div>
+            <h1 className="text-xl font-bold text-zinc-100">{isMyLog ? 'My Chores' : log.crew_post.name}</h1>
+            <p className="text-zinc-400 text-sm mt-0.5">
+              {isMyLog && <span>{log.crew_post.name} · </span>}
+              {log.station.name} · {formatDate(log.service_date)}
+            </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {isSupervisor && <ConfirmShiftButton logId={log.id} confirmed={!!log.supervisor_confirmed_at} />}
-            {canManage && <DeleteShiftButton logId={log.id} />}
-          </div>
+          {log.supervisor_confirmed_at ? (
+            <span className="px-2.5 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">Confirmed</span>
+          ) : (
+            <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">Submitted</span>
+          )}
         </div>
 
-        {/* ── Progress bar ──────────────────────────────────────────── */}
-        {totalCount > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-mono text-[10px] text-zinc-600">
-                {doneCount}/{totalCount} COMPLETE
-                {sortedPreviousPersistentChores.length > 0 && (
-                  <span className="text-amber-600 ml-2">▲ {sortedPreviousPersistentChores.length} OVERDUE</span>
-                )}
-              </span>
-              <span className="font-mono text-[10px] text-zinc-600">{pct}%</span>
+        {isMyLog && myChoresForProgress.length > 0 && (
+          <div className="mb-6">
+            <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
+              <span>{myChoresDone}/{myChoresForProgress.length} chores complete</span>
+              {sortedPreviousPersistentChores.length > 0 && (
+                <span className="text-red-400">{sortedPreviousPersistentChores.length} previous unfinished</span>
+              )}
             </div>
-            <div className="h-px bg-zinc-800">
-              <div className="h-px bg-cyan-500 transition-all" style={{ width: `${pct}%` }} />
+            <div className="h-1.5 rounded-full bg-zinc-800">
+              <div
+                className="h-1.5 rounded-full bg-blue-500 transition-all"
+                style={{ width: `${Math.round((myChoresDone / myChoresForProgress.length) * 100)}%` }}
+              />
             </div>
           </div>
         )}
 
-        {/* ── Shift summary ─────────────────────────────────────────── */}
-        <div className="op-panel">
-          <div className="px-3 py-1 border-b border-[#1e2028] bg-[#0a0b0d]">
-            <span className="op-section-label">SHIFT SUMMARY</span>
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div className="text-zinc-500 text-xs mb-1">Primary</div>
+            <div className="text-zinc-100 text-sm font-medium">{log.primary_employee.name}</div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 divide-x-0 sm:divide-x divide-[#1e2028]">
-            {[
-              { label: 'PRIMARY', value: log.primary_employee.name },
-              { label: 'PARTNER', value: log.partner_employee?.name ?? '—' },
-              {
-                label: 'UNIT(S)',
-                value: formatUnit(log.primary_unit, false) + (secondUnit ? ` · ${formatUnit(secondUnit, false)}` : ''),
-              },
-              { label: 'SHIFT', value: `${fmtTime(log.actual_start)}–${fmtTime(log.actual_end)}` },
-            ].map(({ label, value }) => (
-              <div key={label} className="px-3 py-2">
-                <div className="op-label mb-0.5">{label}</div>
-                <div className="font-mono text-xs text-zinc-200 truncate">{value}</div>
+          {log.partner_employee && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+              <div className="text-zinc-500 text-xs mb-1">Partner</div>
+              <div className="text-zinc-100 text-sm font-medium">{log.partner_employee.name}</div>
+            </div>
+          )}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div className="text-zinc-500 text-xs mb-1">Unit</div>
+            <div className="text-zinc-100 text-sm font-medium">{formatUnit(log.primary_unit, false)}</div>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div className="text-zinc-500 text-xs mb-1">Hours</div>
+            <div className="text-zinc-100 text-sm font-medium">{formatTime(log.actual_start)} – {formatTime(log.actual_end)}</div>
+          </div>
+        </div>
+
+        {/* Bays */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-5">
+          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">Bays</h2>
+          <div className="space-y-2">
+            {log.bays.map(bay => (
+              <div key={bay.bay_label} className="flex items-center justify-between text-sm">
+                <span className="text-zinc-400">{bay.bay_label}</span>
+                <span className={statusColors[bay.unit_status]}>
+                  {bay.unit ? formatUnit(bay.unit) : '—'}
+                  {' · '}{statusLabels[bay.unit_status]}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── Bays ──────────────────────────────────────────────────── */}
-        <div className="op-panel">
-          <div className="px-3 py-1 border-b border-[#1e2028] bg-[#0a0b0d]">
-            <span className="op-section-label">BAYS</span>
-          </div>
-          {log.bays.map(bay => (
-            <div key={bay.bay_label} className="flex items-center gap-4 px-3 py-1.5 op-row">
-              <span className="font-mono text-[10px] text-zinc-500 w-14 uppercase">{bay.bay_label}</span>
-              <span className="font-mono text-xs text-zinc-300 flex-1">
-                {bay.unit ? formatUnit(bay.unit) : '—'}
-              </span>
-              <span className={`font-mono text-[9px] tracking-wider ${BAY_STATUS_COLOR[bay.unit_status]}`}>
-                {BAY_STATUS_LABEL[bay.unit_status]}
-              </span>
+        {/* Chores */}
+        <div className="space-y-5">
+          {day1Chores.length > 0 && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                Daily Chores — {formatShortDate(log.service_date)}
+              </h2>
+              <div className="space-y-2">
+                {day1Chores.map(chore => (
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
+          )}
 
-        {/* ── Chore sections ────────────────────────────────────────── */}
-        {day1Chores.length > 0 && (
-          <div>
-            <SectionHeader label={`DAILY CHORES · ${fmtShortDate(log.service_date)}`} />
-            <div className="op-panel px-3 pt-0.5 pb-0.5">
-              {day1Chores.map(chore => (
-                <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
-              ))}
+          {day2Chores.length > 0 && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                Day 2 Chores — {formatShortDate(day2Date)}
+              </h2>
+              <div className="space-y-2">
+                {day2Chores.map(chore => (
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {day2Chores.length > 0 && (
-          <div>
-            <SectionHeader label={`DAY 2 CHORES · ${fmtShortDate(day2Date)}`} />
-            <div className="op-panel px-3 pt-0.5 pb-0.5">
-              {day2Chores.map(chore => (
-                <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {sortedPreviousPersistentChores.length > 0 && (
-          <div>
-            <SectionHeader label="OVERDUE — PREVIOUS SHIFTS" />
-            <div className="op-panel border-amber-800/30 px-3 pt-0.5 pb-0.5">
-              {sortedPreviousPersistentChores.map(chore => {
-                const isNarc = chore.chore_template.name === 'NARC Expires'
-                const crew = [chore.operations_log.primary_employee, chore.operations_log.partner_employee]
-                  .filter((e): e is { name: string; licensure_level: string } =>
-                    e !== null && (!isNarc || e.licensure_level === 'NRP'))
-                return (
-                  <div key={chore.id}>
-                    <ChoreItem chore={chore} userRole={session.role} />
-                    <div className="ml-5 pb-0.5 font-mono text-[9px] text-zinc-700">
-                      FROM {chore.operations_log.crew_post.name} · {fmtDate(chore.operations_log.service_date)}
-                      {crew.length > 0 && <span className="ml-2">{crew.map(e => e.name.split(' ').at(-1)).join(' / ')}</span>}
+          {isMyLog && sortedPreviousPersistentChores.length > 0 && (
+            <div className="bg-zinc-900 border border-red-500/60 rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
+                Unfinished Chores From Previous Shifts
+              </h2>
+              <div className="space-y-2">
+                {sortedPreviousPersistentChores.map(chore => {
+                  const isNarc = chore.chore_template.name === 'NARC Expires'
+                  const crew = [
+                    chore.operations_log.primary_employee,
+                    chore.operations_log.partner_employee,
+                  ].filter((e): e is { name: string; licensure_level: string } =>
+                    e !== null && (!isNarc || e.licensure_level === 'NRP')
+                  )
+                  return (
+                    <div key={chore.id}>
+                      <ChoreItem chore={chore} userRole={session.role} />
+                      <div className="ml-8 text-xs text-zinc-500">
+                        From {chore.operations_log.crew_post.name} · {formatDate(chore.operations_log.service_date)}
+                        {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(e => e.name).join(' & ')}</span>}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {persistentChores.length > 0 && (
-          <div>
-            <SectionHeader label="PERSISTENT / EXPIRES" />
-            <div className="op-panel px-3 pt-0.5 pb-0.5">
-              {persistentChores.map(chore => (
-                <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
-              ))}
+          {persistentChores.length > 0 && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                Expires &amp; Persistent
+              </h2>
+              <div className="space-y-2">
+                {persistentChores.map(chore => (
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

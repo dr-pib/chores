@@ -22,11 +22,20 @@ export default function DeleteShiftButton({ logId }: { logId: number }) {
   if (confirming) {
     return (
       <div className="flex items-center gap-2">
-        <span className="font-mono text-[9px] uppercase tracking-wide text-zinc-500">DELETE?</span>
-        <button onClick={handleDelete} disabled={loading} className="op-btn op-btn-danger">
-          {loading ? '…' : 'YES'}
+        <span className="text-xs text-zinc-400">Delete this shift?</span>
+        <button
+          onClick={handleDelete}
+          disabled={loading}
+          className="text-xs px-2.5 py-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+        >
+          {loading ? 'Deleting…' : 'Yes, delete'}
         </button>
-        <button onClick={() => setConfirming(false)} className="op-btn op-btn-ghost">NO</button>
+        <button
+          onClick={() => setConfirming(false)}
+          className="text-xs px-2.5 py-1 text-zinc-400 hover:text-zinc-200 rounded-lg transition-colors"
+        >
+          Cancel
+        </button>
       </div>
     )
   }
@@ -34,9 +43,9 @@ export default function DeleteShiftButton({ logId }: { logId: number }) {
   return (
     <button
       onClick={() => setConfirming(true)}
-      className="font-mono text-[9px] uppercase tracking-wider text-zinc-700 hover:text-red-500 transition-colors"
+      className="text-xs text-zinc-600 hover:text-red-400 transition-colors"
     >
-      DELETE SHIFT
+      Delete shift
     </button>
   )
 }
