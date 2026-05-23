@@ -77,7 +77,13 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       chore_template: true,
       unit: true,
       completed_by: true,
-      operations_log: { include: { crew_post: true } },
+      operations_log: {
+        include: {
+          crew_post: true,
+          primary_employee: { select: { name: true, licensure_level: true } },
+          partner_employee: { select: { name: true, licensure_level: true } },
+        },
+      },
     },
     orderBy: [
       { due_at: 'asc' },
@@ -195,14 +201,24 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                 Unfinished Chores From Previous Shifts
               </h2>
               <div className="space-y-2">
-                {sortedPreviousPersistentChores.map(chore => (
+                {sortedPreviousPersistentChores.map(chore => {
+                  const isNarc = chore.chore_template.name === 'NARC Expires'
+                  const crew = [
+                    chore.operations_log.primary_employee,
+                    chore.operations_log.partner_employee,
+                  ].filter((e): e is { name: string; licensure_level: string } =>
+                    e !== null && (!isNarc || e.licensure_level === 'NRP')
+                  )
+                  return (
                   <div key={chore.id}>
                     <ChoreItem chore={chore} userRole={session.role} />
                     <div className="ml-8 text-xs text-zinc-500">
                       From {chore.operations_log.crew_post.name} · {formatDate(chore.operations_log.service_date)}
+                      {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(e => e.name).join(' & ')}</span>}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
