@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
 import { formatUnit } from '@/lib/units'
+import { sortChores } from '@/lib/chore-rotation'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
@@ -41,15 +42,15 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } },
       chores: {
         include: { chore_template: true, unit: true, completed_by: true },
-        orderBy: [{ status: 'asc' }, { due_at: 'asc' }],
       },
     },
   })
 
   if (!log) notFound()
 
-  const dailyChores = log.chores.filter(c => c.chore_template.lifecycle_type === 'daily_reset')
-  const persistentChores = log.chores.filter(c => c.chore_template.lifecycle_type === 'persistent_until_complete')
+  const sorted = sortChores(log.chores)
+  const dailyChores = sorted.filter(c => c.chore_template.lifecycle_type === 'daily_reset')
+  const persistentChores = sorted.filter(c => c.chore_template.lifecycle_type === 'persistent_until_complete')
 
   return (
     <div className="min-h-screen bg-zinc-950">

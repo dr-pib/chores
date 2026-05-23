@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
+import { sortChores } from '@/lib/chore-rotation'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -16,7 +17,6 @@ export default async function ChoresPage() {
   const today = new Date()
   const serviceDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
 
-  // Today's logs with all chores
   const logs = await prisma.operationsLog.findMany({
     where: { service_date: serviceDate },
     include: {
@@ -24,7 +24,6 @@ export default async function ChoresPage() {
       primary_employee: true,
       chores: {
         include: { chore_template: true, unit: true, completed_by: true },
-        orderBy: [{ status: 'asc' }, { due_at: 'asc' }],
       },
     },
     orderBy: { created_at: 'asc' },
@@ -47,8 +46,35 @@ export default async function ChoresPage() {
     take: 20,
   })
 
+  const myLog = logs.find(l => l.primary_employee_id === session.userId) ?? null
+  const otherLogs = logs.filter(l => l.primary_employee_id !== session.userId)
+
   const totalToday = logs.reduce((s, l) => s + l.chores.length, 0)
   const doneToday = logs.reduce((s, l) => s + l.chores.filter(c => c.status === 'completed').length, 0)
+
+  function LogBox({ log, highlight }: { log: typeof logs[0]; highlight?: boolean }) {
+    const sorted = sortChores(log.chores)
+    const done = sorted.filter(c => c.status === 'completed').length
+    const borderClass = highlight
+      ? 'border-blue-600 bg-blue-950/20'
+      : 'border-zinc-800 bg-zinc-900'
+    return (
+      <div className={`border rounded-xl p-4 ${borderClass}`}>
+        <div className="flex items-center justify-between mb-3">
+          <Link href={`/log/${log.id}`} className="flex items-center gap-2 hover:text-blue-400 transition-colors">
+            <span className="font-semibold text-zinc-100">{log.crew_post.name}</span>
+            <span className="text-zinc-500 text-sm">— {log.primary_employee.name}</span>
+          </Link>
+          <span className="text-xs text-zinc-500">{done}/{sorted.length}</span>
+        </div>
+        <div className="space-y-1">
+          {sorted.map(chore => (
+            <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -71,7 +97,7 @@ export default async function ChoresPage() {
           </div>
         )}
 
-        {/* Open persistent from previous days */}
+        {/* Overdue persistent from previous days */}
         {openPersistent.length > 0 && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
             <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
@@ -99,24 +125,25 @@ export default async function ChoresPage() {
           </div>
         ) : (
           <div className="space-y-5">
-            {logs.map(log => (
-              <div key={log.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <Link href={`/log/${log.id}`} className="flex items-center gap-2 hover:text-blue-400 transition-colors">
-                    <span className="font-semibold text-zinc-100">{log.crew_post.name}</span>
-                    <span className="text-zinc-500 text-sm">— {log.primary_employee.name}</span>
-                  </Link>
-                  <span className="text-xs text-zinc-500">
-                    {log.chores.filter(c => c.status === 'completed').length}/{log.chores.length}
-                  </span>
-                </div>
-                <div className="space-y-1">
-                  {log.chores.map(chore => (
-                    <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
-                  ))}
-                </div>
-              </div>
-            ))}
+            {/* Current user's shift — highlighted first */}
+            {myLog && (
+              <>
+                <h2 className="text-xs font-semibold text-blue-400 uppercase tracking-wider">My Shift</h2>
+                <LogBox log={myLog} highlight />
+              </>
+            )}
+
+            {/* Other crews */}
+            {otherLogs.length > 0 && (
+              <>
+                {myLog && (
+                  <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider pt-1">Other Crews</h2>
+                )}
+                {otherLogs.map(log => (
+                  <LogBox key={log.id} log={log} />
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>

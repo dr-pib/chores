@@ -59,7 +59,7 @@ async function main() {
     create: { name: 'NC-ALS', station_id: newtonCounty.id, default_start_time: '07:00', default_shift_length_hours: 24, default_unit_id: units[2].id },
   })
 
-  // Crew Post Bays (1 per post)
+  // Crew Post Bays — Harrison posts have 2 bays, remote posts have 1
   for (const post of [supervisorPost, post247, post248, swingPost, dcAlsPost, ncAlsPost]) {
     await prisma.crewPostBay.upsert({
       where: { crew_post_id_bay_label: { crew_post_id: post.id, bay_label: 'Bay 1' } },
@@ -67,17 +67,27 @@ async function main() {
       create: { crew_post_id: post.id, bay_label: 'Bay 1', sort_order: 1 },
     })
   }
+  for (const post of [supervisorPost, post247, post248, swingPost]) {
+    await prisma.crewPostBay.upsert({
+      where: { crew_post_id_bay_label: { crew_post_id: post.id, bay_label: 'Bay 2' } },
+      update: {},
+      create: { crew_post_id: post.id, bay_label: 'Bay 2', sort_order: 2 },
+    })
+  }
+
+  // Rename legacy "Admin" template to "Bathroom" if it exists
+  await prisma.choreTemplate.updateMany({ where: { name: 'Admin' }, data: { name: 'Bathroom' } })
 
   // Chore Templates
   const choreDefs = [
     { name: 'Truck Check', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
+    { name: 'Bathroom', lifecycle_type: 'daily_reset', due_offset_hours: null },
     { name: 'Kitchen', lifecycle_type: 'daily_reset', due_offset_hours: null },
-    { name: 'Admin', lifecycle_type: 'daily_reset', due_offset_hours: null },
     { name: 'Garage', lifecycle_type: 'daily_reset', due_offset_hours: null },
     { name: 'Quarters', lifecycle_type: 'daily_reset', due_offset_hours: null },
     { name: 'Monthly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
-    { name: 'Quarterly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
     { name: 'NARC Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
+    { name: 'Quarterly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
     { name: 'Additional Chore', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
   ]
   for (const c of choreDefs) {

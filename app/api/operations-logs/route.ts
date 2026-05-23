@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import type { SetShiftInput } from '@/lib/types'
+import { getStationChoreForPost } from '@/lib/chore-rotation'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -42,12 +43,27 @@ export async function POST(req: NextRequest) {
   const startDate = new Date(actual_start)
   const serviceDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
 
+  // Get chore templates (needed for both create and update paths)
+  const templates = await prisma.choreTemplate.findMany()
+  const truckCheck = templates.find((t) => t.name === 'Truck Check')!
+
+  const startDt = new Date(actual_start)
+  const truckCheckChores = bays
+    .filter((b) => b.unit_status === 'unit_present' && b.unit_id)
+    .map((b) => ({
+      chore_template_id: truckCheck.id,
+      unit_id: b.unit_id,
+      bay_label: b.bay_label,
+      status: 'pending',
+      due_at: new Date(startDt.getTime() + 60 * 60 * 1000),
+    }))
+
   // Check if this employee already has a log today for this post
   const existing = await prisma.operationsLog.findFirst({
     where: { service_date: serviceDate, crew_post_id, primary_employee_id: session.userId },
   })
   if (existing) {
-    // Update instead of create
+    // Update instead of create — replace bays and Truck Check chores to match
     const updated = await prisma.operationsLog.update({
       where: { id: existing.id },
       data: {
@@ -59,49 +75,29 @@ export async function POST(req: NextRequest) {
           deleteMany: {},
           create: bays.map((b) => ({ bay_label: b.bay_label, unit_id: b.unit_id, unit_status: b.unit_status, sort_order: b.sort_order })),
         },
+        chores: {
+          deleteMany: { chore_template_id: truckCheck.id },
+          create: truckCheckChores,
+        },
       },
       include: { bays: true, chores: { include: { chore_template: true } } },
     })
     return NextResponse.json(updated)
   }
-
-  // Get chore templates
-  const templates = await prisma.choreTemplate.findMany()
-  const truckCheck = templates.find((t) => t.name === 'Truck Check')!
-  const dailyTemplates = templates.filter((t) => t.lifecycle_type === 'daily_reset' && t.name !== 'Truck Check')
   const persistentTemplates = templates.filter((t) => t.lifecycle_type === 'persistent_until_complete' && t.name !== 'Additional Chore')
 
-  const startDt = new Date(actual_start)
   const endDt = new Date(actual_end)
 
-  // Build chores
-  const choresToCreate: {
-    chore_template_id: number; unit_id?: number | null; bay_label?: string | null
-    status: string; due_at?: Date | null
-  }[] = []
+  // One station chore per Harrison crew based on monthly rotation; remote posts get none
+  const serviceMonth = serviceDate.getMonth() + 1
+  const stationChoreName = getStationChoreForPost(crewPost.name, serviceMonth)
+  const stationTemplate = stationChoreName ? templates.find((t) => t.name === stationChoreName) ?? null : null
 
-  // Truck Check per unit present
-  for (const bay of bays) {
-    if (bay.unit_status === 'unit_present' && bay.unit_id) {
-      choresToCreate.push({
-        chore_template_id: truckCheck.id,
-        unit_id: bay.unit_id,
-        bay_label: bay.bay_label,
-        status: 'pending',
-        due_at: new Date(startDt.getTime() + 60 * 60 * 1000),
-      })
-    }
-  }
-
-  // Daily reset chores
-  for (const t of dailyTemplates) {
-    choresToCreate.push({ chore_template_id: t.id, status: 'pending', due_at: endDt })
-  }
-
-  // Persistent chores
-  for (const t of persistentTemplates) {
-    choresToCreate.push({ chore_template_id: t.id, status: 'pending', due_at: endDt })
-  }
+  const choresToCreate = [
+    ...truckCheckChores,
+    ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: endDt }] : []),
+    ...persistentTemplates.map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: endDt })),
+  ]
 
   const log = await prisma.operationsLog.create({
     data: {
