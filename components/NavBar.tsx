@@ -48,6 +48,12 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
     ? [...BASE_LINKS, { href: '/crew-posts', label: 'Crews' }, { href: '/employees', label: 'Employees' }, { href: '/chore-templates', label: 'Chores' }]
     : BASE_LINKS
 
+  function isActive(href: string) {
+    if (href === '/log') return pathname === '/log'
+    if (href === '/my-chores') return pathname === '/my-chores' || pathname.startsWith('/log/')
+    return pathname.startsWith(href)
+  }
+
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
@@ -93,7 +99,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
               key={l.href}
               href={l.href}
               className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                pathname.startsWith(l.href)
+                isActive(l.href)
                   ? 'bg-zinc-700 text-zinc-100'
                   : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
               }`}
@@ -143,7 +149,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
               href={l.href}
               onClick={() => setMenuOpen(false)}
               className={`block px-3 py-2 rounded text-sm font-medium ${
-                pathname.startsWith(l.href)
+                isActive(l.href)
                   ? 'bg-zinc-700 text-zinc-100'
                   : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
               }`}

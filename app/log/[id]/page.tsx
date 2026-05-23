@@ -17,6 +17,9 @@ function formatShortDate(d: Date | string) {
 function formatTime(d: Date | string) {
   return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
+function formatShiftDt(d: Date | string) {
+  return new Date(d).toLocaleString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+}
 
 const statusColors: Record<string, string> = {
   unit_present: 'text-green-400',
@@ -209,9 +212,10 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
             <div className="text-zinc-500 text-xs mb-1">Unit</div>
             <div className="text-zinc-100 text-sm font-medium">{formatUnit(log.primary_unit, false)}</div>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-            <div className="text-zinc-500 text-xs mb-1">Hours</div>
-            <div className="text-zinc-100 text-sm font-medium">{formatTime(log.actual_start)} – {formatTime(log.actual_end)}</div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 col-span-2 sm:col-span-1">
+            <div className="text-zinc-500 text-xs mb-1">Shift</div>
+            <div className="text-zinc-100 text-sm font-medium">{formatShiftDt(log.actual_start)}</div>
+            <div className="text-zinc-400 text-sm">→ {formatShiftDt(log.actual_end)}</div>
           </div>
         </div>
 
