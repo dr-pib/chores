@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     const day2Date = is48h ? new Date(serviceDate.getTime() + 24 * 3600 * 1000) : null
     const day2TruckChecks = day2Date ? buildTruckChecks(day2Date) : []
 
-    const updated = await prisma.operationsLog.update({
+    await prisma.operationsLog.update({
       where: { id: existing.id },
       data: {
         partner_employee_id,
@@ -89,6 +89,39 @@ export async function POST(req: NextRequest) {
           create: [...day1TruckChecks, ...day2TruckChecks],
         },
       },
+    })
+
+    // Also create any Day 2 scheduled persistent chores not yet on this log
+    if (day2Date) {
+      const scheduledDay2 = templates.filter((t) =>
+        t.lifecycle_type === 'persistent_until_complete'
+        && t.name !== 'Additional Chore'
+        && shouldGenerateScheduledChore(t.name, day2Date)
+      )
+      if (scheduledDay2.length > 0) {
+        const existingInLog = await prisma.chore.findMany({
+          where: {
+            operations_log_id: existing.id,
+            chore_template_id: { in: scheduledDay2.map((t) => t.id) },
+          },
+          select: { chore_template_id: true },
+        })
+        const existingIds = new Set(existingInLog.map((c) => c.chore_template_id))
+        const toCreate = scheduledDay2
+          .filter((t) => !existingIds.has(t.id))
+          .map((t) => ({
+            operations_log_id: existing.id,
+            chore_template_id: t.id,
+            status: 'pending',
+            due_at: endDt,
+            chore_date: day2Date,
+          }))
+        if (toCreate.length > 0) await prisma.chore.createMany({ data: toCreate })
+      }
+    }
+
+    const updated = await prisma.operationsLog.findUnique({
+      where: { id: existing.id },
       include: { bays: true, chores: { include: { chore_template: true } } },
     })
     return NextResponse.json(updated)
@@ -121,7 +154,7 @@ export async function POST(req: NextRequest) {
     ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: endDt, chore_date: serviceDate }] : []),
     ...scheduledPersistentTemplates
       .filter((t) => !existingDay1TemplateIds.has(t.id))
-      .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: endDt })),
+      .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: endDt, chore_date: serviceDate })),
   ]
 
   // Day 2 chores for 48h shifts — created immediately so they're visible from the start
