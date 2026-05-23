@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import ConfirmShiftButton from '@/components/ConfirmShiftButton'
+import { formatUnit } from '@/lib/units'
 
 function formatTime(dt: Date | string) {
   return new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
@@ -121,7 +122,7 @@ export default async function RosterPage() {
                             {bay.bay_label}:{' '}
                             {bay.unit ? (
                               <span className={statusColors[bay.unit_status]}>
-                                Unit {bay.unit.unit_number} ({statusLabels[bay.unit_status]})
+                                {formatUnit(bay.unit, false)} ({statusLabels[bay.unit_status]})
                               </span>
                             ) : (
                               <span className={statusColors[bay.unit_status]}>{statusLabels[bay.unit_status]}</span>

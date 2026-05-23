@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatUnit } from '@/lib/units'
 
 interface ChoreTemplate { name: string; lifecycle_type: string; due_offset_hours: number | null }
-interface Unit { unit_number: number; unit_type: string }
+interface Unit { unit_number: number; unit_type: string; unit_name?: string | null }
 interface Employee { name: string }
 interface Chore {
   id: number
@@ -87,7 +88,7 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
             {chore.chore_template.name}
           </span>
           {chore.unit && (
-            <span className="text-xs text-blue-400">Unit {chore.unit.unit_number}</span>
+            <span className="text-xs text-blue-400">{formatUnit(chore.unit, false)}</span>
           )}
           {isPersistent && !isDone && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">persistent</span>

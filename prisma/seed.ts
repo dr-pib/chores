@@ -19,14 +19,18 @@ async function main() {
   const newtonCounty = await prisma.station.upsert({ where: { name: 'Newton County' }, update: {}, create: { name: 'Newton County' } })
 
   // Units
-  const unitDefs = [
+  const unitDefs: { n: number; t: string; name?: string }[] = [
     { n: 1, t: 'ALS' }, { n: 2, t: 'ALS' }, { n: 3, t: 'ALS' }, { n: 4, t: 'ALS' },
     { n: 5, t: 'ALS' }, { n: 6, t: 'ALS' }, { n: 7, t: 'BLS' }, { n: 8, t: 'ALS' },
     { n: 9, t: 'ALS' }, { n: 10, t: 'ALS' }, { n: 11, t: 'ALS' }, { n: 14, t: 'ALS' },
+    { n: 20, t: 'SUV', name: 'Explorer' },
   ]
   const units: Record<number, { id: number }> = {}
-  for (const { n, t } of unitDefs) {
-    units[n] = await prisma.unit.upsert({ where: { unit_number: n }, update: {}, create: { unit_number: n, unit_type: t } })
+  for (const { n, t, name } of unitDefs) {
+    units[n] = await prisma.unit.upsert({
+      where: { unit_number: n }, update: {},
+      create: { unit_number: n, unit_type: t, ...(name ? { unit_name: name } : {}) },
+    })
   }
 
   // Crew Posts

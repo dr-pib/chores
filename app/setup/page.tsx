@@ -4,8 +4,9 @@ import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import NavBar from '@/components/NavBar'
 import { BAY_OPTIONS } from '@/lib/bays'
+import { formatUnit } from '@/lib/units'
 
-interface Unit { id: number; unit_number: number; unit_type: string }
+interface Unit { id: number; unit_number: number; unit_type: string; unit_name?: string | null }
 interface CrewPostBay { id: number; bay_label: string; sort_order: number }
 interface CrewPost {
   id: number; name: string; default_start_time: string; default_shift_length_hours: number
@@ -181,7 +182,7 @@ export default function SetupPage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Post & schedule */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
-            <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Post &amp; Schedule</h2>
+            <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Crew &amp; Schedule</h2>
             <div>
               <label className="block text-sm text-zinc-300 mb-1.5">Crew</label>
               <select
@@ -189,7 +190,7 @@ export default function SetupPage() {
                 onChange={(e) => handlePostChange(Number(e.target.value))}
                 className={`w-full ${inputClass}`}
               >
-                <option value="">Select post…</option>
+                <option value="">Select crew…</option>
                 {crewPosts.map(p => (
                   <option key={p.id} value={p.id}>{p.name} — {p.station.name}</option>
                 ))}
@@ -280,7 +281,7 @@ export default function SetupPage() {
                   >
                     <option value="">No unit</option>
                     {units.map(u => (
-                      <option key={u.id} value={u.id}>Unit {u.unit_number} ({u.unit_type})</option>
+                      <option key={u.id} value={u.id}>{formatUnit(u)}</option>
                     ))}
                   </select>
 

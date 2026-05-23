@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
+import { formatUnit } from '@/lib/units'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
@@ -36,6 +37,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       primary_employee: true,
       partner_employee: true,
       primary_unit: true,
+      supervisor_confirmed_by: true,
       bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } },
       chores: {
         include: { chore_template: true, unit: true, completed_by: true },
@@ -64,7 +66,11 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               {log.station.name} · {formatDate(log.service_date)}
             </p>
           </div>
-          <span className="px-2.5 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">Confirmed</span>
+          {log.supervisor_confirmed_at ? (
+            <span className="px-2.5 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">Confirmed</span>
+          ) : (
+            <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">Submitted</span>
+          )}
         </div>
 
         {/* Summary cards */}
@@ -81,7 +87,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           )}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
             <div className="text-zinc-500 text-xs mb-1">Unit</div>
-            <div className="text-zinc-100 text-sm font-medium">Unit {log.primary_unit.unit_number}</div>
+            <div className="text-zinc-100 text-sm font-medium">{formatUnit(log.primary_unit, false)}</div>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
             <div className="text-zinc-500 text-xs mb-1">Hours</div>
@@ -97,7 +103,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               <div key={bay.bay_label} className="flex items-center justify-between text-sm">
                 <span className="text-zinc-400">{bay.bay_label}</span>
                 <span className={statusColors[bay.unit_status]}>
-                  {bay.unit ? `Unit ${bay.unit.unit_number} (${bay.unit.unit_type})` : '—'}
+                  {bay.unit ? formatUnit(bay.unit) : '—'}
                   {' · '}{statusLabels[bay.unit_status]}
                 </span>
               </div>

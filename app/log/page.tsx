@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
+import { formatUnit } from '@/lib/units'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
@@ -62,7 +63,7 @@ export default async function LogListPage() {
                           <span className="text-zinc-600 mx-1.5">·</span>
                           {formatTime(log.actual_start)} – {formatTime(log.actual_end)}
                           <span className="text-zinc-600 mx-1.5">·</span>
-                          Unit {log.primary_unit.unit_number}
+                          {formatUnit(log.primary_unit, false)}
                         </div>
                       </div>
                       <div className="text-right shrink-0">

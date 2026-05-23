@@ -45,6 +45,7 @@ model Unit {
   id          Int      @id @default(autoincrement())
   unit_number Int      @unique
   unit_type   String
+  unit_name   String?
   created_at  DateTime @default(now())
 
   default_for_posts CrewPost[]
