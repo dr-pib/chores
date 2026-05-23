@@ -103,7 +103,13 @@ export default function PartnersPage() {
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden divide-y divide-zinc-800">
           {group.map(emp => {
             const state = saveStates[emp.id] ?? 'idle'
-            const otherEmps = employees.filter(e => e.id !== emp.id && e.status !== 'Inactive')
+            const otherEmps = employees
+              .filter(e => e.id !== emp.id && e.status !== 'Inactive')
+              .sort((a, b) => {
+                const aLast = a.name.trim().split(/\s+/).at(-1) ?? ''
+                const bLast = b.name.trim().split(/\s+/).at(-1) ?? ''
+                return aLast.localeCompare(bLast) || a.name.localeCompare(b.name)
+              })
             return (
               <div key={emp.id} className="flex items-center gap-3 px-4 py-2">
                 <div className="w-48 shrink-0">

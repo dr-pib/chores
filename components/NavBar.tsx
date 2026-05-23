@@ -24,7 +24,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   const links = SUPERVISOR_ROLES.includes(userRole)
-    ? [...BASE_LINKS, { href: '/employees', label: 'Employees' }]
+    ? [...BASE_LINKS, { href: '/crew-posts', label: 'Crews' }, { href: '/employees', label: 'Employees' }]
     : BASE_LINKS
 
   async function logout() {
