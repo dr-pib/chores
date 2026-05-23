@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       bay_label: b.bay_label,
       status: 'pending',
       due_at: new Date(startDt.getTime() + 60 * 60 * 1000),
+      chore_date: serviceDate,
     }))
 
   // Check if this employee already has a log today for this post
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
 
   const choresToCreate = [
     ...truckCheckChores,
-    ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: endDt }] : []),
+    ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: endDt, chore_date: serviceDate }] : []),
     ...scheduledPersistentTemplates
       .filter((t) => !existingScheduledTemplateIds.has(t.id))
       .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: endDt })),

@@ -10,7 +10,6 @@ interface CrewPost {
   id: number
   name: string
   default_start_time: string
-  default_shift_length_hours: number
   station: { id: number; name: string }
   default_unit: { id: number; unit_number: number; unit_name: string | null } | null
   default_unit_id: number | null
@@ -34,7 +33,6 @@ export default function EditCrewPostPage() {
   const [units, setUnits] = useState<Unit[]>([])
 
   const [startTime, setStartTime] = useState('')
-  const [shiftLength, setShiftLength] = useState(24)
   const [defaultUnitId, setDefaultUnitId] = useState<number | ''>('')
   const [bays, setBays] = useState<BayRow[]>([])
 
@@ -57,7 +55,6 @@ export default function EditCrewPostPage() {
       setUnits(Array.isArray(unitsData) ? unitsData : [])
 
       setStartTime(postData.default_start_time)
-      setShiftLength(postData.default_shift_length_hours)
       setDefaultUnitId(postData.default_unit_id ?? '')
       setBays(
         postData.bays.length > 0
@@ -98,7 +95,6 @@ export default function EditCrewPostPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           default_start_time: startTime,
-          default_shift_length_hours: shiftLength,
           default_unit_id: defaultUnitId || null,
           bays,
         }),
@@ -142,29 +138,15 @@ export default function EditCrewPostPage() {
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
             <h2 className="text-base font-semibold text-zinc-100 mb-1">Schedule defaults</h2>
             <p className="text-sm text-zinc-500 mb-4">Pre-filled on Shift Setup when this crew is selected.</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="start-time" className={labelClass}>Default start time</label>
-                <input
-                  id="start-time"
-                  type="time"
-                  value={startTime}
-                  onChange={e => setStartTime(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label htmlFor="shift-length" className={labelClass}>Default shift length</label>
-                <select
-                  id="shift-length"
-                  value={shiftLength}
-                  onChange={e => setShiftLength(Number(e.target.value))}
-                  className={inputClass}
-                >
-                  <option value={24}>24 hours</option>
-                  <option value={48}>48 hours</option>
-                </select>
-              </div>
+            <div>
+              <label htmlFor="start-time" className={labelClass}>Default start time</label>
+              <input
+                id="start-time"
+                type="time"
+                value={startTime}
+                onChange={e => setStartTime(e.target.value)}
+                className={inputClass}
+              />
             </div>
           </div>
 
@@ -189,7 +171,7 @@ export default function EditCrewPostPage() {
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-zinc-100">Default bays</h2>
-                <p className="mt-1 text-sm text-zinc-500">Bays pre-populated on Shift Setup for this crew.</p>
+                <p className="mt-1 text-sm text-zinc-500">Typical bays for assigning chores.</p>
               </div>
               <button
                 type="button"

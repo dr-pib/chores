@@ -105,6 +105,7 @@ model OperationsLog {
   supervisor_confirmed_at  DateTime?
   supervisor_confirmed_by_id Int?
   notes                    String?
+  chore_date               DateTime? @db.Date
   created_at               DateTime  @default(now())
 
   crew_post                CrewPost           @relation(fields: [crew_post_id], references: [id])
@@ -156,6 +157,7 @@ model Chore {
   completed_at      DateTime?
   completed_by_id   Int?
   notes             String?
+  chore_date        DateTime? @db.Date
   created_at        DateTime  @default(now())
 
   operations_log OperationsLog @relation(fields: [operations_log_id], references: [id], onDelete: Cascade)

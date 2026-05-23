@@ -5,11 +5,14 @@ import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
 import { formatUnit } from '@/lib/units'
-import { sortChores } from '@/lib/chore-rotation'
+import { sortChores, getStationChoreForPost } from '@/lib/chore-rotation'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+}
+function formatShortDate(d: Date | string) {
+  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })
 }
 function formatTime(d: Date | string) {
   return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
@@ -26,36 +29,69 @@ const statusLabels: Record<string, string> = {
   unit_at_shop: 'At shop',
 }
 
+const LOG_INCLUDE = {
+  crew_post: { include: { station: true } },
+  station: true,
+  primary_employee: true,
+  partner_employee: true,
+  primary_unit: true,
+  supervisor_confirmed_by: true,
+  bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } as const },
+  chores: { include: { chore_template: true, unit: true, completed_by: true } },
+} as const
+
 export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session.isLoggedIn) redirect('/login')
 
   const { id } = await params
-  const log = await prisma.operationsLog.findUnique({
-    where: { id: Number(id) },
-    include: {
-      crew_post: { include: { station: true } },
-      station: true,
-      primary_employee: true,
-      partner_employee: true,
-      primary_unit: true,
-      supervisor_confirmed_by: true,
-      bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } },
-      chores: {
-        include: { chore_template: true, unit: true, completed_by: true },
-      },
-    },
-  })
-
+  let log = await prisma.operationsLog.findUnique({ where: { id: Number(id) }, include: LOG_INCLUDE })
   if (!log) notFound()
 
-  const currentUnitIds = log.bays
-    .filter((bay) => bay.unit_status === 'unit_present' && bay.unit_id !== null)
-    .map((bay) => bay.unit_id!)
+  // Auto-generate Day 2 daily chores once midnight of service_date+1 has passed
+  const shiftMs = log.actual_end.getTime() - log.actual_start.getTime()
+  if (shiftMs >= 48 * 3600 * 1000) {
+    const day2Date = new Date(log.service_date.getTime() + 24 * 3600 * 1000)
+    if (new Date() >= day2Date) {
+      const hasDay2 = log.chores.some(
+        c => c.chore_date && c.chore_date.getTime() === day2Date.getTime()
+          && c.chore_template.lifecycle_type === 'daily_reset'
+      )
+      if (!hasDay2) {
+        const templates = await prisma.choreTemplate.findMany()
+        const truckCheck = templates.find(t => t.name === 'Truck Check')!
+        const day2TruckDue = new Date(day2Date.getTime() + 3600 * 1000) // 01:00 AM
 
-  // Find overdue persistent chores from earlier shifts at this crew post.
-  // Two cases: chores tied to a specific unit (match by unit_id) and chores
-  // with no unit (Monthly/NARC/Quarterly Expires — match by same crew post).
+        const day2Chores = [
+          ...log.bays
+            .filter(b => b.unit_status === 'unit_present' && b.unit_id)
+            .map(b => ({
+              operations_log_id: log!.id,
+              chore_template_id: truckCheck.id,
+              unit_id: b.unit_id!,
+              bay_label: b.bay_label,
+              status: 'pending',
+              due_at: day2TruckDue,
+              chore_date: day2Date,
+            })),
+          ...((() => {
+            const name = getStationChoreForPost(log!.crew_post.name, day2Date.getUTCMonth() + 1)
+            const tmpl = name ? templates.find(t => t.name === name) : null
+            return tmpl ? [{ operations_log_id: log!.id, chore_template_id: tmpl.id, status: 'pending', due_at: log!.actual_end, chore_date: day2Date }] : []
+          })()),
+        ]
+        if (day2Chores.length > 0) {
+          await prisma.chore.createMany({ data: day2Chores })
+          log = (await prisma.operationsLog.findUnique({ where: { id: Number(id) }, include: LOG_INCLUDE }))!
+        }
+      }
+    }
+  }
+
+  const currentUnitIds = log.bays
+    .filter(bay => bay.unit_status === 'unit_present' && bay.unit_id !== null)
+    .map(bay => bay.unit_id!)
+
   const previousPersistentChores = await prisma.chore.findMany({
     where: {
       status: 'pending',
@@ -64,13 +100,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         ...(currentUnitIds.length > 0
           ? [{ unit_id: { in: currentUnitIds }, operations_log: { service_date: { lt: log.service_date } } }]
           : []),
-        {
-          unit_id: null,
-          operations_log: {
-            service_date: { lt: log.service_date },
-            crew_post_id: log.crew_post_id,
-          },
-        },
+        { unit_id: null, operations_log: { service_date: { lt: log.service_date }, crew_post_id: log.crew_post_id } },
       ],
     },
     include: {
@@ -85,21 +115,24 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         },
       },
     },
-    orderBy: [
-      { due_at: 'asc' },
-      { created_at: 'asc' },
-    ],
+    orderBy: [{ due_at: 'asc' }, { created_at: 'asc' }],
   })
 
   const sorted = sortChores(log.chores)
-  const dailyChores = sorted.filter(c => c.chore_template.lifecycle_type === 'daily_reset')
+  const allDailyChores = sorted.filter(c => c.chore_template.lifecycle_type === 'daily_reset')
   const persistentChores = sorted.filter(c => c.chore_template.lifecycle_type === 'persistent_until_complete')
+
+  // Split daily chores into Day 1 / Day 2 by chore_date
+  const day2Date = new Date(log.service_date.getTime() + 24 * 3600 * 1000)
+  const day1Chores = allDailyChores.filter(c => !c.chore_date || c.chore_date.getTime() < day2Date.getTime())
+  const day2Chores = allDailyChores.filter(c => c.chore_date && c.chore_date.getTime() >= day2Date.getTime())
+
   const sortedPreviousPersistentChores = sortChores(previousPersistentChores)
   const isMyLog = log.primary_employee_id === session.userId
   const myChoresForProgress = isMyLog
-    ? [...dailyChores, ...persistentChores, ...sortedPreviousPersistentChores]
+    ? [...allDailyChores, ...persistentChores, ...sortedPreviousPersistentChores]
     : []
-  const myChoresDone = myChoresForProgress.filter((chore) => chore.status === 'completed').length
+  const myChoresDone = myChoresForProgress.filter(c => c.status === 'completed').length
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -184,11 +217,26 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
         {/* Chores */}
         <div className="space-y-5">
-          {dailyChores.length > 0 && (
+          {day1Chores.length > 0 && (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-              <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">Daily Chores</h2>
+              <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                Daily Chores — {formatShortDate(log.service_date)}
+              </h2>
               <div className="space-y-2">
-                {dailyChores.map(chore => (
+                {day1Chores.map(chore => (
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {day2Chores.length > 0 && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                Day 2 Chores — {formatShortDate(day2Date)}
+              </h2>
+              <div className="space-y-2">
+                {day2Chores.map(chore => (
                   <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
                 ))}
               </div>
@@ -210,13 +258,13 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     e !== null && (!isNarc || e.licensure_level === 'NRP')
                   )
                   return (
-                  <div key={chore.id}>
-                    <ChoreItem chore={chore} userRole={session.role} />
-                    <div className="ml-8 text-xs text-zinc-500">
-                      From {chore.operations_log.crew_post.name} · {formatDate(chore.operations_log.service_date)}
-                      {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(e => e.name).join(' & ')}</span>}
+                    <div key={chore.id}>
+                      <ChoreItem chore={chore} userRole={session.role} />
+                      <div className="ml-8 text-xs text-zinc-500">
+                        From {chore.operations_log.crew_post.name} · {formatDate(chore.operations_log.service_date)}
+                        {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(e => e.name).join(' & ')}</span>}
+                      </div>
                     </div>
-                  </div>
                   )
                 })}
               </div>

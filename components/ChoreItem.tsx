@@ -16,12 +16,17 @@ interface Chore {
   chore_template: ChoreTemplate
   unit: Unit | null
   bay_label: string | null
+  chore_date?: Date | string | null
   [key: string]: unknown
 }
 
 function formatTime(d: Date | string | null) {
   if (!d) return ''
   return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+function formatShortDate(d: Date | string) {
+  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })
 }
 
 export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole: string }) {
@@ -42,6 +47,9 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
       } else if (res.status === 409) {
         const data = await res.json()
         setConflictMsg(data.error)
+      } else if (res.status === 403) {
+        const data = await res.json()
+        setConflictMsg(data.error)
       }
     })
   }
@@ -60,6 +68,7 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
 
   const isDone = localStatus === 'completed'
   const isPersistent = chore.chore_template.lifecycle_type === 'persistent_until_complete'
+  const isTruckCheck = chore.chore_template.name === 'Truck Check'
 
   return (
     <div className={`flex items-start gap-3 py-2 rounded-lg ${isDone ? 'opacity-60' : ''}`}>
@@ -87,7 +96,10 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
           <span className={`text-sm font-medium ${isDone ? 'line-through text-zinc-500' : 'text-zinc-100'}`}>
             {chore.chore_template.name}
           </span>
-          {chore.unit && (
+          {isTruckCheck && chore.unit && (
+            <span className="text-sm font-semibold text-blue-300">{formatUnit(chore.unit, false)}</span>
+          )}
+          {!isTruckCheck && chore.unit && (
             <span className="text-xs text-blue-400">{formatUnit(chore.unit, false)}</span>
           )}
           {isPersistent && !isDone && (
@@ -95,6 +107,11 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
           )}
         </div>
         <div className="flex items-center gap-3 mt-0.5">
+          {chore.chore_date && (
+            <span className={`text-xs font-medium ${isDone ? 'text-zinc-600' : 'text-zinc-400'}`}>
+              {formatShortDate(chore.chore_date)}
+            </span>
+          )}
           {chore.due_at && !isDone && (
             <span className="text-xs text-zinc-500">Due {formatTime(chore.due_at)}</span>
           )}
