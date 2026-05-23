@@ -38,6 +38,10 @@ function makeEmptyBay(sortOrder: number, defaultUnitId: number | null = null): B
   return { bay_label: '', unit_id: defaultUnitId, unit_status: 'unit_present', sort_order: sortOrder }
 }
 
+function normalizeBayLabel(label: string) {
+  return label.replace(/^Bay\s+/i, '')
+}
+
 export default function SetupPage() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -76,7 +80,7 @@ export default function SetupPage() {
 
       if (meData.user.default_partner_id) setPartnerId(meData.user.default_partner_id)
     })
-  }, [])
+  }, [router])
 
   function initPostDefaults(post: CrewPost, shiftHours: number) {
     const now = new Date()
@@ -87,7 +91,7 @@ export default function SetupPage() {
     // One bay row per crew post default bay; bay_label blank until user picks
     const defaultBays = post.bays.length > 0
       ? post.bays.map((b, i) => ({
-          bay_label: BAY_OPTIONS.includes(b.bay_label) ? b.bay_label : '',
+          bay_label: BAY_OPTIONS.includes(normalizeBayLabel(b.bay_label)) ? normalizeBayLabel(b.bay_label) : '',
           unit_id: post.default_unit?.id ?? null,
           unit_status: 'unit_present' as const,
           sort_order: i + 1,
@@ -106,7 +110,7 @@ export default function SetupPage() {
     const { bays: prevBays } = await res.json() as { bays: PrevBay[] }
     if (prevBays && prevBays.length > 0) {
       setBays(prevBays.map((pb, i) => ({
-        bay_label: pb.bay_label,
+        bay_label: normalizeBayLabel(pb.bay_label),
         unit_id: pb.unit_id,
         unit_status: (pb.unit_status as BayState['unit_status']) ?? 'unit_present',
         sort_order: i + 1,
@@ -176,16 +180,33 @@ export default function SetupPage() {
   return (
     <div className="min-h-screen bg-zinc-950">
       <NavBar userName={user.name} userRole={user.role} />
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-xl font-bold text-zinc-100 mb-6">Shift Setup</h1>
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-blue-300">Welcome, {user.name}</p>
+            <h1 className="mt-1 text-2xl font-bold text-zinc-100">Set up your shift</h1>
+          </div>
+          {selectedPost && (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
+              {selectedPost.name} · {selectedPost.station.name}
+            </div>
+          )}
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Post & schedule */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
-            <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Crew &amp; Schedule</h2>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-100">Crew &amp; schedule</h2>
+                <p className="mt-1 text-sm text-zinc-500">Defaults are filled from your profile and can be changed for today.</p>
+              </div>
+            </div>
+            <div className="space-y-4">
             <div>
-              <label className="block text-sm text-zinc-300 mb-1.5">Crew</label>
+              <label htmlFor="crew-post" className="block text-sm text-zinc-300 mb-1.5">Crew</label>
               <select
+                id="crew-post"
                 value={selectedPostId ?? ''}
                 onChange={(e) => handlePostChange(Number(e.target.value))}
                 className={`w-full ${inputClass}`}
@@ -200,21 +221,23 @@ export default function SetupPage() {
             {selectedPost && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm text-zinc-300 mb-1.5">Start</label>
-                  <input type="datetime-local" value={startDt} onChange={e => setStartDt(e.target.value)} className={`w-full ${inputClass}`} />
+                  <label htmlFor="shift-start" className="block text-sm text-zinc-300 mb-1.5">Start</label>
+                  <input id="shift-start" type="datetime-local" value={startDt} onChange={e => setStartDt(e.target.value)} className={`w-full ${inputClass}`} />
                 </div>
                 <div>
-                  <label className="block text-sm text-zinc-300 mb-1.5">End</label>
-                  <input type="datetime-local" value={endDt} onChange={e => setEndDt(e.target.value)} className={`w-full ${inputClass}`} />
+                  <label htmlFor="shift-end" className="block text-sm text-zinc-300 mb-1.5">End</label>
+                  <input id="shift-end" type="datetime-local" value={endDt} onChange={e => setEndDt(e.target.value)} className={`w-full ${inputClass}`} />
                 </div>
               </div>
             )}
+            </div>
           </div>
 
           {/* Partner */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-            <label className="block text-sm font-semibold text-zinc-300 uppercase tracking-wider mb-3">Partner</label>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
+            <label htmlFor="partner" className="mb-3 block text-base font-semibold text-zinc-100">Partner</label>
             <select
+              id="partner"
               value={partnerId}
               onChange={e => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
               className={`w-full ${inputClass}`}
@@ -227,24 +250,29 @@ export default function SetupPage() {
           </div>
 
           {/* Trucks */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Trucks</h2>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-100">Trucks</h2>
+                <p className="mt-1 text-sm text-zinc-500">Add each bay your crew is responsible for today.</p>
+              </div>
               <button
                 type="button"
                 onClick={addBay}
-                className="text-xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1 rounded hover:bg-zinc-800 transition-colors"
+                className="shrink-0 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20"
               >
                 + Add truck
               </button>
             </div>
 
             {bays.length === 0 && (
-              <p className="text-zinc-500 text-sm">No trucks added. Click "+ Add truck" to start.</p>
+              <p className="rounded-lg border border-dashed border-zinc-700 px-4 py-5 text-center text-sm text-zinc-500">
+                No trucks added yet.
+              </p>
             )}
 
             {bays.length > 0 && (
-              <div className="flex items-center gap-2 pb-1">
+              <div className="hidden items-center gap-2 pb-2 sm:flex">
                 <span className="w-28 text-xs font-medium text-zinc-500 uppercase tracking-wider">Bay</span>
                 <span className="flex-1 text-xs font-medium text-zinc-500 uppercase tracking-wider">Unit</span>
                 <span className="w-36 text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</span>
@@ -255,13 +283,17 @@ export default function SetupPage() {
             {bays.map((bay, i) => {
               const alreadyUsed = usedBays(i).includes(bay.bay_label) && bay.bay_label !== ''
               return (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3 sm:grid-cols-[7rem_minmax(0,1fr)_9rem_1.5rem] sm:items-end sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0">
                   {/* Bay selector */}
-                  <div className="flex flex-col gap-0.5">
+                  <div>
+                    <label htmlFor={`bay-${i}`} className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">
+                      Bay
+                    </label>
                     <select
+                      id={`bay-${i}`}
                       value={bay.bay_label}
                       onChange={e => updateBay(i, 'bay_label', e.target.value)}
-                      className={`w-28 ${inputClass} ${alreadyUsed ? 'border-yellow-600' : ''}`}
+                      className={`w-full ${inputClass} ${alreadyUsed ? 'border-yellow-600' : ''}`}
                       aria-label="Bay"
                     >
                       <option value="">Bay…</option>
@@ -272,39 +304,51 @@ export default function SetupPage() {
                   </div>
 
                   {/* Unit selector */}
-                  <select
-                    value={bay.unit_id ?? ''}
-                    onChange={e => updateBay(i, 'unit_id', e.target.value ? Number(e.target.value) : null)}
-                    disabled={bay.unit_status !== 'unit_present'}
-                    className={`flex-1 ${inputClass}`}
-                    aria-label="Unit"
-                  >
-                    <option value="">No unit</option>
-                    {units.map(u => (
-                      <option key={u.id} value={u.id}>{formatUnit(u)}</option>
-                    ))}
-                  </select>
+                  <div>
+                    <label htmlFor={`unit-${i}`} className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">
+                      Unit
+                    </label>
+                    <select
+                      id={`unit-${i}`}
+                      value={bay.unit_id ?? ''}
+                      onChange={e => updateBay(i, 'unit_id', e.target.value ? Number(e.target.value) : null)}
+                      disabled={bay.unit_status !== 'unit_present'}
+                      className={`w-full ${inputClass}`}
+                      aria-label="Unit"
+                    >
+                      <option value="">No unit</option>
+                      {units.map(u => (
+                        <option key={u.id} value={u.id}>{formatUnit(u)}</option>
+                      ))}
+                    </select>
+                  </div>
 
                   {/* Status selector */}
-                  <select
-                    value={bay.unit_status}
-                    onChange={e => {
-                      updateBay(i, 'unit_status', e.target.value)
-                      if (e.target.value !== 'unit_present') updateBay(i, 'unit_id', null)
-                    }}
-                    className={`w-36 ${inputClass}`}
-                    aria-label="Status"
-                  >
-                    <option value="unit_present">Present</option>
-                    <option value="empty_bay">Empty bay</option>
-                    <option value="unit_at_shop">At shop</option>
-                  </select>
+                  <div>
+                    <label htmlFor={`status-${i}`} className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">
+                      Status
+                    </label>
+                    <select
+                      id={`status-${i}`}
+                      value={bay.unit_status}
+                      onChange={e => {
+                        updateBay(i, 'unit_status', e.target.value)
+                        if (e.target.value !== 'unit_present') updateBay(i, 'unit_id', null)
+                      }}
+                      className={`w-full ${inputClass}`}
+                      aria-label="Status"
+                    >
+                      <option value="unit_present">Present</option>
+                      <option value="empty_bay">Empty bay</option>
+                      <option value="unit_at_shop">At shop</option>
+                    </select>
+                  </div>
 
                   {/* Remove */}
                   <button
                     type="button"
                     onClick={() => removeBay(i)}
-                    className="text-zinc-600 hover:text-red-400 p-1 rounded transition-colors shrink-0"
+                    className="rounded p-2 text-zinc-600 transition-colors hover:text-red-400 sm:p-1"
                     aria-label="Remove bay"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

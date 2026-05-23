@@ -104,8 +104,8 @@ async function main() {
     default_crew_post_id?: number; default_shift_length_hours?: number
   }) => prisma.employee.upsert({ where: { email_username: data.email_username }, update: {}, create: data })
 
-  const admin = await emp({ name: 'Admin User', email_username: 'admin', emt_number: '0001', licensure_level: 'NRP', role: 'Dom' })
-  const supervisor = await emp({ name: 'Alex Rivera', email_username: 'arivera', emt_number: '1001', licensure_level: 'NRP', role: 'Supervisor', default_crew_post_id: supervisorPost.id })
+  await emp({ name: 'Admin User', email_username: 'admin', emt_number: '0001', licensure_level: 'NRP', role: 'Dom' })
+  await emp({ name: 'Alex Rivera', email_username: 'arivera', emt_number: '1001', licensure_level: 'NRP', role: 'Supervisor', default_crew_post_id: supervisorPost.id })
   const jones = await emp({ name: 'Jordan Jones', email_username: 'jjones', emt_number: '2001', licensure_level: 'NRP', role: 'Employee', default_crew_post_id: post247.id })
   const smith = await emp({ name: 'Sam Smith', email_username: 'ssmith', emt_number: '2002', licensure_level: 'EMT-A', role: 'Employee', default_crew_post_id: post247.id })
   const davis = await emp({ name: 'Casey Davis', email_username: 'cdavis', emt_number: '3001', licensure_level: 'NRP', role: 'Employee', default_crew_post_id: post248.id })

@@ -22,8 +22,8 @@ export default function LoginPage() {
       if (res.ok) {
         router.push('/setup')
       } else {
-        const data = await res.json()
-        setError(data.error ?? 'Login failed')
+        const data = await res.json().catch(() => null)
+        setError(data?.error ?? 'Login failed')
       }
     })
   }
@@ -39,10 +39,11 @@ export default function LoginPage() {
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+              <label htmlFor="email-username" className="block text-sm font-medium text-zinc-300 mb-1.5">
                 Email username
               </label>
               <input
+                id="email-username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -55,10 +56,11 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+              <label htmlFor="emt-number" className="block text-sm font-medium text-zinc-300 mb-1.5">
                 EMT number
               </label>
               <input
+                id="emt-number"
                 type="text"
                 value={emtNumber}
                 onChange={(e) => setEmtNumber(e.target.value)}

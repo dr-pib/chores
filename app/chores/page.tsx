@@ -10,6 +10,51 @@ function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+interface ChoreTemplate { name: string; lifecycle_type: string; due_offset_hours: number | null }
+interface Unit { unit_number: number; unit_type: string; unit_name?: string | null }
+interface Employee { name: string }
+interface Chore {
+  id: number
+  status: string
+  due_at: Date | string | null
+  completed_at: Date | string | null
+  completed_by: Employee | null
+  chore_template: ChoreTemplate
+  unit: Unit | null
+  bay_label: string | null
+  [key: string]: unknown
+}
+interface LogWithChores {
+  id: number
+  crew_post: { name: string }
+  primary_employee: { name: string }
+  chores: Chore[]
+}
+
+function LogBox({ log, highlight, userRole }: { log: LogWithChores; highlight?: boolean; userRole: string }) {
+  const sorted = sortChores(log.chores)
+  const done = sorted.filter(c => c.status === 'completed').length
+  const borderClass = highlight
+    ? 'border-blue-600 bg-blue-950/20'
+    : 'border-zinc-800 bg-zinc-900'
+  return (
+    <div className={`border rounded-xl p-4 ${borderClass}`}>
+      <div className="flex items-center justify-between mb-3">
+        <Link href={`/log/${log.id}`} className="flex items-center gap-2 hover:text-blue-400 transition-colors">
+          <span className="font-semibold text-zinc-100">{log.crew_post.name}</span>
+          <span className="text-zinc-500 text-sm">— {log.primary_employee.name}</span>
+        </Link>
+        <span className="text-xs text-zinc-500">{done}/{sorted.length}</span>
+      </div>
+      <div className="space-y-1">
+        {sorted.map(chore => (
+          <ChoreItem key={chore.id} chore={chore} userRole={userRole} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default async function ChoresPage() {
   const session = await getSession()
   if (!session.isLoggedIn) redirect('/login')
@@ -51,30 +96,6 @@ export default async function ChoresPage() {
 
   const totalToday = logs.reduce((s, l) => s + l.chores.length, 0)
   const doneToday = logs.reduce((s, l) => s + l.chores.filter(c => c.status === 'completed').length, 0)
-
-  function LogBox({ log, highlight }: { log: typeof logs[0]; highlight?: boolean }) {
-    const sorted = sortChores(log.chores)
-    const done = sorted.filter(c => c.status === 'completed').length
-    const borderClass = highlight
-      ? 'border-blue-600 bg-blue-950/20'
-      : 'border-zinc-800 bg-zinc-900'
-    return (
-      <div className={`border rounded-xl p-4 ${borderClass}`}>
-        <div className="flex items-center justify-between mb-3">
-          <Link href={`/log/${log.id}`} className="flex items-center gap-2 hover:text-blue-400 transition-colors">
-            <span className="font-semibold text-zinc-100">{log.crew_post.name}</span>
-            <span className="text-zinc-500 text-sm">— {log.primary_employee.name}</span>
-          </Link>
-          <span className="text-xs text-zinc-500">{done}/{sorted.length}</span>
-        </div>
-        <div className="space-y-1">
-          {sorted.map(chore => (
-            <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
-          ))}
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -129,7 +150,7 @@ export default async function ChoresPage() {
             {myLog && (
               <>
                 <h2 className="text-xs font-semibold text-blue-400 uppercase tracking-wider">My Shift</h2>
-                <LogBox log={myLog} highlight />
+                <LogBox log={myLog} highlight userRole={session.role} />
               </>
             )}
 
@@ -140,7 +161,7 @@ export default async function ChoresPage() {
                   <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider pt-1">Other Crews</h2>
                 )}
                 {otherLogs.map(log => (
-                  <LogBox key={log.id} log={log} />
+                  <LogBox key={log.id} log={log} userRole={session.role} />
                 ))}
               </>
             )}

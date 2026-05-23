@@ -9,10 +9,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing credentials' }, { status: 400 })
   }
 
-  const employee = await prisma.employee.findFirst({
-    where: { email_username: email_username.toLowerCase().trim(), emt_number: emt_number.trim() },
-    include: { default_post: true },
-  })
+  let employee
+  try {
+    employee = await prisma.employee.findFirst({
+      where: { email_username: email_username.toLowerCase().trim(), emt_number: emt_number.trim() },
+      include: { default_post: true },
+    })
+  } catch (error) {
+    console.error('Login lookup failed', error)
+    return NextResponse.json({ error: 'Unable to verify credentials right now' }, { status: 503 })
+  }
 
   if (!employee) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
