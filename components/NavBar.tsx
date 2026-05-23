@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface NavBarProps {
   userName: string
@@ -17,11 +17,32 @@ const BASE_LINKS = [
 ]
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
+const BADGE_COLORS: Record<string, string> = {
+  blue: 'bg-blue-500 text-white',
+  amber: 'bg-amber-400 text-zinc-950',
+  red: 'bg-red-500 text-white',
+}
+
+interface BadgeState {
+  myChores: { count: number; color: keyof typeof BADGE_COLORS | null }
+  everyoneChores: { count: number; color: keyof typeof BADGE_COLORS | null }
+}
+
+function NavBadge({ count, color }: { count: number; color: keyof typeof BADGE_COLORS | null }) {
+  if (!color || count <= 0) return null
+
+  return (
+    <span className={`ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold leading-none ${BADGE_COLORS[color]}`}>
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
 
 export default function NavBar({ userName, userRole }: NavBarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [badges, setBadges] = useState<BadgeState | null>(null)
 
   const links = SUPERVISOR_ROLES.includes(userRole)
     ? [...BASE_LINKS, { href: '/crew-posts', label: 'Crews' }, { href: '/employees', label: 'Employees' }, { href: '/chore-templates', label: 'Chores' }]
@@ -30,6 +51,32 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
+  }
+
+  useEffect(() => {
+    let ignore = false
+
+    async function loadBadges() {
+      try {
+        const res = await fetch('/api/badges', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!ignore) setBadges(data)
+      } catch {
+        if (!ignore) setBadges(null)
+      }
+    }
+
+    loadBadges()
+    return () => {
+      ignore = true
+    }
+  }, [pathname])
+
+  function badgeFor(href: string) {
+    if (href === '/my-chores') return badges?.myChores ?? null
+    if (href === '/chores') return badges?.everyoneChores ?? null
+    return null
   }
 
   return (
@@ -51,7 +98,10 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
                   : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
               }`}
             >
-              {l.label}
+              <span className="inline-flex items-center">
+                {l.label}
+                <NavBadge count={badgeFor(l.href)?.count ?? 0} color={badgeFor(l.href)?.color ?? null} />
+              </span>
             </Link>
           ))}
         </div>
@@ -98,7 +148,10 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
                   : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
               }`}
             >
-              {l.label}
+              <span className="inline-flex items-center">
+                {l.label}
+                <NavBadge count={badgeFor(l.href)?.count ?? 0} color={badgeFor(l.href)?.color ?? null} />
+              </span>
             </Link>
           ))}
           <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">

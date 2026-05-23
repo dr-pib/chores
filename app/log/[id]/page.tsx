@@ -106,11 +106,15 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
     where: {
       status: 'pending',
       chore_template: { lifecycle_type: 'persistent_until_complete' },
+      operations_log: { service_date: { lt: log.service_date } },
       OR: [
         ...(currentUnitIds.length > 0
-          ? [{ unit_id: { in: currentUnitIds }, operations_log: { service_date: { lt: log.service_date } } }]
+          ? [
+              { unit_id: { in: currentUnitIds } },
+              { unit_id: null, operations_log: { bays: { some: { unit_id: { in: currentUnitIds } } } } },
+            ]
           : []),
-        { unit_id: null, operations_log: { service_date: { lt: log.service_date }, crew_post_id: log.crew_post_id } },
+        { unit_id: null, operations_log: { crew_post_id: log.crew_post_id } },
       ],
     },
     include: {
