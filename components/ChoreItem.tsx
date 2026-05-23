@@ -45,6 +45,18 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
     })
   }
 
+  async function uncomplete() {
+    if (!window.confirm('Uncheck this task?')) return
+    setConflictMsg('')
+    startTransition(async () => {
+      const res = await fetch(`/api/chores/${chore.id}/uncomplete`, { method: 'POST' })
+      if (res.ok) {
+        setLocalStatus('pending')
+        router.refresh()
+      }
+    })
+  }
+
   const isDone = localStatus === 'completed'
   const isPersistent = chore.chore_template.lifecycle_type === 'persistent_until_complete'
 
@@ -52,12 +64,12 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
     <div className={`flex items-start gap-3 py-2 rounded-lg ${isDone ? 'opacity-60' : ''}`}>
       {/* Status icon */}
       <button
-        onClick={!isDone ? complete : undefined}
-        disabled={isPending || isDone}
-        aria-label={isDone ? 'Completed' : 'Mark complete'}
+        onClick={isDone ? uncomplete : complete}
+        disabled={isPending}
+        aria-label={isDone ? 'Uncheck task' : 'Mark complete'}
         className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
           isDone
-            ? 'border-green-500 bg-green-500'
+            ? 'border-green-500 bg-green-500 hover:border-red-400 hover:bg-red-500 cursor-pointer'
             : 'border-zinc-600 hover:border-blue-400 cursor-pointer'
         } ${isPending ? 'opacity-50' : ''}`}
       >
