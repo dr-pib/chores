@@ -7,7 +7,7 @@ import { BAY_OPTIONS } from '@/lib/bays'
 import { formatUnit } from '@/lib/units'
 
 interface Unit { id: number; unit_number: number; unit_type: string; unit_name?: string | null }
-interface CrewPostBay { id: number; bay_label: string; sort_order: number }
+interface CrewPostBay { id: number; bay_label: string; unit_id: number | null; sort_order: number }
 interface CrewPost {
   id: number; name: string; default_start_time: string; default_shift_length_hours: number
   station: { id: number; name: string }; default_unit: Unit | null; bays: CrewPostBay[]
@@ -88,11 +88,11 @@ export default function SetupPage() {
     const end = new Date(start.getTime() + shiftHours * 60 * 60 * 1000)
     setStartDt(formatLocalDatetime(start))
     setEndDt(formatLocalDatetime(end))
-    // One bay row per crew post default bay; bay_label blank until user picks
+    // One bay row per crew post default bay; use per-bay unit_id (fallback to crew default for bay 1 only)
     const defaultBays = post.bays.length > 0
       ? post.bays.map((b, i) => ({
           bay_label: BAY_OPTIONS.includes(normalizeBayLabel(b.bay_label)) ? normalizeBayLabel(b.bay_label) : '',
-          unit_id: post.default_unit?.id ?? null,
+          unit_id: b.unit_id ?? (i === 0 ? (post.default_unit?.id ?? null) : null),
           unit_status: 'unit_present' as const,
           sort_order: i + 1,
         }))

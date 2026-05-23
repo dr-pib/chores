@@ -129,20 +129,24 @@ async function main() {
     create: { name: 'NC-ALS', station_id: newtonCounty.id, default_start_time: '07:00', default_shift_length_hours: 24, default_unit_id: units[2].id },
   })
 
-  // Crew Post Bays — Harrison posts have 2 bays, remote posts have 1
-  for (const post of [supervisorPost, post247, post248, swingPost, dcAlsPost, ncAlsPost]) {
-    await prisma.crewPostBay.upsert({
-      where: { crew_post_id_bay_label: { crew_post_id: post.id, bay_label: 'Bay 1' } },
-      update: {},
-      create: { crew_post_id: post.id, bay_label: 'Bay 1', sort_order: 1 },
-    })
+  // Crew Post Bays — only seed on first run; skip if crew already has bays (preserves admin edits)
+  const twoBayPosts = [supervisorPost, post247, post248, swingPost]
+  const oneBayPosts = [dcAlsPost, ncAlsPost]
+  for (const post of [...twoBayPosts, ...oneBayPosts]) {
+    const existing = await prisma.crewPostBay.count({ where: { crew_post_id: post.id } })
+    if (existing === 0) {
+      await prisma.crewPostBay.create({
+        data: { crew_post_id: post.id, bay_label: 'Bay 1', unit_id: post.default_unit_id, sort_order: 1 },
+      })
+    }
   }
-  for (const post of [supervisorPost, post247, post248, swingPost]) {
-    await prisma.crewPostBay.upsert({
-      where: { crew_post_id_bay_label: { crew_post_id: post.id, bay_label: 'Bay 2' } },
-      update: {},
-      create: { crew_post_id: post.id, bay_label: 'Bay 2', sort_order: 2 },
-    })
+  for (const post of twoBayPosts) {
+    const existing = await prisma.crewPostBay.count({ where: { crew_post_id: post.id } })
+    if (existing < 2) {
+      await prisma.crewPostBay.create({
+        data: { crew_post_id: post.id, bay_label: 'Bay 2', sort_order: 2 },
+      })
+    }
   }
 
   // Rename legacy "Admin" template to "Bathroom" if it exists

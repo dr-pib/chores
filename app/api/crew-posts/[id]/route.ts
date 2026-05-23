@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     include: {
       station: true,
       default_unit: true,
-      bays: { orderBy: { sort_order: 'asc' } },
+      bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } },
     },
   })
 
@@ -39,16 +39,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       default_unit_id: default_unit_id || null,
       bays: {
         deleteMany: {},
-        create: (bays as { bay_label: string; sort_order: number }[]).map(b => ({
-          bay_label: b.bay_label,
-          sort_order: b.sort_order,
-        })),
+        create: (bays as { bay_label: string; unit_id: number | null; sort_order: number }[])
+          .filter(b => b.bay_label)
+          .map(b => ({
+            bay_label: b.bay_label,
+            unit_id: b.unit_id ?? null,
+            sort_order: b.sort_order,
+          })),
       },
     },
     include: {
       station: true,
       default_unit: true,
-      bays: { orderBy: { sort_order: 'asc' } },
+      bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } },
     },
   })
 

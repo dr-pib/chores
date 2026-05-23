@@ -53,10 +53,11 @@ model Unit {
   unit_name   String?
   created_at  DateTime @default(now())
 
-  default_for_posts CrewPost[]
-  primary_in_logs   OperationsLog[]    @relation("PrimaryUnit")
-  in_bays           OperationsLogBay[]
-  in_chores         Chore[]            @relation("ChoreUnit")
+  default_for_posts   CrewPost[]
+  primary_in_logs     OperationsLog[]    @relation("PrimaryUnit")
+  in_bays             OperationsLogBay[]
+  in_chores           Chore[]            @relation("ChoreUnit")
+  in_crew_post_bays   CrewPostBay[]      @relation("CrewPostBayUnit")
 
   @@map("units")
 }
@@ -83,9 +84,11 @@ model CrewPostBay {
   id           Int    @id @default(autoincrement())
   crew_post_id Int
   bay_label    String
+  unit_id      Int?
   sort_order   Int
 
   crew_post CrewPost @relation(fields: [crew_post_id], references: [id])
+  unit      Unit?    @relation("CrewPostBayUnit", fields: [unit_id], references: [id])
 
   @@unique([crew_post_id, bay_label])
   @@map("crew_post_bays")

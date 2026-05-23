@@ -10,7 +10,7 @@ export async function GET() {
     include: {
       station: true,
       default_unit: true,
-      bays: { orderBy: { sort_order: 'asc' } },
+      bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } },
     },
     orderBy: { name: 'asc' },
   })

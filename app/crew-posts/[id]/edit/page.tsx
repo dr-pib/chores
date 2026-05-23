@@ -6,19 +6,19 @@ import NavBar from '@/components/NavBar'
 import { BAY_OPTIONS } from '@/lib/bays'
 import { formatUnit } from '@/lib/units'
 
+interface Unit { id: number; unit_number: number; unit_type: string; unit_name: string | null }
+
 interface CrewPost {
   id: number
   name: string
   default_start_time: string
   station: { id: number; name: string }
-  default_unit: { id: number; unit_number: number; unit_name: string | null } | null
+  default_unit: Unit | null
   default_unit_id: number | null
-  bays: { id: number; bay_label: string; sort_order: number }[]
+  bays: { id: number; bay_label: string; unit_id: number | null; unit: Unit | null; sort_order: number }[]
 }
 
-interface Unit { id: number; unit_number: number; unit_type: string; unit_name: string | null }
-
-interface BayRow { bay_label: string; sort_order: number }
+interface BayRow { bay_label: string; unit_id: number | null; sort_order: number }
 
 const inputClass = 'px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full'
 const labelClass = 'block text-sm text-zinc-300 mb-1.5'
@@ -58,22 +58,26 @@ export default function EditCrewPostPage() {
       setDefaultUnitId(postData.default_unit_id ?? '')
       setBays(
         postData.bays.length > 0
-          ? postData.bays.map((b: { bay_label: string; sort_order: number }) => ({ bay_label: b.bay_label, sort_order: b.sort_order }))
-          : [{ bay_label: '', sort_order: 1 }]
+          ? postData.bays.map((b: { bay_label: string; unit_id: number | null; sort_order: number }) => ({
+              bay_label: b.bay_label,
+              unit_id: b.unit_id ?? null,
+              sort_order: b.sort_order,
+            }))
+          : [{ bay_label: '', unit_id: null, sort_order: 1 }]
       )
     })
   }, [postId, router])
 
   function addBay() {
-    setBays(prev => [...prev, { bay_label: '', sort_order: prev.length + 1 }])
+    setBays(prev => [...prev, { bay_label: '', unit_id: null, sort_order: prev.length + 1 }])
   }
 
   function removeBay(index: number) {
     setBays(prev => prev.filter((_, i) => i !== index).map((b, i) => ({ ...b, sort_order: i + 1 })))
   }
 
-  function updateBayLabel(index: number, label: string) {
-    setBays(prev => prev.map((b, i) => i === index ? { ...b, bay_label: label } : b))
+  function updateBay(index: number, field: 'bay_label' | 'unit_id', value: string | number | null) {
+    setBays(prev => prev.map((b, i) => i === index ? { ...b, [field]: value } : b))
   }
 
   const usedLabels = (currentIndex: number) =>
@@ -83,7 +87,7 @@ export default function EditCrewPostPage() {
     e.preventDefault()
     if (!startTime) { setError('Start time is required'); return }
     const emptyBay = bays.find(b => !b.bay_label)
-    if (emptyBay) { setError('Select a bay for each row, or remove empty rows'); return }
+    if (emptyBay) { setError('Select a bay label for each row, or remove empty rows'); return }
     const dupBay = bays.find((b, i) => usedLabels(i).includes(b.bay_label))
     if (dupBay) { setError(`Bay ${dupBay.bay_label} is listed more than once`); return }
 
@@ -152,14 +156,14 @@ export default function EditCrewPostPage() {
 
           {/* Default truck */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
-            <h2 className="text-base font-semibold text-zinc-100 mb-1">Default truck</h2>
-            <p className="text-sm text-zinc-500 mb-4">The unit most commonly used by this crew.</p>
+            <h2 className="text-base font-semibold text-zinc-100 mb-1">Primary truck</h2>
+            <p className="text-sm text-zinc-500 mb-4">The unit most commonly associated with this crew (used for display).</p>
             <select
               value={defaultUnitId}
               onChange={e => setDefaultUnitId(e.target.value ? Number(e.target.value) : '')}
               className={inputClass}
             >
-              <option value="">No default truck</option>
+              <option value="">No primary truck</option>
               {units.map(u => (
                 <option key={u.id} value={u.id}>{formatUnit(u)}</option>
               ))}
@@ -170,8 +174,8 @@ export default function EditCrewPostPage() {
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-zinc-100">Default bays</h2>
-                <p className="mt-1 text-sm text-zinc-500">Typical bays for assigning chores.</p>
+                <h2 className="text-base font-semibold text-zinc-100">Typical bays</h2>
+                <p className="mt-1 text-sm text-zinc-500">Set the bay and the usual truck parked there. Leave the truck blank if it varies shift to shift.</p>
               </div>
               <button
                 type="button"
@@ -188,26 +192,50 @@ export default function EditCrewPostPage() {
               </p>
             )}
 
+            {bays.length > 0 && (
+              <div className="hidden sm:grid sm:grid-cols-[7rem_minmax(0,1fr)_1.5rem] gap-2 pb-1">
+                <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">Bay</span>
+                <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">Default truck</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               {bays.map((bay, i) => {
                 const isDup = usedLabels(i).includes(bay.bay_label) && bay.bay_label !== ''
                 return (
-                  <div key={i} className="flex items-center gap-2">
-                    <select
-                      value={bay.bay_label}
-                      onChange={e => updateBayLabel(i, e.target.value)}
-                      className={`flex-1 ${inputClass} ${isDup ? 'border-yellow-600' : ''}`}
-                      aria-label={`Bay ${i + 1}`}
-                    >
-                      <option value="">Select bay…</option>
-                      {BAY_OPTIONS.map(b => (
-                        <option key={b} value={b}>Bay {b}</option>
-                      ))}
-                    </select>
+                  <div key={i} className="grid gap-2 sm:grid-cols-[7rem_minmax(0,1fr)_1.5rem] sm:items-center rounded-lg border border-zinc-800 bg-zinc-950/40 p-3 sm:border-0 sm:bg-transparent sm:p-0">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">Bay</label>
+                      <select
+                        value={bay.bay_label}
+                        onChange={e => updateBay(i, 'bay_label', e.target.value)}
+                        className={`w-full ${inputClass} ${isDup ? 'border-yellow-600' : ''}`}
+                        aria-label={`Bay ${i + 1}`}
+                      >
+                        <option value="">Select bay…</option>
+                        {BAY_OPTIONS.map(b => (
+                          <option key={b} value={b}>Bay {b}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">Default truck</label>
+                      <select
+                        value={bay.unit_id ?? ''}
+                        onChange={e => updateBay(i, 'unit_id', e.target.value ? Number(e.target.value) : null)}
+                        className={`w-full ${inputClass}`}
+                        aria-label="Default truck for bay"
+                      >
+                        <option value="">Varies / unknown</option>
+                        {units.map(u => (
+                          <option key={u.id} value={u.id}>{formatUnit(u)}</option>
+                        ))}
+                      </select>
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeBay(i)}
-                      className="rounded p-2 text-zinc-600 transition-colors hover:text-red-400"
+                      className="justify-self-end rounded p-1 text-zinc-600 transition-colors hover:text-red-400"
                       aria-label="Remove bay"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
