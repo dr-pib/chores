@@ -52,26 +52,38 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   const currentUnitIds = log.bays
     .filter((bay) => bay.unit_status === 'unit_present' && bay.unit_id !== null)
     .map((bay) => bay.unit_id!)
-  const previousPersistentChores = currentUnitIds.length > 0
-    ? await prisma.chore.findMany({
-        where: {
-          status: 'pending',
-          unit_id: { in: currentUnitIds },
-          chore_template: { lifecycle_type: 'persistent_until_complete' },
-          operations_log: { service_date: { lt: log.service_date } },
+
+  // Find overdue persistent chores from earlier shifts at this crew post.
+  // Two cases: chores tied to a specific unit (match by unit_id) and chores
+  // with no unit (Monthly/NARC/Quarterly Expires — match by same crew post).
+  const previousPersistentChores = await prisma.chore.findMany({
+    where: {
+      status: 'pending',
+      chore_template: { lifecycle_type: 'persistent_until_complete' },
+      OR: [
+        ...(currentUnitIds.length > 0
+          ? [{ unit_id: { in: currentUnitIds }, operations_log: { service_date: { lt: log.service_date } } }]
+          : []),
+        {
+          unit_id: null,
+          operations_log: {
+            service_date: { lt: log.service_date },
+            crew_post_id: log.crew_post_id,
+          },
         },
-        include: {
-          chore_template: true,
-          unit: true,
-          completed_by: true,
-          operations_log: { include: { crew_post: true } },
-        },
-        orderBy: [
-          { due_at: 'asc' },
-          { created_at: 'asc' },
-        ],
-      })
-    : []
+      ],
+    },
+    include: {
+      chore_template: true,
+      unit: true,
+      completed_by: true,
+      operations_log: { include: { crew_post: true } },
+    },
+    orderBy: [
+      { due_at: 'asc' },
+      { created_at: 'asc' },
+    ],
+  })
 
   const sorted = sortChores(log.chores)
   const dailyChores = sorted.filter(c => c.chore_template.lifecycle_type === 'daily_reset')
