@@ -153,8 +153,10 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       <NavBar userName={session.name} userRole={session.role} />
       <div className="max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-1">
-          <Link href="/log" className="text-zinc-500 hover:text-zinc-300 text-sm">← Operations Log</Link>
+        <div className={`flex items-center mb-1 ${isMyLog ? 'justify-end' : 'justify-between'}`}>
+          {!isMyLog && (
+            <Link href="/log" className="text-zinc-500 hover:text-zinc-300 text-sm">← Today&apos;s Roster</Link>
+          )}
           {(isMyLog || ['Dom', 'Admin', 'Supervisor'].includes(session.role)) && (
             <DeleteShiftButton logId={log.id} />
           )}
