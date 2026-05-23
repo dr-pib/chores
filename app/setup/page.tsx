@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import NavBar from '@/components/NavBar'
+import { BAY_OPTIONS } from '@/lib/bays'
 
 interface Unit { id: number; unit_number: number; unit_type: string }
 interface CrewPostBay { id: number; bay_label: string; sort_order: number }
@@ -20,6 +21,8 @@ interface BayState {
   sort_order: number
 }
 
+const inputClass = 'px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50'
+
 function formatLocalDatetime(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
@@ -28,6 +31,10 @@ function formatLocalDatetime(date: Date) {
 function buildDefaultStart(post: CrewPost, baseDate: Date): Date {
   const [h, m] = post.default_start_time.split(':').map(Number)
   return new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), h, m)
+}
+
+function makeEmptyBay(sortOrder: number, defaultUnitId: number | null = null): BayState {
+  return { bay_label: '', unit_id: defaultUnitId, unit_status: 'unit_present', sort_order: sortOrder }
 }
 
 export default function SetupPage() {
@@ -46,7 +53,6 @@ export default function SetupPage() {
   const [partnerId, setPartnerId] = useState<number | ''>('')
   const [bays, setBays] = useState<BayState[]>([])
 
-  // Load initial data
   useEffect(() => {
     Promise.all([
       fetch('/api/me').then(r => r.json()),
@@ -64,48 +70,46 @@ export default function SetupPage() {
       if (defaultPostId) {
         setSelectedPostId(defaultPostId)
         const post = postsData.find((p: CrewPost) => p.id === defaultPostId)
-        if (post) initPostDefaults(post, meData.user.default_shift_length_hours ?? 24, unitsData)
+        if (post) initPostDefaults(post, meData.user.default_shift_length_hours ?? 24)
       }
 
       if (meData.user.default_partner_id) setPartnerId(meData.user.default_partner_id)
     })
   }, [])
 
-  function initPostDefaults(post: CrewPost, shiftHours: number, allUnits: Unit[]) {
+  function initPostDefaults(post: CrewPost, shiftHours: number) {
     const now = new Date()
     const start = buildDefaultStart(post, now)
     const end = new Date(start.getTime() + shiftHours * 60 * 60 * 1000)
     setStartDt(formatLocalDatetime(start))
     setEndDt(formatLocalDatetime(end))
-    const defaultBays = post.bays.map((b) => ({
-      bay_label: b.bay_label,
-      unit_id: post.default_unit?.id ?? null,
-      unit_status: 'unit_present' as const,
-      sort_order: b.sort_order,
-    }))
+    // One bay row per crew post default bay; bay_label blank until user picks
+    const defaultBays = post.bays.length > 0
+      ? post.bays.map((b, i) => ({
+          bay_label: BAY_OPTIONS.includes(b.bay_label) ? b.bay_label : '',
+          unit_id: post.default_unit?.id ?? null,
+          unit_status: 'unit_present' as const,
+          sort_order: i + 1,
+        }))
+      : [makeEmptyBay(1, post.default_unit?.id ?? null)]
     setBays(defaultBays)
   }
 
-  // When post changes, update defaults and load previous bay data
   async function handlePostChange(postId: number) {
     setSelectedPostId(postId)
     const post = crewPosts.find(p => p.id === postId)
     if (!post || !user) return
-    initPostDefaults(post, user.default_shift_length_hours ?? 24, units)
+    initPostDefaults(post, user.default_shift_length_hours ?? 24)
 
-    // Load previous bay data
     const res = await fetch(`/api/operations-logs/previous-bay?crew_post_id=${postId}`)
-    const { bays: prevBays } = await res.json()
+    const { bays: prevBays } = await res.json() as { bays: PrevBay[] }
     if (prevBays && prevBays.length > 0) {
-      setBays(post.bays.map((b, i) => {
-        const prev: PrevBay | undefined = prevBays.find((pb: PrevBay) => pb.bay_label === b.bay_label) ?? prevBays[i]
-        return {
-          bay_label: b.bay_label,
-          unit_id: prev?.unit_id ?? post.default_unit?.id ?? null,
-          unit_status: (prev?.unit_status as BayState['unit_status']) ?? 'unit_present',
-          sort_order: b.sort_order,
-        }
-      }))
+      setBays(prevBays.map((pb, i) => ({
+        bay_label: pb.bay_label,
+        unit_id: pb.unit_id,
+        unit_status: (pb.unit_status as BayState['unit_status']) ?? 'unit_present',
+        sort_order: i + 1,
+      })))
     }
   }
 
@@ -113,11 +117,30 @@ export default function SetupPage() {
     setBays(prev => prev.map((b, i) => i === index ? { ...b, [field]: value } : b))
   }
 
+  function addBay() {
+    setBays(prev => [...prev, makeEmptyBay(prev.length + 1)])
+  }
+
+  function removeBay(index: number) {
+    setBays(prev => prev.filter((_, i) => i !== index).map((b, i) => ({ ...b, sort_order: i + 1 })))
+  }
+
+  // Bays already used in other rows (to flag duplicates)
+  const usedBays = (currentIndex: number) =>
+    bays.filter((_, i) => i !== currentIndex).map(b => b.bay_label).filter(Boolean)
+
   const selectedPost = crewPosts.find(p => p.id === selectedPostId)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!selectedPostId || !startDt || !endDt) { setError('Please fill in all required fields'); return }
+    if (!selectedPostId || !startDt || !endDt) { setError('Please fill all required fields'); return }
+
+    const unnamedBay = bays.find(b => !b.bay_label)
+    if (unnamedBay) { setError('Select a bay for each row, or remove empty rows'); return }
+
+    const dupBay = bays.find((b, i) => usedBays(i).includes(b.bay_label))
+    if (dupBay) { setError(`Bay ${dupBay.bay_label} is listed more than once`); return }
+
     const primaryUnit = bays.find(b => b.unit_status === 'unit_present')?.unit_id
     if (!primaryUnit) { setError('At least one bay must have a unit present'); return }
 
@@ -156,16 +179,15 @@ export default function SetupPage() {
         <h1 className="text-xl font-bold text-zinc-100 mb-6">Shift Setup</h1>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Crew Post */}
+          {/* Post & schedule */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
             <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Post &amp; Schedule</h2>
-
             <div>
               <label className="block text-sm text-zinc-300 mb-1.5">Crew / Post</label>
               <select
                 value={selectedPostId ?? ''}
                 onChange={(e) => handlePostChange(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full ${inputClass}`}
               >
                 <option value="">Select post…</option>
                 {crewPosts.map(p => (
@@ -178,21 +200,11 @@ export default function SetupPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm text-zinc-300 mb-1.5">Start</label>
-                  <input
-                    type="datetime-local"
-                    value={startDt}
-                    onChange={(e) => setStartDt(e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <input type="datetime-local" value={startDt} onChange={e => setStartDt(e.target.value)} className={`w-full ${inputClass}`} />
                 </div>
                 <div>
                   <label className="block text-sm text-zinc-300 mb-1.5">End</label>
-                  <input
-                    type="datetime-local"
-                    value={endDt}
-                    onChange={(e) => setEndDt(e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <input type="datetime-local" value={endDt} onChange={e => setEndDt(e.target.value)} className={`w-full ${inputClass}`} />
                 </div>
               </div>
             )}
@@ -203,8 +215,8 @@ export default function SetupPage() {
             <label className="block text-sm font-semibold text-zinc-300 uppercase tracking-wider mb-3">Partner</label>
             <select
               value={partnerId}
-              onChange={(e) => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={e => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
+              className={`w-full ${inputClass}`}
             >
               <option value="">No partner / solo</option>
               {employees.filter(e => e.id !== user.id).map(e => (
@@ -214,39 +226,89 @@ export default function SetupPage() {
           </div>
 
           {/* Bays */}
-          {bays.length > 0 && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
+            <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Bays</h2>
-              {bays.map((bay, i) => (
-                <div key={bay.bay_label} className="flex items-center gap-3">
-                  <span className="text-zinc-400 text-sm w-14 shrink-0">{bay.bay_label}</span>
+              <button
+                type="button"
+                onClick={addBay}
+                className="text-xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1 rounded hover:bg-zinc-800 transition-colors"
+              >
+                + Add bay
+              </button>
+            </div>
+
+            {bays.length === 0 && (
+              <p className="text-zinc-500 text-sm">No bays added. Click "+ Add bay" to start.</p>
+            )}
+
+            {bays.map((bay, i) => {
+              const alreadyUsed = usedBays(i).includes(bay.bay_label) && bay.bay_label !== ''
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  {/* Bay selector */}
+                  <div className="flex flex-col gap-0.5">
+                    <select
+                      value={bay.bay_label}
+                      onChange={e => updateBay(i, 'bay_label', e.target.value)}
+                      className={`w-28 ${inputClass} ${alreadyUsed ? 'border-yellow-600' : ''}`}
+                      aria-label="Bay"
+                    >
+                      <option value="">Bay…</option>
+                      {BAY_OPTIONS.map(b => (
+                        <option key={b} value={b}>Bay {b}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Unit selector */}
                   <select
                     value={bay.unit_id ?? ''}
-                    onChange={(e) => updateBay(i, 'unit_id', e.target.value ? Number(e.target.value) : null)}
+                    onChange={e => updateBay(i, 'unit_id', e.target.value ? Number(e.target.value) : null)}
                     disabled={bay.unit_status !== 'unit_present'}
-                    className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    className={`flex-1 ${inputClass}`}
+                    aria-label="Unit"
                   >
                     <option value="">No unit</option>
                     {units.map(u => (
                       <option key={u.id} value={u.id}>Unit {u.unit_number} ({u.unit_type})</option>
                     ))}
                   </select>
+
+                  {/* Status selector */}
                   <select
                     value={bay.unit_status}
-                    onChange={(e) => {
+                    onChange={e => {
                       updateBay(i, 'unit_status', e.target.value)
                       if (e.target.value !== 'unit_present') updateBay(i, 'unit_id', null)
                     }}
-                    className="w-44 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-36 ${inputClass}`}
+                    aria-label="Status"
                   >
-                    <option value="unit_present">Unit present</option>
+                    <option value="unit_present">Present</option>
                     <option value="empty_bay">Empty bay</option>
-                    <option value="unit_at_shop">Unit at shop</option>
+                    <option value="unit_at_shop">At shop</option>
                   </select>
+
+                  {/* Remove */}
+                  <button
+                    type="button"
+                    onClick={() => removeBay(i)}
+                    className="text-zinc-600 hover:text-red-400 p-1 rounded transition-colors shrink-0"
+                    aria-label="Remove bay"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-              ))}
-            </div>
-          )}
+              )
+            })}
+
+            {bays.some((b, i) => usedBays(i).includes(b.bay_label) && b.bay_label !== '') && (
+              <p className="text-yellow-400 text-xs">Duplicate bay selected — each bay can only appear once.</p>
+            )}
+          </div>
 
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-red-400 text-sm">
