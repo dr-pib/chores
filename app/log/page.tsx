@@ -9,7 +9,7 @@ function formatRosterDate(d: Date) {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
 function formatTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' })
 }
 function toDateParam(d: Date) {
   return d.toISOString().slice(0, 10)
