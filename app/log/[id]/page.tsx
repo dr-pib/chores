@@ -6,6 +6,7 @@ import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
 import { formatUnit } from '@/lib/units'
 import { sortChores } from '@/lib/chore-rotation'
+import DeleteShiftButton from '@/components/DeleteShiftButton'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
@@ -57,8 +58,11 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       <NavBar userName={session.name} userRole={session.role} />
       <div className="max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-1">
+        <div className="flex items-center justify-between mb-1">
           <Link href="/log" className="text-zinc-500 hover:text-zinc-300 text-sm">← Operations Log</Link>
+          {(log.primary_employee_id === session.userId || ['Dom', 'Admin', 'Supervisor'].includes(session.role)) && (
+            <DeleteShiftButton logId={log.id} />
+          )}
         </div>
         <div className="flex items-start justify-between mb-6">
           <div>
