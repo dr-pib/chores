@@ -183,7 +183,7 @@ export default function SetupPage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
             <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Post &amp; Schedule</h2>
             <div>
-              <label className="block text-sm text-zinc-300 mb-1.5">Crew / Post</label>
+              <label className="block text-sm text-zinc-300 mb-1.5">Crew</label>
               <select
                 value={selectedPostId ?? ''}
                 onChange={(e) => handlePostChange(Number(e.target.value))}
@@ -225,21 +225,30 @@ export default function SetupPage() {
             </select>
           </div>
 
-          {/* Bays */}
+          {/* Trucks */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Bays</h2>
+              <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Trucks</h2>
               <button
                 type="button"
                 onClick={addBay}
                 className="text-xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1 rounded hover:bg-zinc-800 transition-colors"
               >
-                + Add bay
+                + Add truck
               </button>
             </div>
 
             {bays.length === 0 && (
-              <p className="text-zinc-500 text-sm">No bays added. Click "+ Add bay" to start.</p>
+              <p className="text-zinc-500 text-sm">No trucks added. Click "+ Add truck" to start.</p>
+            )}
+
+            {bays.length > 0 && (
+              <div className="flex items-center gap-2 pb-1">
+                <span className="w-28 text-xs font-medium text-zinc-500 uppercase tracking-wider">Bay</span>
+                <span className="flex-1 text-xs font-medium text-zinc-500 uppercase tracking-wider">Unit</span>
+                <span className="w-36 text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</span>
+                <span className="w-6" />
+              </div>
             )}
 
             {bays.map((bay, i) => {
