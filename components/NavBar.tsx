@@ -9,17 +9,23 @@ interface NavBarProps {
   userRole: string
 }
 
-const links = [
+const BASE_LINKS = [
   { href: '/setup', label: 'Shift Setup' },
   { href: '/roster', label: 'Daily Roster' },
   { href: '/log', label: 'Operations Log' },
   { href: '/chores', label: 'Chore List' },
 ]
 
+const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
+
 export default function NavBar({ userName, userRole }: NavBarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const links = SUPERVISOR_ROLES.includes(userRole)
+    ? [...BASE_LINKS, { href: '/employees', label: 'Employees' }]
+    : BASE_LINKS
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' })
