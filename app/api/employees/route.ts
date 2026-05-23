@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
       name: true,
       email: true,
       email_username: true,
+      emt_number: true,
       licensure_level: true,
       role: true,
       status: true,

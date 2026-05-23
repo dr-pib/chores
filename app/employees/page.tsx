@@ -9,6 +9,7 @@ interface Employee {
   id: number
   name: string
   email_username: string
+  emt_number: string
   licensure_level: string
   role: string
   status: string
@@ -72,11 +73,12 @@ export default function EmployeesPage() {
                   <Link
                     key={emp.id}
                     href={`/employees/${emp.id}/edit`}
-                    className="flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800/60 transition-colors"
+                    className="flex items-center gap-4 px-5 py-2 hover:bg-zinc-800/60 transition-colors"
                   >
                     <div className="min-w-0 flex-1">
-                      <span className="font-medium text-zinc-100">{emp.name}</span>
-                      <span className="ml-2 text-sm text-zinc-500">{emp.email_username}</span>
+                      <span className="text-sm font-medium text-zinc-100">{emp.name}</span>
+                      <span className="ml-2 text-xs text-zinc-500">{emp.email_username}</span>
+                      <span className="ml-2 text-xs text-zinc-600">#{emp.emt_number}</span>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="text-xs text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">{emp.licensure_level}</span>
