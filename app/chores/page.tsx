@@ -68,7 +68,15 @@ export default async function ChoresPage() {
       crew_post: true,
       primary_employee: true,
       chores: {
-        include: { chore_template: true, unit: true, completed_by: true },
+        include: {
+          chore_template: true,
+          unit: true,
+          completed_by: true,
+          tasks: {
+            include: { chore_template_task: true, completed_by: true },
+            orderBy: { chore_template_task: { sort_order: 'asc' } } as const,
+          },
+        },
       },
     },
     orderBy: { created_at: 'asc' },
@@ -85,6 +93,10 @@ export default async function ChoresPage() {
       chore_template: true,
       unit: true,
       completed_by: true,
+      tasks: {
+        include: { chore_template_task: true, completed_by: true },
+        orderBy: { chore_template_task: { sort_order: 'asc' } } as const,
+      },
       operations_log: { include: { crew_post: true } },
     },
     orderBy: { due_at: 'asc' },

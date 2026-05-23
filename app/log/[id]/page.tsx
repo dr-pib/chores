@@ -37,7 +37,17 @@ const LOG_INCLUDE = {
   primary_unit: true,
   supervisor_confirmed_by: true,
   bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } as const },
-  chores: { include: { chore_template: true, unit: true, completed_by: true } },
+  chores: {
+    include: {
+      chore_template: true,
+      unit: true,
+      completed_by: true,
+      tasks: {
+        include: { chore_template_task: true, completed_by: true },
+        orderBy: { chore_template_task: { sort_order: 'asc' } } as const,
+      },
+    },
+  },
 } as const
 
 export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {

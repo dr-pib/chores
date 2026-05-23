@@ -4,6 +4,27 @@ import { getSession } from '@/lib/session'
 import type { SetShiftInput } from '@/lib/types'
 import { getStationChoreForPost, shouldGenerateScheduledChore } from '@/lib/chore-rotation'
 
+// Creates ChoreTask rows for any chore on this log that has template tasks but no instance tasks yet
+async function seedChoreTasks(operationsLogId: number) {
+  const chores = await prisma.chore.findMany({
+    where: { operations_log_id: operationsLogId },
+    include: {
+      chore_template: { include: { tasks: { orderBy: { sort_order: 'asc' } } } },
+      tasks: { select: { chore_template_task_id: true } },
+    },
+  })
+  const toCreate: { chore_id: number; chore_template_task_id: number }[] = []
+  for (const chore of chores) {
+    const existingTaskIds = new Set(chore.tasks.map(t => t.chore_template_task_id))
+    for (const tmplTask of chore.chore_template.tasks) {
+      if (!existingTaskIds.has(tmplTask.id)) {
+        toCreate.push({ chore_id: chore.id, chore_template_task_id: tmplTask.id })
+      }
+    }
+  }
+  if (toCreate.length > 0) await prisma.choreTask.createMany({ data: toCreate })
+}
+
 export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session.isLoggedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -120,6 +141,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    await seedChoreTasks(existing.id)
+
     const updated = await prisma.operationsLog.findUnique({
       where: { id: existing.id },
       include: { bays: true, chores: { include: { chore_template: true } } },
@@ -225,6 +248,8 @@ export async function POST(req: NextRequest) {
       primary_unit: true,
     },
   })
+
+  await seedChoreTasks(log.id)
 
   return NextResponse.json(log, { status: 201 })
 }

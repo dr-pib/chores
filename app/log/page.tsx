@@ -48,6 +48,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
         primary_employee: true,
         partner_employee: true,
         primary_unit: true,
+        bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } },
         chores: true,
       },
       orderBy: { created_at: 'asc' },
@@ -144,6 +145,10 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                                 {formatTime(log.actual_start)}–{formatTime(log.actual_end)}
                                 <span className="text-zinc-600 mx-1.5">·</span>
                                 {formatUnit(log.primary_unit, false)}
+                                {(() => {
+                                  const secondUnit = log.bays.find(b => b.unit && b.unit_id !== log.primary_unit_id)?.unit
+                                  return secondUnit ? <span className="text-zinc-600"> ({formatUnit(secondUnit, false)})</span> : null
+                                })()}
                               </div>
                             </div>
                             <div className="text-right shrink-0">

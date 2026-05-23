@@ -164,11 +164,30 @@ async function main() {
     { name: 'Quarterly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
     { name: 'Additional Chore', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
   ]
+  const choreTemplates: Record<string, { id: number }> = {}
   for (const c of choreDefs) {
-    await prisma.choreTemplate.upsert({
+    choreTemplates[c.name] = await prisma.choreTemplate.upsert({
       where: { name: c.name }, update: {},
       create: { name: c.name, lifecycle_type: c.lifecycle_type, due_offset_hours: c.due_offset_hours ?? null },
     })
+  }
+
+  // Chore Template Sub-Tasks — only seed if template has no tasks yet
+  const defaultSubTasks: Record<string, string[]> = {
+    'Bathroom': ['Admin Bathroom', 'Bathroom 1', 'Bathroom 2'],
+    'Kitchen': ['Wipe down everything', 'Sweep', 'Mop'],
+    'Garage': ['Sweep', 'Take out trash', 'Take linens to ER'],
+    'Quarters': ['Sweep', 'Mop', 'Trash'],
+  }
+  for (const [templateName, subTasks] of Object.entries(defaultSubTasks)) {
+    const tmpl = choreTemplates[templateName]
+    if (!tmpl) continue
+    const existingCount = await prisma.choreTemplateTask.count({ where: { chore_template_id: tmpl.id } })
+    if (existingCount === 0) {
+      await prisma.choreTemplateTask.createMany({
+        data: subTasks.map((name, i) => ({ chore_template_id: tmpl.id, name, sort_order: i + 1 })),
+      })
+    }
   }
 
   // Employees
