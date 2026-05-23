@@ -78,11 +78,8 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
       <NavBar userName={session.name} userRole={session.role} />
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="mb-5">
           <h1 className="text-xl font-bold text-zinc-100">Today&apos;s Roster</h1>
-          <Link href="/setup" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg font-medium transition-colors">
-            + New Shift
-          </Link>
         </div>
 
         {/* Date navigation */}
