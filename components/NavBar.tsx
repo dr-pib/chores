@@ -18,7 +18,7 @@ const BASE_LINKS = [
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 const BADGE_COLORS: Record<string, string> = {
-  blue: 'bg-blue-500 text-white',
+  blue: 'bg-blue-600 text-white',
   amber: 'bg-amber-400 text-zinc-950',
   red: 'bg-red-500 text-white',
 }
@@ -88,7 +88,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
   return (
     <nav className="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
-        <Link href="/setup" className="text-blue-400 font-bold text-lg tracking-tight">
+        <Link href="/setup" className="text-blue-600 font-bold text-lg tracking-tight">
           EMS Chores
         </Link>
 
