@@ -9,6 +9,14 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [username, setUsername] = useState('')
   const [emtNumber, setEmtNumber] = useState('')
+  const exampleAccounts = [
+    { name: 'Cathy', emtNumber: '27889' },
+    { name: 'Nathan', emtNumber: '22592' },
+    { name: 'Melissa', emtNumber: '34195' },
+    { name: 'JoRob', emtNumber: '14557' },
+    { name: 'Richie', emtNumber: '16245' },
+    { name: 'Gina', emtNumber: '20328' },
+  ]
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -87,12 +95,22 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-6 bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider mb-2">Demo accounts</p>
-          <div className="space-y-1 text-xs text-zinc-400 font-mono">
-            <div>admin / 0001 <span className="text-zinc-600">(Dom)</span></div>
-            <div>arivera / 1001 <span className="text-zinc-600">(Supervisor)</span></div>
-            <div>jjones / 2001 <span className="text-zinc-600">(24-7)</span></div>
-            <div>cdavis / 3001 <span className="text-zinc-600">(24-8)</span></div>
+          <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider mb-3">Testing accounts</p>
+          <div className="grid grid-cols-2 gap-2">
+            {exampleAccounts.map(account => (
+              <button
+                key={account.emtNumber}
+                type="button"
+                onClick={() => {
+                  setUsername('')
+                  setEmtNumber(account.emtNumber)
+                }}
+                className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-left text-xs transition-colors hover:border-blue-500/60 hover:bg-blue-950/30"
+              >
+                <span className="font-medium text-zinc-300">{account.name}</span>
+                <span className="font-mono text-zinc-500">{account.emtNumber}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
