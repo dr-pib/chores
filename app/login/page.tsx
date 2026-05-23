@@ -40,7 +40,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="email-username" className="block text-sm font-medium text-zinc-300 mb-1.5">
-                Email username
+                Email username <span className="text-zinc-500 font-normal">(optional)</span>
               </label>
               <input
                 id="email-username"
@@ -48,11 +48,10 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="jjones"
-                required
                 autoComplete="username"
                 className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               />
-              <p className="text-zinc-500 text-xs mt-1">Part before the @ in your email</p>
+              <p className="text-zinc-500 text-xs mt-1">Use this only if two people ever share a test credential.</p>
             </div>
 
             <div>

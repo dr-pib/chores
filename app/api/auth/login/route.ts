@@ -4,17 +4,19 @@ import { getSession } from '@/lib/session'
 
 export async function POST(req: NextRequest) {
   const { email_username, emt_number } = await req.json()
+  const emailUsername = typeof email_username === 'string' ? email_username.toLowerCase().trim() : ''
+  const emtNumber = typeof emt_number === 'string' ? emt_number.trim() : ''
 
-  if (!email_username || !emt_number) {
-    return NextResponse.json({ error: 'Missing credentials' }, { status: 400 })
+  if (!emtNumber) {
+    return NextResponse.json({ error: 'Enter your EMT number' }, { status: 400 })
   }
 
   let employee
   try {
     employee = await prisma.employee.findFirst({
       where: {
-        email_username: email_username.toLowerCase().trim(),
-        emt_number: emt_number.trim(),
+        ...(emailUsername ? { email_username: emailUsername } : {}),
+        emt_number: emtNumber,
         status: { not: 'Inactive' },
       },
       include: { default_post: true },
