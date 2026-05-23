@@ -26,7 +26,7 @@ function formatTime(d: Date | string | null) {
 }
 
 function formatShortDate(d: Date | string) {
-  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })
+  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })
 }
 
 export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole: string }) {
