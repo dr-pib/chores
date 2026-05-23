@@ -11,6 +11,40 @@ export function getStationChoreForPost(crewPostName: string, month: number): str
   return STATION_CHORES[idx]
 }
 
+function thirdTuesday(year: number, monthIndex: number): Date {
+  const firstOfMonth = new Date(year, monthIndex, 1)
+  const daysUntilTuesday = (2 - firstOfMonth.getDay() + 7) % 7
+  return new Date(year, monthIndex, 1 + daysUntilTuesday + 14)
+}
+
+function isSameLocalDate(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate()
+}
+
+export function shouldGenerateScheduledChore(templateName: string, serviceDate: Date): boolean {
+  const year = serviceDate.getFullYear()
+  const month = serviceDate.getMonth()
+
+  if (templateName === 'NARC Expires') {
+    return serviceDate.getDate() === 25
+  }
+
+  if (templateName === 'Monthly Expires') {
+    return isSameLocalDate(serviceDate, thirdTuesday(year, month))
+  }
+
+  if (templateName === 'Quarterly Expires') {
+    if (![0, 3, 6, 9].includes(month)) return false
+    const monthlyDate = thirdTuesday(year, month)
+    const quarterlyDate = new Date(year, month, monthlyDate.getDate() + 2)
+    return isSameLocalDate(serviceDate, quarterlyDate)
+  }
+
+  return false
+}
+
 const CHORE_PRIORITY: Record<string, number> = {
   'Truck Check':      0,
   'Bathroom':        10,

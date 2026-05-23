@@ -52,6 +52,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   const sorted = sortChores(log.chores)
   const dailyChores = sorted.filter(c => c.chore_template.lifecycle_type === 'daily_reset')
   const persistentChores = sorted.filter(c => c.chore_template.lifecycle_type === 'persistent_until_complete')
+  const isMyLog = log.primary_employee_id === session.userId
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -60,14 +61,15 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
           <Link href="/log" className="text-zinc-500 hover:text-zinc-300 text-sm">← Operations Log</Link>
-          {(log.primary_employee_id === session.userId || ['Dom', 'Admin', 'Supervisor'].includes(session.role)) && (
+          {(isMyLog || ['Dom', 'Admin', 'Supervisor'].includes(session.role)) && (
             <DeleteShiftButton logId={log.id} />
           )}
         </div>
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">{log.crew_post.name}</h1>
+            <h1 className="text-xl font-bold text-zinc-100">{isMyLog ? 'My Chores' : log.crew_post.name}</h1>
             <p className="text-zinc-400 text-sm mt-0.5">
+              {isMyLog && <span>{log.crew_post.name} · </span>}
               {log.station.name} · {formatDate(log.service_date)}
             </p>
           </div>

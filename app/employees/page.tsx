@@ -34,7 +34,7 @@ export default function EmployeesPage() {
     ]).then(([meData, empsData]) => {
       if (!meData.user) { router.push('/login'); return }
       const role = meData.user.role
-      if (!['Dom', 'Admin', 'Supervisor'].includes(role)) { router.push('/roster'); return }
+      if (!['Dom', 'Admin', 'Supervisor'].includes(role)) { router.push('/setup'); return }
       setUser(meData.user)
       setEmployees(Array.isArray(empsData) ? empsData : [])
       setLoading(false)

@@ -103,7 +103,7 @@ export default async function ChoresPage() {
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">Chore List</h1>
+            <h1 className="text-xl font-bold text-zinc-100">Everyone&apos;s Chores</h1>
             <p className="text-zinc-400 text-sm mt-0.5">{formatDate(serviceDate)} — {doneToday}/{totalToday} complete</p>
           </div>
         </div>
@@ -149,7 +149,7 @@ export default async function ChoresPage() {
             {/* Current user's shift — highlighted first */}
             {myLog && (
               <>
-                <h2 className="text-xs font-semibold text-blue-400 uppercase tracking-wider">My Shift</h2>
+                <h2 className="text-xs font-semibold text-blue-400 uppercase tracking-wider">My Chores</h2>
                 <LogBox log={myLog} highlight userRole={session.role} />
               </>
             )}

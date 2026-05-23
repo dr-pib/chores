@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import type { SetShiftInput } from '@/lib/types'
-import { getStationChoreForPost } from '@/lib/chore-rotation'
+import { getStationChoreForPost, shouldGenerateScheduledChore } from '@/lib/chore-rotation'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -84,19 +84,34 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json(updated)
   }
-  const persistentTemplates = templates.filter((t) => t.lifecycle_type === 'persistent_until_complete' && t.name !== 'Additional Chore')
-
   const endDt = new Date(actual_end)
 
   // One station chore per Harrison crew based on monthly rotation; remote posts get none
   const serviceMonth = serviceDate.getMonth() + 1
   const stationChoreName = getStationChoreForPost(crewPost.name, serviceMonth)
   const stationTemplate = stationChoreName ? templates.find((t) => t.name === stationChoreName) ?? null : null
+  const scheduledPersistentTemplates = templates.filter((t) =>
+    t.lifecycle_type === 'persistent_until_complete'
+    && t.name !== 'Additional Chore'
+    && shouldGenerateScheduledChore(t.name, serviceDate)
+  )
+  const existingScheduledPersistent = scheduledPersistentTemplates.length > 0
+    ? await prisma.chore.findMany({
+        where: {
+          chore_template_id: { in: scheduledPersistentTemplates.map((t) => t.id) },
+          operations_log: { service_date: serviceDate },
+        },
+        select: { chore_template_id: true },
+      })
+    : []
+  const existingScheduledTemplateIds = new Set(existingScheduledPersistent.map((chore) => chore.chore_template_id))
 
   const choresToCreate = [
     ...truckCheckChores,
     ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: endDt }] : []),
-    ...persistentTemplates.map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: endDt })),
+    ...scheduledPersistentTemplates
+      .filter((t) => !existingScheduledTemplateIds.has(t.id))
+      .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: endDt })),
   ]
 
   const log = await prisma.operationsLog.create({

@@ -63,7 +63,7 @@ export default function EditEmployeePage() {
     ]).then(([meData, empData, stationsData, postsData, empsData]) => {
       if (!meData.user) { router.push('/login'); return }
       const userRole = meData.user.role
-      if (!['Dom', 'Admin', 'Supervisor'].includes(userRole)) { router.push('/roster'); return }
+      if (!['Dom', 'Admin', 'Supervisor'].includes(userRole)) { router.push('/setup'); return }
       if (empData.error) { router.push('/employees'); return }
 
       setCurrentUser(meData.user)
