@@ -10,17 +10,17 @@ interface NavBarProps {
 }
 
 const BASE_LINKS = [
-  { href: '/setup', label: 'Shift Setup' },
+  { href: '/setup', label: 'Setup' },
   { href: '/my-chores', label: 'My Chores' },
-  { href: '/log', label: "Today's Roster" },
-  { href: '/chores', label: "Everyone's Chores" },
+  { href: '/log', label: 'Roster' },
+  { href: '/chores', label: "All Chores" },
 ]
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 const BADGE_COLORS: Record<string, string> = {
-  blue: 'bg-blue-500 text-white',
-  amber: 'bg-amber-400 text-zinc-950',
-  red: 'bg-red-500 text-white',
+  blue: 'bg-cyan-500/20 text-cyan-300',
+  amber: 'bg-amber-500/20 text-amber-300',
+  red: 'bg-red-500/20 text-red-300',
 }
 
 interface BadgeState {
@@ -30,9 +30,8 @@ interface BadgeState {
 
 function NavBadge({ count, color }: { count: number; color: keyof typeof BADGE_COLORS | null }) {
   if (!color || count <= 0) return null
-
   return (
-    <span className={`ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold leading-none ${BADGE_COLORS[color]}`}>
+    <span className={`ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-[9px] font-mono font-semibold leading-none ${BADGE_COLORS[color]}`}>
       {count > 99 ? '99+' : count}
     </span>
   )
@@ -55,7 +54,6 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
 
   useEffect(() => {
     let ignore = false
-
     async function loadBadges() {
       try {
         const res = await fetch('/api/badges', { cache: 'no-store' })
@@ -66,11 +64,8 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
         if (!ignore) setBadges(null)
       }
     }
-
     loadBadges()
-    return () => {
-      ignore = true
-    }
+    return () => { ignore = true }
   }, [pathname])
 
   function badgeFor(href: string) {
@@ -79,85 +74,83 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
     return null
   }
 
+  const isActive = (href: string) => pathname === href || (href !== '/setup' && pathname.startsWith(href))
+
   return (
-    <nav className="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
-        <Link href="/setup" className="text-blue-400 font-bold text-lg tracking-tight">
-          EMS Chores
+    <nav className="bg-[#0a0b0e] border-b border-[#1e2028] sticky top-0 z-50">
+      <div className="max-w-[1400px] mx-auto px-4 flex items-stretch justify-between h-10">
+        {/* Brand */}
+        <Link href="/setup" className="flex items-center pr-4 border-r border-[#1e2028] mr-2">
+          <span className="font-mono text-[11px] font-semibold tracking-[0.15em] text-cyan-400 uppercase">
+            EMS/CHORES
+          </span>
         </Link>
 
         {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-1">
+        <div className="hidden md:flex items-stretch flex-1">
           {links.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                pathname.startsWith(l.href)
-                  ? 'bg-zinc-700 text-zinc-100'
-                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+              className={`flex items-center px-3 font-mono text-[10px] tracking-[0.1em] uppercase transition-colors border-b-2 ${
+                isActive(l.href)
+                  ? 'text-cyan-400 border-cyan-400'
+                  : 'text-zinc-500 border-transparent hover:text-zinc-200'
               }`}
             >
-              <span className="inline-flex items-center">
-                {l.label}
-                <NavBadge count={badgeFor(l.href)?.count ?? 0} color={badgeFor(l.href)?.color ?? null} />
-              </span>
+              {l.label}
+              <NavBadge count={badgeFor(l.href)?.count ?? 0} color={badgeFor(l.href)?.color ?? null} />
             </Link>
           ))}
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
-          <span className="text-zinc-400 text-sm">
-            {userName} <span className="text-zinc-600 text-xs ml-1">{userRole}</span>
+        {/* User info + signout */}
+        <div className="hidden md:flex items-center gap-3 pl-4 border-l border-[#1e2028] ml-2">
+          <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-wide">
+            {userName.split(' ')[0]} · <span className="text-zinc-600">{userRole}</span>
           </span>
           <button
             onClick={logout}
-            className="text-sm text-zinc-400 hover:text-zinc-100 px-2 py-1 rounded hover:bg-zinc-800 transition-colors"
+            className="font-mono text-[9px] tracking-[0.1em] uppercase text-zinc-600 hover:text-zinc-300 transition-colors"
           >
-            Sign out
+            Sign Out
           </button>
         </div>
 
         {/* Mobile hamburger */}
         <button
-          className="md:hidden text-zinc-400 hover:text-zinc-100"
+          className="md:hidden flex items-center text-zinc-500 hover:text-zinc-200"
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Toggle menu"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {menuOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            )}
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {menuOpen
+              ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />}
           </svg>
         </button>
       </div>
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden border-t border-zinc-800 bg-zinc-900 px-4 pb-4 pt-2 space-y-1">
+        <div className="md:hidden border-t border-[#1e2028] bg-[#0a0b0e] px-4 py-2 space-y-0.5">
           {links.map((l) => (
             <Link
               key={l.href}
               href={l.href}
               onClick={() => setMenuOpen(false)}
-              className={`block px-3 py-2 rounded text-sm font-medium ${
-                pathname.startsWith(l.href)
-                  ? 'bg-zinc-700 text-zinc-100'
-                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+              className={`flex items-center px-2 py-1.5 font-mono text-[10px] tracking-[0.1em] uppercase transition-colors ${
+                isActive(l.href) ? 'text-cyan-400' : 'text-zinc-500 hover:text-zinc-200'
               }`}
             >
-              <span className="inline-flex items-center">
-                {l.label}
-                <NavBadge count={badgeFor(l.href)?.count ?? 0} color={badgeFor(l.href)?.color ?? null} />
-              </span>
+              {l.label}
+              <NavBadge count={badgeFor(l.href)?.count ?? 0} color={badgeFor(l.href)?.color ?? null} />
             </Link>
           ))}
-          <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
-            <span className="text-zinc-400 text-sm">{userName} · {userRole}</span>
-            <button onClick={logout} className="text-sm text-red-400 hover:text-red-300">
-              Sign out
+          <div className="pt-2 mt-1 border-t border-[#1e2028] flex items-center justify-between">
+            <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-wide">{userName} · {userRole}</span>
+            <button onClick={logout} className="font-mono text-[9px] uppercase tracking-wide text-zinc-600 hover:text-red-400 transition-colors">
+              Sign Out
             </button>
           </div>
         </div>

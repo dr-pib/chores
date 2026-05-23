@@ -23,13 +23,13 @@ export default function ConfirmShiftButton({ logId, confirmed }: { logId: number
     <button
       onClick={toggle}
       disabled={isPending}
-      className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors disabled:opacity-50 ${
+      className={`op-btn font-mono text-[9px] uppercase tracking-wider transition-colors disabled:opacity-40 ${
         isConfirmed
-          ? 'bg-green-500/20 text-green-400 hover:bg-red-500/20 hover:text-red-400'
-          : 'bg-yellow-500/20 text-yellow-400 hover:bg-green-500/20 hover:text-green-400'
+          ? 'text-cyan-400 border border-cyan-800/50 hover:text-red-400 hover:border-red-800/50'
+          : 'text-zinc-500 border border-zinc-700 hover:text-cyan-400 hover:border-cyan-800/50'
       }`}
     >
-      {isPending ? '…' : isConfirmed ? 'Confirmed' : 'Confirm'}
+      {isPending ? '…' : isConfirmed ? 'CONFIRMED' : 'CONFIRM'}
     </button>
   )
 }

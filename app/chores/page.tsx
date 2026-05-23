@@ -6,13 +6,20 @@ import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
 import { sortChores } from '@/lib/chore-rotation'
 
-function formatDate(d: Date | string) {
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+function fmtDate(d: Date | string) {
+  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).toUpperCase()
 }
 
 interface ChoreTemplate { name: string; lifecycle_type: string; due_offset_hours: number | null }
 interface Unit { unit_number: number; unit_type: string; unit_name?: string | null }
 interface Employee { name: string }
+interface ChoreTemplateTask { id: number; name: string; sort_order: number }
+interface ChoreTask {
+  id: number
+  chore_template_task: ChoreTemplateTask
+  completed_at: Date | string | null
+  completed_by: Employee | null
+}
 interface Chore {
   id: number
   status: string
@@ -22,34 +29,51 @@ interface Chore {
   chore_template: ChoreTemplate
   unit: Unit | null
   bay_label: string | null
+  tasks?: ChoreTask[]
   [key: string]: unknown
 }
 interface LogWithChores {
   id: number
+  primary_employee_id: number
   crew_post: { name: string }
   primary_employee: { name: string }
   chores: Chore[]
 }
 
-function LogBox({ log, highlight, userRole }: { log: LogWithChores; highlight?: boolean; userRole: string }) {
+function LogBlock({ log, isMe, userRole }: { log: LogWithChores; isMe: boolean; userRole: string }) {
   const sorted = sortChores(log.chores)
   const done = sorted.filter(c => c.status === 'completed').length
-  const borderClass = highlight
-    ? 'border-blue-600 bg-blue-950/20'
-    : 'border-zinc-800 bg-zinc-900'
+  const total = sorted.length
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0
+
   return (
-    <div className={`border rounded-xl p-4 ${borderClass}`}>
-      <div className="flex items-center justify-between mb-3">
-        <Link href={`/log/${log.id}`} className="flex items-center gap-2 hover:text-blue-400 transition-colors">
-          <span className="font-semibold text-zinc-100">{log.crew_post.name}</span>
-          <span className="text-zinc-500 text-sm">— {log.primary_employee.name}</span>
-        </Link>
-        <span className="text-xs text-zinc-500">{done}/{sorted.length}</span>
+    <div className={`op-panel ${isMe ? 'border-cyan-800/40' : ''}`}>
+      {/* Crew header */}
+      <div className={`flex items-center justify-between px-3 py-1.5 border-b border-[#1e2028] ${isMe ? 'bg-cyan-950/20' : 'bg-[#0a0b0d]'}`}>
+        <div className="flex items-center gap-3">
+          <Link href={`/log/${log.id}`} className="font-mono text-xs font-semibold text-zinc-200 hover:text-cyan-400 transition-colors uppercase tracking-wide">
+            {log.crew_post.name}
+          </Link>
+          <span className="font-mono text-[10px] text-zinc-600">{log.primary_employee.name}</span>
+          {isMe && <span className="font-mono text-[9px] text-cyan-600 border border-cyan-800/50 px-1">ME</span>}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] text-zinc-600">{done}/{total}</span>
+          {total > 0 && (
+            <div className="w-16 h-px bg-zinc-800">
+              <div className="h-px bg-cyan-600 transition-all" style={{ width: `${pct}%` }} />
+            </div>
+          )}
+        </div>
       </div>
-      <div className="space-y-1">
+      {/* Chores */}
+      <div className="px-3 pt-0.5 pb-0.5">
         {sorted.map(chore => (
           <ChoreItem key={chore.id} chore={chore} userRole={userRole} />
         ))}
+        {sorted.length === 0 && (
+          <p className="font-mono text-[10px] text-zinc-700 py-2">NO CHORES</p>
+        )}
       </div>
     </div>
   )
@@ -82,7 +106,6 @@ export default async function ChoresPage() {
     orderBy: { created_at: 'asc' },
   })
 
-  // Persistent chores still open from previous days
   const openPersistent = await prisma.chore.findMany({
     where: {
       status: 'pending',
@@ -108,39 +131,45 @@ export default async function ChoresPage() {
 
   const totalToday = logs.reduce((s, l) => s + l.chores.length, 0)
   const doneToday = logs.reduce((s, l) => s + l.chores.filter(c => c.status === 'completed').length, 0)
+  const pct = totalToday > 0 ? Math.round((doneToday / totalToday) * 100) : 0
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-[#09090b]">
       <NavBar userName={session.name} userRole={session.role} />
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="max-w-[900px] mx-auto px-4 py-4 space-y-3">
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">Everyone&apos;s Chores</h1>
-            <p className="text-zinc-400 text-sm mt-0.5">{formatDate(serviceDate)} — {doneToday}/{totalToday} complete</p>
+            <h1 className="font-mono text-sm font-bold uppercase tracking-wide text-zinc-100">ALL CHORES</h1>
+            <div className="font-mono text-[10px] text-zinc-600 mt-0.5">
+              {fmtDate(serviceDate)} · {doneToday}/{totalToday} COMPLETE
+            </div>
           </div>
+          {totalToday > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] text-zinc-600">{pct}%</span>
+              <div className="w-24 h-px bg-zinc-800">
+                <div className="h-px bg-cyan-600 transition-all" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Progress bar */}
-        {totalToday > 0 && (
-          <div className="bg-zinc-800 rounded-full h-1.5 mb-6">
-            <div
-              className="bg-blue-500 h-1.5 rounded-full transition-all"
-              style={{ width: `${Math.round((doneToday / totalToday) * 100)}%` }}
-            />
-          </div>
-        )}
-
-        {/* Overdue persistent from previous days */}
+        {/* Overdue persistent */}
         {openPersistent.length > 0 && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
-            <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
-              Overdue / Incomplete Persistent
-            </h2>
-            <div className="space-y-2">
+          <div>
+            <div className="op-section mb-2">
+              <span className="op-section-label text-amber-600">OVERDUE PERSISTENT</span>
+              <div className="op-section-rule" />
+            </div>
+            <div className="op-panel border-amber-800/30 px-3 pt-0.5 pb-0.5">
               {openPersistent.map(chore => (
-                <div key={chore.id} className="flex items-center gap-3">
-                  <ChoreItem chore={chore} userRole={session.role} />
-                  <Link href={`/log/${chore.operations_log_id}`} className="text-xs text-zinc-500 hover:text-zinc-300 shrink-0">
+                <div key={chore.id} className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <ChoreItem chore={chore} userRole={session.role} />
+                  </div>
+                  <Link href={`/log/${chore.operations_log_id}`} className="font-mono text-[9px] text-zinc-700 hover:text-zinc-400 uppercase tracking-wider mt-1.5 shrink-0">
                     {chore.operations_log.crew_post.name}
                   </Link>
                 </div>
@@ -150,33 +179,16 @@ export default async function ChoresPage() {
         )}
 
         {logs.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-zinc-500 mb-4">No shifts confirmed today yet.</p>
-            <Link href="/setup" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">
-              Set up your shift
-            </Link>
+          <div className="op-panel px-4 py-8 text-center">
+            <p className="font-mono text-xs text-zinc-600 mb-3">NO SHIFTS CONFIRMED TODAY</p>
+            <Link href="/setup" className="op-btn op-btn-primary">+ SETUP SHIFT</Link>
           </div>
         ) : (
-          <div className="space-y-5">
-            {/* Current user's shift — highlighted first */}
-            {myLog && (
-              <>
-                <h2 className="text-xs font-semibold text-blue-400 uppercase tracking-wider">My Chores</h2>
-                <LogBox log={myLog} highlight userRole={session.role} />
-              </>
-            )}
-
-            {/* Other crews */}
-            {otherLogs.length > 0 && (
-              <>
-                {myLog && (
-                  <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider pt-1">Other Crews</h2>
-                )}
-                {otherLogs.map(log => (
-                  <LogBox key={log.id} log={log} userRole={session.role} />
-                ))}
-              </>
-            )}
+          <div className="space-y-3">
+            {myLog && <LogBlock log={myLog} isMe userRole={session.role} />}
+            {otherLogs.map(log => (
+              <LogBlock key={log.id} log={log} isMe={false} userRole={session.role} />
+            ))}
           </div>
         )}
       </div>
