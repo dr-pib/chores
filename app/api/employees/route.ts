@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       default_station_id: true,
       default_crew_post_id: true,
       default_shift_length_hours: true,
+      default_partner_id: true,
     },
     orderBy: { name: 'asc' },
   })

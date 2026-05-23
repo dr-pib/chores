@@ -82,16 +82,18 @@ export default function PartnersPage() {
   }
   if (!currentUser) return null
 
-  const active = employees.filter(e => e.status === 'Active').sort((a, b) => {
+  function byLastName(a: Employee, b: Employee) {
     const aLast = a.name.trim().split(/\s+/).at(-1) ?? ''
     const bLast = b.name.trim().split(/\s+/).at(-1) ?? ''
     return aLast.localeCompare(bLast) || a.name.localeCompare(b.name)
-  })
-  const prn = employees.filter(e => e.status === 'PRN').sort((a, b) => {
-    const aLast = a.name.trim().split(/\s+/).at(-1) ?? ''
-    const bLast = b.name.trim().split(/\s+/).at(-1) ?? ''
-    return aLast.localeCompare(bLast) || a.name.localeCompare(b.name)
-  })
+  }
+
+  const CREW_ROLES = ['Employee']
+  const ADMIN_ROLES = ['Dom', 'Admin', 'Supervisor']
+
+  const activeCrewMembers = employees.filter(e => e.status === 'Active' && CREW_ROLES.includes(e.role)).sort(byLastName)
+  const prn = employees.filter(e => e.status === 'PRN').sort(byLastName)
+  const admins = employees.filter(e => e.status === 'Active' && ADMIN_ROLES.includes(e.role)).sort(byLastName)
 
   const inputClass = 'px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full'
 
@@ -165,8 +167,9 @@ export default function PartnersPage() {
         </div>
 
         <div className="space-y-6">
-          {renderGroup('Active', active)}
+          {renderGroup('Active', activeCrewMembers)}
           {renderGroup('PRN', prn)}
+          {renderGroup('Admin / Supervisors', admins)}
         </div>
       </div>
     </div>
