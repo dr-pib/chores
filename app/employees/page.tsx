@@ -22,6 +22,20 @@ const STATUS_COLORS: Record<string, string> = {
   Inactive: 'text-zinc-500',
 }
 
+function lastFirst(name: string) {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return name
+  const last = parts[parts.length - 1]
+  const first = parts.slice(0, -1).join(' ')
+  return `${last}, ${first}`
+}
+
+function sortByLastName(a: Employee, b: Employee) {
+  const aLast = a.name.trim().split(/\s+/).at(-1) ?? ''
+  const bLast = b.name.trim().split(/\s+/).at(-1) ?? ''
+  return aLast.localeCompare(bLast) || a.name.localeCompare(b.name)
+}
+
 export default function EmployeesPage() {
   const router = useRouter()
   const [user, setUser] = useState<{ id: number; name: string; role: string } | null>(null)
@@ -48,7 +62,7 @@ export default function EmployeesPage() {
 
   if (!user) return null
 
-  const byStatus = (s: string) => employees.filter(e => e.status === s)
+  const byStatus = (s: string) => employees.filter(e => e.status === s).sort(sortByLastName)
   const groups = [
     { label: 'Active', employees: byStatus('Active') },
     { label: 'PRN', employees: byStatus('PRN') },
@@ -73,10 +87,10 @@ export default function EmployeesPage() {
                   <Link
                     key={emp.id}
                     href={`/employees/${emp.id}/edit`}
-                    className="flex items-center gap-4 px-5 py-2 hover:bg-zinc-800/60 transition-colors"
+                    className="flex items-center gap-4 px-5 py-1 hover:bg-zinc-800/60 transition-colors"
                   >
                     <div className="min-w-0 flex-1">
-                      <span className="text-sm font-medium text-zinc-100">{emp.name}</span>
+                      <span className="text-sm font-medium text-zinc-100">{lastFirst(emp.name)}</span>
                       <span className="ml-2 text-xs text-zinc-500">{emp.email_username}</span>
                       <span className="ml-2 text-xs text-zinc-600">#{emp.emt_number}</span>
                     </div>
