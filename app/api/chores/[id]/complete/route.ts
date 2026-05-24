@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
+import { isPastShift } from '@/lib/dates'
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 
@@ -19,6 +20,18 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
   if (!chore) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const isSupervisor = SUPERVISOR_ROLES.includes(session.role)
+
+  // Past-shift enforcement
+  const serviceDate = new Date(chore.operations_log.service_date)
+  if (isPastShift(serviceDate)) {
+    if (!isSupervisor) {
+      return NextResponse.json(
+        { error: 'Past shift chores can only be edited by a supervisor' },
+        { status: 403 },
+      )
+    }
+    // Supervisors may proceed — log the change after update
+  }
 
   // Daily chores: enforce both an early-availability and a late-lockout window
   if (chore.chore_template.lifecycle_type === 'daily_reset' && !isSupervisor) {
@@ -82,6 +95,19 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
     data: { status: 'completed', completed_at: new Date(), completed_by_id: session.userId },
     include: { chore_template: true, completed_by: true },
   })
+
+  if (isPastShift(serviceDate)) {
+    await prisma.changeLog.create({
+      data: {
+        operations_log_id: chore.operations_log_id,
+        chore_id: chore.id,
+        changed_by_employee_id: session.userId,
+        action: 'complete_chore',
+        previous_status: 'pending',
+        new_status: 'completed',
+      },
+    })
+  }
 
   return NextResponse.json(updated)
 }

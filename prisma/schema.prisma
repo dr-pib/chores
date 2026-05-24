@@ -31,6 +31,7 @@ model Employee {
   completed_chores         Chore[]          @relation("ChoreCompletedBy")
   completed_chore_tasks    ChoreTask[]      @relation("ChoreTaskCompletedBy")
   supervisor_confirmed_logs OperationsLog[] @relation("SupervisorConfirmedBy")
+  change_logs              ChangeLog[]      @relation("ChangeLogChangedBy")
 
   @@map("employees")
 }
@@ -120,6 +121,7 @@ model OperationsLog {
   supervisor_confirmed_by  Employee?          @relation("SupervisorConfirmedBy", fields: [supervisor_confirmed_by_id], references: [id])
   bays                     OperationsLogBay[]
   chores                   Chore[]
+  change_logs              ChangeLog[]
 
   @@map("operations_logs")
 }
@@ -182,6 +184,7 @@ model Chore {
   unit           Unit?         @relation("ChoreUnit", fields: [unit_id], references: [id])
   completed_by   Employee?     @relation("ChoreCompletedBy", fields: [completed_by_id], references: [id])
   tasks          ChoreTask[]
+  change_logs    ChangeLog[]
 
   @@map("chores")
 }
@@ -198,4 +201,21 @@ model ChoreTask {
   completed_by        Employee?         @relation("ChoreTaskCompletedBy", fields: [completed_by_id], references: [id])
 
   @@map("chore_tasks")
+}
+
+model ChangeLog {
+  id                      Int      @id @default(autoincrement())
+  operations_log_id       Int
+  chore_id                Int
+  changed_by_employee_id  Int
+  action                  String
+  previous_status         String
+  new_status              String
+  created_at              DateTime @default(now())
+
+  operations_log      OperationsLog @relation(fields: [operations_log_id], references: [id])
+  chore               Chore         @relation(fields: [chore_id], references: [id])
+  changed_by_employee Employee      @relation("ChangeLogChangedBy", fields: [changed_by_employee_id], references: [id])
+
+  @@map("change_logs")
 }

@@ -47,7 +47,7 @@ function formatDue(d: Date | string | null) {
   return `Due ${get('weekday')}, ${get('month')}/${get('day')} ${hour}${get('minute')}`
 }
 
-export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole: string }) {
+export default function ChoreItem({ chore, userRole, isPastShift = false }: { chore: Chore; userRole: string; isPastShift?: boolean }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [localStatus, setLocalStatus] = useState(chore.status)
@@ -55,6 +55,7 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
   const [conflictMsg, setConflictMsg] = useState('')
 
   const canOverride = ['Dom', 'Admin', 'Supervisor'].includes(userRole)
+  const isSupervisor = ['Dom', 'Admin', 'Supervisor'].includes(userRole)
 
   const hasTasks = localTasks.length > 0
   const isDone = localStatus === 'completed'
@@ -79,6 +80,10 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
     && new Date() < chicagoMidnight(new Date(chore.chore_date))
 
   async function complete() {
+    if (isPastShift) {
+      if (!isSupervisor) return
+      if (!window.confirm("You're editing a past shift. This changes the historical chore record. Continue?")) return
+    }
     setConflictMsg('')
     startTransition(async () => {
       const res = await fetch(`/api/chores/${chore.id}/complete`, { method: 'POST' })
@@ -93,7 +98,12 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
   }
 
   async function uncomplete() {
-    if (!window.confirm('Uncheck this task?')) return
+    if (isPastShift) {
+      if (!isSupervisor) return
+      if (!window.confirm("You're editing a past shift. This changes the historical chore record. Continue?")) return
+    } else {
+      if (!window.confirm('Uncheck this task?')) return
+    }
     setConflictMsg('')
     startTransition(async () => {
       const res = await fetch(`/api/chores/${chore.id}/uncomplete`, { method: 'POST' })
@@ -135,7 +145,7 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
         {!hasTasks && (
           <button
             onClick={isDone ? uncomplete : isNotYetAvailable ? undefined : complete}
-            disabled={isPending || isNotYetAvailable}
+            disabled={isPending || isNotYetAvailable || (isPastShift && !isSupervisor)}
             aria-label={isDone ? 'Uncheck task' : isNotYetAvailable ? 'Not yet available' : 'Mark complete'}
             className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
               isDone

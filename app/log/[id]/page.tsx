@@ -6,6 +6,7 @@ import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
 import { formatUnit } from '@/lib/units'
 import { sortChores, getStationChoreForPost } from '@/lib/chore-rotation'
+import { isPastShift } from '@/lib/dates'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
 import LiveClock from '@/components/LiveClock'
 
@@ -143,6 +144,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
   const sortedPreviousPersistentChores = sortChores(previousPersistentChores)
   const isMyLog = log.primary_employee_id === session.userId || log.partner_employee_id === session.userId
+  const pastShift = isPastShift(log.service_date)
   const myChoresForProgress = isMyLog
     ? [...allDailyChores, ...persistentChores, ...sortedPreviousPersistentChores]
     : []
@@ -234,7 +236,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </h2>
               <div className="space-y-2">
                 {day1Chores.map(chore => (
-                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} />
                 ))}
               </div>
             </div>
@@ -247,7 +249,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </h2>
               <div className="space-y-2">
                 {day2Chores.map(chore => (
-                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} />
                 ))}
               </div>
             </div>
@@ -269,7 +271,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                   )
                   return (
                     <div key={chore.id}>
-                      <ChoreItem chore={chore} userRole={session.role} />
+                      <ChoreItem chore={chore} userRole={session.role} isPastShift={true} />
                       <div className="ml-8 text-xs text-zinc-500">
                         From {chore.operations_log.crew_post.name} · {formatDate(chore.operations_log.service_date)}
                         {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(e => e.name).join(' & ')}</span>}
@@ -288,7 +290,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </h2>
               <div className="space-y-2">
                 {persistentChores.map(chore => (
-                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} />
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} />
                 ))}
               </div>
             </div>
