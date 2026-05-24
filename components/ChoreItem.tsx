@@ -194,7 +194,7 @@ export default function ChoreItem({ chore, userRole, isPastShift = false }: { ch
               </span>
             )}
           </div>
-          {isNotYetAvailable && !hasTasks && (
+          {isNotYetAvailable && (
             <p className="text-xs text-zinc-600 mt-0.5">Available at midnight</p>
           )}
           {conflictMsg && (
@@ -202,7 +202,7 @@ export default function ChoreItem({ chore, userRole, isPastShift = false }: { ch
           )}
 
           {/* Sub-tasks */}
-          {hasTasks && (
+          {hasTasks && !isNotYetAvailable && (
             <div className="mt-2 space-y-1.5 ml-1">
               {localTasks.map(task => {
                 const taskDone = task.completed_at !== null
