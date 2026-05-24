@@ -4,9 +4,11 @@ import { prisma } from '@/lib/db'
 
 type BadgeColor = 'blue' | 'amber' | 'red' | null
 
-function startOfToday() {
+function getChicagoServiceDate() {
   const today = new Date()
-  return new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  return new Date(
+    today.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) + 'T00:00:00Z'
+  )
 }
 
 export async function GET() {
@@ -18,7 +20,7 @@ export async function GET() {
     })
   }
 
-  const serviceDate = startOfToday()
+  const serviceDate = getChicagoServiceDate()
 
   const everyonePersistentCount = await prisma.chore.count({
     where: {
