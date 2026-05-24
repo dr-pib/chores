@@ -14,7 +14,7 @@ export interface BayInput {
 }
 
 export interface SetShiftInput {
-  crew_post_id: number
+  shift_profile_id: number
   partner_employee_id: number | null
   primary_unit_id: number
   actual_start: string // ISO datetime

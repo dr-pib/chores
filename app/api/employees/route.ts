@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       role: true,
       status: true,
       default_station_id: true,
-      default_crew_post_id: true,
+      default_shift_profile_id: true,
       default_shift_length_hours: true,
       default_partner_id: true,
       direct_supervisor_id: true,

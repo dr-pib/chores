@@ -74,10 +74,10 @@ export async function GET() {
           ? [
               { unit_id: { in: currentUnitIds } },
               { unit_id: null, operations_log: { bays: { some: { unit_id: { in: currentUnitIds } } } } },
-              { unit_id: null, operations_log: { crew_post_id: myLog.crew_post_id } },
+              { unit_id: null, operations_log: { shift_profile_id: myLog.shift_profile_id } },
             ]
           : [
-              { unit_id: null, operations_log: { crew_post_id: myLog.crew_post_id } },
+              { unit_id: null, operations_log: { shift_profile_id: myLog.shift_profile_id } },
             ],
       },
     })

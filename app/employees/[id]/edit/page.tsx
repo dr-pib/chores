@@ -14,14 +14,14 @@ interface Employee {
   role: string
   status: string
   default_station_id: number | null
-  default_crew_post_id: number | null
+  default_shift_profile_id: number | null
   default_shift_length_hours: number
   default_partner_id: number | null
   default_partner: { id: number; name: string } | null
 }
 
 interface Station { id: number; name: string }
-interface CrewPost { id: number; name: string; station: { name: string } }
+interface ShiftProfile { id: number; name: string; station: { name: string } }
 interface EmployeeSummary { id: number; name: string; licensure_level: string }
 
 const inputClass = 'px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 w-full'
@@ -35,7 +35,7 @@ export default function EditEmployeePage() {
   const [currentUser, setCurrentUser] = useState<{ id: number; name: string; role: string } | null>(null)
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [stations, setStations] = useState<Station[]>([])
-  const [crewPosts, setCrewPosts] = useState<CrewPost[]>([])
+  const [shiftProfiles, setShiftProfiles] = useState<ShiftProfile[]>([])
   const [allEmployees, setAllEmployees] = useState<EmployeeSummary[]>([])
 
   const [name, setName] = useState('')
@@ -45,7 +45,7 @@ export default function EditEmployeePage() {
   const [role, setRole] = useState('')
   const [status, setStatus] = useState('')
   const [defaultStationId, setDefaultStationId] = useState<number | ''>('')
-  const [defaultCrewPostId, setDefaultCrewPostId] = useState<number | ''>('')
+  const [defaultShiftProfileId, setDefaultShiftProfileId] = useState<number | ''>('')
   const [defaultShiftLengthHours, setDefaultShiftLengthHours] = useState(24)
   const [defaultPartnerId, setDefaultPartnerId] = useState<number | ''>('')
 
@@ -58,7 +58,7 @@ export default function EditEmployeePage() {
       fetch('/api/me').then(r => r.json()),
       fetch(`/api/employees/${employeeId}`).then(r => r.json()),
       fetch('/api/stations').then(r => r.json()),
-      fetch('/api/crew-posts').then(r => r.json()),
+      fetch('/api/shift-profiles').then(r => r.json()),
       fetch('/api/employees').then(r => r.json()),
     ]).then(([meData, empData, stationsData, postsData, empsData]) => {
       if (!meData.user) { router.push('/login'); return }
@@ -69,7 +69,7 @@ export default function EditEmployeePage() {
       setCurrentUser(meData.user)
       setEmployee(empData)
       setStations(Array.isArray(stationsData) ? stationsData : [])
-      setCrewPosts(Array.isArray(postsData) ? postsData : [])
+      setShiftProfiles(Array.isArray(postsData) ? postsData : [])
       setAllEmployees(Array.isArray(empsData) ? empsData : [])
 
       setName(empData.name)
@@ -79,7 +79,7 @@ export default function EditEmployeePage() {
       setRole(empData.role)
       setStatus(empData.status)
       setDefaultStationId(empData.default_station_id ?? '')
-      setDefaultCrewPostId(empData.default_crew_post_id ?? '')
+      setDefaultShiftProfileId(empData.default_shift_profile_id ?? '')
       setDefaultShiftLengthHours(empData.default_shift_length_hours)
       setDefaultPartnerId(empData.default_partner_id ?? '')
     })
@@ -106,7 +106,7 @@ export default function EditEmployeePage() {
           role,
           status,
           default_station_id: defaultStationId || null,
-          default_crew_post_id: defaultCrewPostId || null,
+          default_shift_profile_id: defaultShiftProfileId || null,
           default_shift_length_hours: defaultShiftLengthHours,
           default_partner_id: defaultPartnerId || null,
         }),
@@ -243,10 +243,10 @@ export default function EditEmployeePage() {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="crew-post" className={labelClass}>Default crew post</label>
-                  <select id="crew-post" value={defaultCrewPostId} onChange={e => setDefaultCrewPostId(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
+                  <label htmlFor="crew-post" className={labelClass}>Default Shift</label>
+                  <select id="crew-post" value={defaultShiftProfileId} onChange={e => setDefaultShiftProfileId(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
                     <option value="">No default</option>
-                    {crewPosts.map(p => (
+                    {shiftProfiles.map(p => (
                       <option key={p.id} value={p.id}>{p.name} — {p.station.name}</option>
                     ))}
                   </select>

@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
         emt_number: emtNumber,
         status: { not: 'Inactive' },
       },
-      include: { default_post: true },
+      include: { default_shift_profile: true },
     })
   } catch (error) {
     console.error('Login lookup failed', error)

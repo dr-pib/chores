@@ -5,7 +5,7 @@ import { BAY_OPTIONS } from '@/lib/bays'
 import { formatUnit } from '@/lib/units'
 
 interface Unit { id: number; unit_number: number; unit_type: string; unit_name: string | null }
-interface CrewPost {
+interface ShiftProfile {
   id: number
   name: string
   default_start_time: string
@@ -19,8 +19,8 @@ interface BayRow { bay_label: string; unit_id: number | null; sort_order: number
 const inputClass = 'px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full'
 const labelClass = 'block text-sm text-zinc-300 mb-1.5'
 
-export default function CrewPostEditPanel({ postId }: { postId: number }) {
-  const [post, setPost] = useState<CrewPost | null>(null)
+export default function ShiftProfileEditPanel({ postId }: { postId: number }) {
+  const [post, setPost] = useState<ShiftProfile | null>(null)
   const [units, setUnits] = useState<Unit[]>([])
   const [startTime, setStartTime] = useState('')
   const [defaultUnitId, setDefaultUnitId] = useState<number | ''>('')
@@ -35,7 +35,7 @@ export default function CrewPostEditPanel({ postId }: { postId: number }) {
     setError('')
     setSuccess(false)
     Promise.all([
-      fetch(`/api/crew-posts/${postId}`).then(r => r.json()),
+      fetch(`/api/shift-profiles/${postId}`).then(r => r.json()),
       fetch('/api/units').then(r => r.json()),
     ]).then(([postData, unitsData]) => {
       if (postData.error) return
@@ -81,7 +81,7 @@ export default function CrewPostEditPanel({ postId }: { postId: number }) {
     setError('')
     setSuccess(false)
     startTransition(async () => {
-      const res = await fetch(`/api/crew-posts/${postId}`, {
+      const res = await fetch(`/api/shift-profiles/${postId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ default_start_time: startTime, default_unit_id: defaultUnitId || null, bays }),

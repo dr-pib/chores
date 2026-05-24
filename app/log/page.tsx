@@ -39,15 +39,15 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
   const prevDate = new Date(serviceDate.getTime() - 24 * 3600 * 1000)
   const nextDate = new Date(serviceDate.getTime() + 24 * 3600 * 1000)
 
-  const [crewPosts, logs] = await Promise.all([
-    prisma.crewPost.findMany({
+  const [shiftProfiles, logs] = await Promise.all([
+    prisma.shiftProfile.findMany({
       include: { station: true, default_unit: true },
       orderBy: [{ station: { name: 'asc' } }, { name: 'asc' }],
     }),
     prisma.operationsLog.findMany({
       where: { service_date: serviceDate },
       include: {
-        crew_post: true,
+        shift_profile: true,
         primary_employee: true,
         partner_employee: true,
         primary_unit: true,
@@ -58,16 +58,16 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
     }),
   ])
 
-  // Build a map: crew_post_id → log (most recent if multiple somehow exist)
+  // Build a map: shift_profile_id → log (most recent if multiple somehow exist)
   const logByPost: Record<number, typeof logs[0]> = {}
   for (const log of logs) {
-    logByPost[log.crew_post_id] = log
+    logByPost[log.shift_profile_id] = log
   }
 
-  // Group crew posts by station name
+  // Group shift profiles by station name
   const stationOrder: string[] = []
-  const postsByStation: Record<string, typeof crewPosts> = {}
-  for (const post of crewPosts) {
+  const postsByStation: Record<string, typeof shiftProfiles> = {}
+  for (const post of shiftProfiles) {
     const sName = post.station.name
     if (!postsByStation[sName]) {
       postsByStation[sName] = []

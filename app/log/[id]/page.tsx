@@ -31,7 +31,7 @@ function formatShiftMil(d: Date | string) {
 
 
 const LOG_INCLUDE = {
-  crew_post: { include: { station: true } },
+  shift_profile: { include: { station: true } },
   station: true,
   primary_employee: true,
   partner_employee: true,
@@ -92,7 +92,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               chore_date: day2Date,
             })),
           ...((() => {
-            const name = getStationChoreForPost(log!.crew_post.name, day2Date.getUTCMonth() + 1)
+            const name = getStationChoreForPost(log!.shift_profile.name, day2Date.getUTCMonth() + 1)
             const tmpl = name ? templates.find(t => t.name === name) : null
             return tmpl ? [{ operations_log_id: log!.id, chore_template_id: tmpl.id, status: 'pending', due_at: day2DueAt(tmpl), chore_date: day2Date }] : []
           })()),
@@ -121,7 +121,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               { unit_id: null, operations_log: { bays: { some: { unit_id: { in: currentUnitIds } } } } },
             ]
           : []),
-        { unit_id: null, operations_log: { crew_post_id: log.crew_post_id } },
+        { unit_id: null, operations_log: { shift_profile_id: log.shift_profile_id } },
       ],
     },
     include: {
@@ -130,7 +130,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       completed_by: true,
       operations_log: {
         include: {
-          crew_post: true,
+          shift_profile: true,
           primary_employee: { select: { name: true, licensure_level: true } },
           partner_employee: { select: { name: true, licensure_level: true } },
         },
@@ -187,11 +187,11 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
             <h1 className="text-xl font-bold text-zinc-100">
               {isMyLog ? (
                 <>My Chores <span className="font-normal text-zinc-400">— {formatDate(log.service_date)} <LiveClock /></span></>
-              ) : log.crew_post.name}
+              ) : log.shift_profile.name}
             </h1>
             {!isMyLog && (
               <p className="text-zinc-400 text-sm mt-0.5">
-                {log.crew_post.name} · {log.station.name} · {formatDate(log.service_date)}
+                {log.shift_profile.name} · {log.station.name} · {formatDate(log.service_date)}
               </p>
             )}
           </div>
@@ -239,7 +239,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                 )}
               </div>
               <div className="text-sm font-semibold text-zinc-100 mt-0.5">
-                {log.crew_post.name} {log.station.name}{' | '}
+                {log.shift_profile.name} {log.station.name}{' | '}
                 {formatUnit(log.primary_unit, false)}
                 {secondUnit && (
                   <span className="font-normal text-zinc-500"> ({formatUnit(secondUnit, false)})</span>
@@ -298,7 +298,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     <div key={chore.id}>
                       <ChoreItem chore={chore} userRole={session.role} isPastShift={true} />
                       <div className="ml-8 text-xs text-zinc-500">
-                        From {chore.operations_log.crew_post.name} · {formatDate(chore.operations_log.service_date)}
+                        From {chore.operations_log.shift_profile.name} · {formatDate(chore.operations_log.service_date)}
                         {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(e => e.name).join(' & ')}</span>}
                       </div>
                     </div>

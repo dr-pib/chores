@@ -10,7 +10,7 @@ interface UserProfile {
   emt_number: string
   licensure_level: string
   role: string
-  default_crew_post_id: number | null
+  default_shift_profile_id: number | null
   default_partner_id: number | null
   default_shift_length_hours: number | null
   birthday_month: number | null
@@ -20,7 +20,7 @@ interface UserProfile {
   reminder_hours_before_shift_end: number | null
 }
 
-interface CrewPost { id: number; name: string; station: { name: string } }
+interface ShiftProfile { id: number; name: string; station: { name: string } }
 interface EmployeeOption { id: number; name: string; status: string; role: string }
 
 const MONTHS = [
@@ -56,7 +56,7 @@ const inputClass =
 export default function ProfilePage() {
   const router = useRouter()
   const [user, setUser] = useState<UserProfile | null>(null)
-  const [crewPosts, setCrewPosts] = useState<CrewPost[]>([])
+  const [shiftProfiles, setShiftProfiles] = useState<ShiftProfile[]>([])
   const [employees, setEmployees] = useState<EmployeeOption[]>([])
   const [loading, setLoading] = useState(true)
   const [saveState, setSaveState] = useState<SaveState>('idle')
@@ -73,15 +73,15 @@ export default function ProfilePage() {
   useEffect(() => {
     Promise.all([
       fetch('/api/me').then(r => r.json()),
-      fetch('/api/crew-posts').then(r => r.json()),
+      fetch('/api/shift-profiles').then(r => r.json()),
       fetch('/api/employees').then(r => r.json()),
     ]).then(([meData, postsData, empsData]) => {
       if (!meData.user) { router.push('/login'); return }
       const u: UserProfile = meData.user
       setUser(u)
-      setCrewPosts(Array.isArray(postsData) ? postsData : [])
+      setShiftProfiles(Array.isArray(postsData) ? postsData : [])
       setEmployees(Array.isArray(empsData) ? empsData : [])
-      setPostId(u.default_crew_post_id ?? '')
+      setPostId(u.default_shift_profile_id ?? '')
       setPartnerId(u.default_partner_id ?? '')
       setShiftLength(u.default_shift_length_hours ?? '')
       setBirthdayMonth(u.birthday_month ?? '')
@@ -99,7 +99,7 @@ export default function ProfilePage() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        default_crew_post_id: postId || null,
+        default_shift_profile_id: postId || null,
         default_partner_id: partnerId || null,
         default_shift_length_hours: shiftLength || null,
         birthday_month: birthdayMonth || null,
@@ -181,7 +181,7 @@ export default function ProfilePage() {
                   className={selectClass}
                 >
                   <option value="">N/A</option>
-                  {crewPosts.map(p => (
+                  {shiftProfiles.map(p => (
                     <option key={p.id} value={p.id}>{p.name} — {p.station.name}</option>
                   ))}
                 </select>

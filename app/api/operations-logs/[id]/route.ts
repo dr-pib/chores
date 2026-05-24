@@ -10,7 +10,7 @@ export async function GET(_req: Request, ctx: RouteContext<'/api/operations-logs
   const log = await prisma.operationsLog.findUnique({
     where: { id: Number(id) },
     include: {
-      crew_post: { include: { station: true } },
+      shift_profile: { include: { station: true } },
       station: true,
       primary_employee: true,
       partner_employee: true,

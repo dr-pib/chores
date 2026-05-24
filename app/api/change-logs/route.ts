@@ -15,7 +15,7 @@ export async function GET() {
       chore: { include: { chore_template: { select: { name: true } } } },
       operations_log: {
         include: {
-          crew_post: { select: { name: true } },
+          shift_profile: { select: { name: true } },
         },
       },
     },

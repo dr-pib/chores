@@ -39,7 +39,7 @@ export default async function ChangeLogPage() {
       changed_by_employee: { select: { name: true } },
       chore: { include: { chore_template: { select: { name: true } } } },
       operations_log: {
-        include: { crew_post: { select: { name: true } } },
+        include: { shift_profile: { select: { name: true } } },
       },
     },
     orderBy: { created_at: 'desc' },
@@ -64,7 +64,7 @@ export default async function ChangeLogPage() {
                   <th className="text-left px-4 py-3">When</th>
                   <th className="text-left px-4 py-3">By</th>
                   <th className="text-left px-4 py-3">Shift</th>
-                  <th className="text-left px-4 py-3">Post</th>
+                  <th className="text-left px-4 py-3">Shift Profile</th>
                   <th className="text-left px-4 py-3">Chore</th>
                   <th className="text-left px-4 py-3">Change</th>
                   {isDom && <th className="px-4 py-3" />}
@@ -79,7 +79,7 @@ export default async function ChangeLogPage() {
                     <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap">{formatDateTime(entry.created_at)}</td>
                     <td className="px-4 py-2.5 text-zinc-200">{entry.changed_by_employee.name}</td>
                     <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap">{formatShiftDate(entry.operations_log.service_date)}</td>
-                    <td className="px-4 py-2.5 text-zinc-300">{entry.operations_log.crew_post.name}</td>
+                    <td className="px-4 py-2.5 text-zinc-300">{entry.operations_log.shift_profile.name}</td>
                     <td className="px-4 py-2.5 text-zinc-200">{entry.chore.chore_template.name}</td>
                     <td className="px-4 py-2.5">
                       <span className="text-zinc-500">{entry.previous_status}</span>

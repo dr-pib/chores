@@ -7,12 +7,12 @@ import { BAY_OPTIONS } from '@/lib/bays'
 import { formatUnit } from '@/lib/units'
 
 interface Unit { id: number; unit_number: number; unit_type: string; unit_name?: string | null }
-interface CrewPostBay { id: number; bay_label: string; unit_id: number | null; sort_order: number }
-interface CrewPost {
+interface ShiftProfileBay { id: number; bay_label: string; unit_id: number | null; sort_order: number }
+interface ShiftProfile {
   id: number; name: string; default_start_time: string; default_shift_length_hours: number
-  station: { id: number; name: string }; default_unit: Unit | null; bays: CrewPostBay[]
+  station: { id: number; name: string }; default_unit: Unit | null; bays: ShiftProfileBay[]
 }
-interface Employee { id: number; name: string; email_username: string; licensure_level: string; role: string; default_crew_post_id: number | null }
+interface Employee { id: number; name: string; email_username: string; licensure_level: string; role: string; default_shift_profile_id: number | null }
 interface PrevBay { bay_label: string; unit_id: number | null; unit_status: string; unit: Unit | null }
 
 interface BayState {
@@ -29,7 +29,7 @@ function formatLocalDatetime(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-function buildDefaultStart(post: CrewPost, baseDate: Date): Date {
+function buildDefaultStart(post: ShiftProfile, baseDate: Date): Date {
   const [h, m] = post.default_start_time.split(':').map(Number)
   return new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), h, m)
 }
@@ -47,8 +47,8 @@ export default function SetupPage() {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
 
-  const [user, setUser] = useState<{ id: number; name: string; role: string; default_shift_length_hours: number; default_crew_post_id: number | null } | null>(null)
-  const [crewPosts, setCrewPosts] = useState<CrewPost[]>([])
+  const [user, setUser] = useState<{ id: number; name: string; role: string; default_shift_length_hours: number; default_shift_profile_id: number | null } | null>(null)
+  const [shiftProfiles, setShiftProfiles] = useState<ShiftProfile[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [units, setUnits] = useState<Unit[]>([])
 
@@ -61,20 +61,20 @@ export default function SetupPage() {
   useEffect(() => {
     Promise.all([
       fetch('/api/me').then(r => r.json()),
-      fetch('/api/crew-posts').then(r => r.json()),
+      fetch('/api/shift-profiles').then(r => r.json()),
       fetch('/api/employees').then(r => r.json()),
       fetch('/api/units').then(r => r.json()),
     ]).then(([meData, postsData, empsData, unitsData]) => {
       if (!meData.user) { router.push('/login'); return }
       setUser(meData.user)
-      setCrewPosts(postsData)
+      setShiftProfiles(postsData)
       setEmployees(empsData)
       setUnits(unitsData)
 
-      const defaultPostId = meData.user.default_crew_post_id ?? postsData[0]?.id
+      const defaultPostId = meData.user.default_shift_profile_id ?? postsData[0]?.id
       if (defaultPostId) {
         setSelectedPostId(defaultPostId)
-        const post = postsData.find((p: CrewPost) => p.id === defaultPostId)
+        const post = postsData.find((p: ShiftProfile) => p.id === defaultPostId)
         if (post) initPostDefaults(post, meData.user.default_shift_length_hours ?? 24)
       }
 
@@ -82,13 +82,13 @@ export default function SetupPage() {
     })
   }, [router])
 
-  function initPostDefaults(post: CrewPost, shiftHours: number) {
+  function initPostDefaults(post: ShiftProfile, shiftHours: number) {
     const now = new Date()
     const start = buildDefaultStart(post, now)
     const end = new Date(start.getTime() + shiftHours * 60 * 60 * 1000)
     setStartDt(formatLocalDatetime(start))
     setEndDt(formatLocalDatetime(end))
-    // One bay row per crew post default bay; use per-bay unit_id (fallback to crew default for bay 1 only)
+    // One bay row per shift profile default bay; use per-bay unit_id (fallback to the profile default for bay 1 only)
     const defaultBays = post.bays.length > 0
       ? post.bays.map((b, i) => ({
           bay_label: BAY_OPTIONS.includes(normalizeBayLabel(b.bay_label)) ? normalizeBayLabel(b.bay_label) : '',
@@ -102,11 +102,11 @@ export default function SetupPage() {
 
   async function handlePostChange(postId: number) {
     setSelectedPostId(postId)
-    const post = crewPosts.find(p => p.id === postId)
+    const post = shiftProfiles.find(p => p.id === postId)
     if (!post || !user) return
     initPostDefaults(post, user.default_shift_length_hours ?? 24)
 
-    const res = await fetch(`/api/operations-logs/previous-bay?crew_post_id=${postId}`)
+    const res = await fetch(`/api/operations-logs/previous-bay?shift_profile_id=${postId}`)
     const { bays: prevBays } = await res.json() as { bays: PrevBay[] }
     if (prevBays && prevBays.length > 0) {
       setBays(prevBays.map((pb, i) => ({
@@ -134,7 +134,7 @@ export default function SetupPage() {
   const usedBays = (currentIndex: number) =>
     bays.filter((_, i) => i !== currentIndex).map(b => b.bay_label).filter(Boolean)
 
-  const selectedPost = crewPosts.find(p => p.id === selectedPostId)
+  const selectedPost = shiftProfiles.find(p => p.id === selectedPostId)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -155,7 +155,7 @@ export default function SetupPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          crew_post_id: selectedPostId,
+          shift_profile_id: selectedPostId,
           partner_employee_id: partnerId || null,
           primary_unit_id: primaryUnit,
           actual_start: new Date(startDt).toISOString(),
@@ -194,11 +194,11 @@ export default function SetupPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Post & schedule */}
+          {/* Shift profile & schedule */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-zinc-100">Crew &amp; schedule</h2>
+                <h2 className="text-base font-semibold text-zinc-100">Shift Profile &amp; Schedule</h2>
                 <p className="mt-1 text-sm text-zinc-500">Defaults are filled from your profile and can be changed for today. You can change your defaults in your profile for long-term changes.</p>
               </div>
             </div>
@@ -212,7 +212,7 @@ export default function SetupPage() {
                 className={`w-full ${inputClass}`}
               >
                 <option value="">Select shift profile…</option>
-                {crewPosts.map(p => (
+                {shiftProfiles.map(p => (
                   <option key={p.id} value={p.id}>{p.name} — {p.station.name}</option>
                 ))}
               </select>

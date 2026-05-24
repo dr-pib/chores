@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     include: {
       default_partner: { select: { id: true, name: true } },
       default_station: { select: { id: true, name: true } },
-      default_post: { select: { id: true, name: true } },
+      default_shift_profile: { select: { id: true, name: true } },
       direct_supervisor: { select: { id: true, name: true } },
     },
   })
@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     role,
     status,
     default_station_id,
-    default_crew_post_id,
+    default_shift_profile_id,
     default_shift_length_hours,
     default_partner_id,
     direct_supervisor_id,
@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(role !== undefined && { role }),
       ...(status !== undefined && { status }),
       ...(default_station_id !== undefined && { default_station_id: default_station_id || null }),
-      ...(default_crew_post_id !== undefined && { default_crew_post_id: default_crew_post_id || null }),
+      ...(default_shift_profile_id !== undefined && { default_shift_profile_id: default_shift_profile_id || null }),
       ...(default_shift_length_hours !== undefined && { default_shift_length_hours: default_shift_length_hours != null ? Number(default_shift_length_hours) : null }),
       ...(partnerProvided && { default_partner_id: newPartnerId }),
       ...(direct_supervisor_id !== undefined && { direct_supervisor_id: direct_supervisor_id || null }),

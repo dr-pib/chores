@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   const logs = await prisma.operationsLog.findMany({
     where: { service_date: serviceDate },
     include: {
-      crew_post: { include: { station: true } },
+      shift_profile: { include: { station: true } },
       station: true,
       primary_employee: true,
       partner_employee: true,
@@ -56,10 +56,10 @@ export async function POST(req: NextRequest) {
   if (!session.isLoggedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body: SetShiftInput = await req.json()
-  const { crew_post_id, partner_employee_id, primary_unit_id, actual_start, actual_end, bays } = body
+  const { shift_profile_id, partner_employee_id, primary_unit_id, actual_start, actual_end, bays } = body
 
-  const crewPost = await prisma.crewPost.findUnique({ where: { id: crew_post_id } })
-  if (!crewPost) return NextResponse.json({ error: 'Crew post not found' }, { status: 404 })
+  const shiftProfile = await prisma.shiftProfile.findUnique({ where: { id: shift_profile_id } })
+  if (!shiftProfile) return NextResponse.json({ error: 'Shift profile not found' }, { status: 404 })
 
   const startDt = new Date(actual_start)
   const endDt = new Date(actual_end)
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
   // Check if this employee already has a log today for this post
   const existing = await prisma.operationsLog.findFirst({
-    where: { service_date: serviceDate, crew_post_id, primary_employee_id: session.userId },
+    where: { service_date: serviceDate, shift_profile_id, primary_employee_id: session.userId },
   })
   if (existing) {
     // Update — replace all truck check chores (day 1 + day 2) to match current bays
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
 
   // --- New shift creation ---
   const serviceMonth = serviceDate.getMonth() + 1
-  const stationChoreName = getStationChoreForPost(crewPost.name, serviceMonth)
+  const stationChoreName = getStationChoreForPost(shiftProfile.name, serviceMonth)
   const stationTemplate = stationChoreName ? templates.find((t) => t.name === stationChoreName) ?? null : null
 
   // Day 1 scheduled persistent chores (dedup across same service_date)
@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
     const day2Date = new Date(serviceDate.getTime() + 24 * 3600 * 1000)
     const day2TruckChecks = buildTruckChecks(day2Date, true)
 
-    const day2StationChoreName = getStationChoreForPost(crewPost.name, day2Date.getMonth() + 1)
+    const day2StationChoreName = getStationChoreForPost(shiftProfile.name, day2Date.getMonth() + 1)
     const day2StationTemplate = day2StationChoreName ? templates.find((t) => t.name === day2StationChoreName) ?? null : null
 
     // Day 2 scheduled persistent chores — dedup by chore_date across all logs
@@ -225,8 +225,8 @@ export async function POST(req: NextRequest) {
   const log = await prisma.operationsLog.create({
     data: {
       service_date: serviceDate,
-      crew_post_id,
-      station_id: crewPost.station_id,
+      shift_profile_id,
+      station_id: shiftProfile.station_id,
       primary_employee_id: session.userId,
       partner_employee_id,
       primary_unit_id,
@@ -237,7 +237,7 @@ export async function POST(req: NextRequest) {
       chores: { create: choresToCreate },
     },
     include: {
-      crew_post: { include: { station: true } },
+      shift_profile: { include: { station: true } },
       bays: { include: { unit: true } },
       chores: { include: { chore_template: true, unit: true } },
       primary_employee: true,

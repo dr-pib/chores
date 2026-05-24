@@ -103,48 +103,48 @@ async function main() {
     })
   }
 
-  // Crew Posts
-  const supervisorPost = await prisma.crewPost.upsert({
+  // Shift Profiles
+  const supervisorPost = await prisma.shiftProfile.upsert({
     where: { name: 'Supervisor' }, update: {},
     create: { name: 'Supervisor', station_id: harrison.id, default_start_time: '06:00', default_shift_length_hours: 24, default_unit_id: units[14].id },
   })
-  const post247 = await prisma.crewPost.upsert({
+  const post247 = await prisma.shiftProfile.upsert({
     where: { name: '24-7' }, update: {},
     create: { name: '24-7', station_id: harrison.id, default_start_time: '07:00', default_shift_length_hours: 24, default_unit_id: units[4].id },
   })
-  const post248 = await prisma.crewPost.upsert({
+  const post248 = await prisma.shiftProfile.upsert({
     where: { name: '24-8' }, update: {},
     create: { name: '24-8', station_id: harrison.id, default_start_time: '08:00', default_shift_length_hours: 24, default_unit_id: units[11].id },
   })
-  const swingPost = await prisma.crewPost.upsert({
+  const swingPost = await prisma.shiftProfile.upsert({
     where: { name: 'Swing' }, update: {},
     create: { name: 'Swing', station_id: harrison.id, default_start_time: '07:00', default_shift_length_hours: 24, default_unit_id: units[9].id },
   })
-  const dcAlsPost = await prisma.crewPost.upsert({
+  const dcAlsPost = await prisma.shiftProfile.upsert({
     where: { name: 'DC-ALS' }, update: {},
     create: { name: 'DC-ALS', station_id: diamondCity.id, default_start_time: '07:00', default_shift_length_hours: 24, default_unit_id: units[10].id },
   })
-  const ncAlsPost = await prisma.crewPost.upsert({
+  const ncAlsPost = await prisma.shiftProfile.upsert({
     where: { name: 'NC-ALS' }, update: {},
     create: { name: 'NC-ALS', station_id: newtonCounty.id, default_start_time: '07:00', default_shift_length_hours: 24, default_unit_id: units[2].id },
   })
 
-  // Crew Post Bays — only seed on first run; skip if crew already has bays (preserves admin edits)
+  // Shift Profile Bays — only seed on first run; skip if a profile already has bays (preserves admin edits)
   const twoBayPosts = [supervisorPost, post247, post248, swingPost]
   const oneBayPosts = [dcAlsPost, ncAlsPost]
   for (const post of [...twoBayPosts, ...oneBayPosts]) {
-    const existing = await prisma.crewPostBay.count({ where: { crew_post_id: post.id } })
+    const existing = await prisma.shiftProfileBay.count({ where: { shift_profile_id: post.id } })
     if (existing === 0) {
-      await prisma.crewPostBay.create({
-        data: { crew_post_id: post.id, bay_label: 'Bay 1', unit_id: post.default_unit_id, sort_order: 1 },
+      await prisma.shiftProfileBay.create({
+        data: { shift_profile_id: post.id, bay_label: 'Bay 1', unit_id: post.default_unit_id, sort_order: 1 },
       })
     }
   }
   for (const post of twoBayPosts) {
-    const existing = await prisma.crewPostBay.count({ where: { crew_post_id: post.id } })
+    const existing = await prisma.shiftProfileBay.count({ where: { shift_profile_id: post.id } })
     if (existing < 2) {
-      await prisma.crewPostBay.create({
-        data: { crew_post_id: post.id, bay_label: 'Bay 2', sort_order: 2 },
+      await prisma.shiftProfileBay.create({
+        data: { shift_profile_id: post.id, bay_label: 'Bay 2', sort_order: 2 },
       })
     }
   }
@@ -219,7 +219,7 @@ async function main() {
           role: employee.role,
           status: employee.status || 'Active',
           default_station_id: employee.default_station ? stationsByName.get(employee.default_station) ?? null : null,
-          default_crew_post_id: employee.default_shift ? postsByName.get(employee.default_shift) ?? null : null,
+          default_shift_profile_id: employee.default_shift ? postsByName.get(employee.default_shift) ?? null : null,
           default_shift_length_hours: Number(employee.default_shift_length_hours) || 48,
         },
         create: {
@@ -231,7 +231,7 @@ async function main() {
           role: employee.role,
           status: employee.status || 'Active',
           default_station_id: employee.default_station ? stationsByName.get(employee.default_station) ?? null : null,
-          default_crew_post_id: employee.default_shift ? postsByName.get(employee.default_shift) ?? null : null,
+          default_shift_profile_id: employee.default_shift ? postsByName.get(employee.default_shift) ?? null : null,
           default_shift_length_hours: Number(employee.default_shift_length_hours) || 48,
         },
       })

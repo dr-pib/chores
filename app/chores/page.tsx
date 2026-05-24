@@ -26,7 +26,7 @@ interface Chore {
 }
 interface LogWithChores {
   id: number
-  crew_post: { name: string }
+  shift_profile: { name: string }
   primary_employee: { name: string }
   chores: Chore[]
 }
@@ -41,7 +41,7 @@ function LogBox({ log, highlight, userRole }: { log: LogWithChores; highlight?: 
     <div className={`border rounded-xl p-4 ${borderClass}`}>
       <div className="flex items-center justify-between mb-3">
         <Link href={`/log/${log.id}`} className="flex items-center gap-2 hover:text-blue-400 transition-colors">
-          <span className="font-semibold text-zinc-100">{log.crew_post.name}</span>
+          <span className="font-semibold text-zinc-100">{log.shift_profile.name}</span>
           <span className="text-zinc-500 text-sm">— {log.primary_employee.name}</span>
         </Link>
         <span className="text-xs text-zinc-500">{done}/{sorted.length}</span>
@@ -67,7 +67,7 @@ export default async function ChoresPage() {
   const logs = await prisma.operationsLog.findMany({
     where: { service_date: serviceDate },
     include: {
-      crew_post: true,
+      shift_profile: true,
       primary_employee: true,
       chores: {
         include: {
@@ -99,7 +99,7 @@ export default async function ChoresPage() {
         include: { chore_template_task: true, completed_by: true },
         orderBy: { chore_template_task: { sort_order: 'asc' } } as const,
       },
-      operations_log: { include: { crew_post: true } },
+      operations_log: { include: { shift_profile: true } },
     },
     orderBy: { due_at: 'asc' },
     take: 20,
@@ -143,7 +143,7 @@ export default async function ChoresPage() {
                 <div key={chore.id} className="flex items-center gap-3">
                   <ChoreItem chore={chore} userRole={session.role} />
                   <Link href={`/log/${chore.operations_log_id}`} className="text-xs text-zinc-500 hover:text-zinc-300 shrink-0">
-                    {chore.operations_log.crew_post.name}
+                    {chore.operations_log.shift_profile.name}
                   </Link>
                 </div>
               ))}

@@ -4,8 +4,8 @@ const STATION_CHORES = ['Bathroom', 'Garage', 'Kitchen', 'Quarters'] as const
 const HARRISON_CREWS = ['Supervisor', '24-7', '24-8', 'Swing']
 const BASE_MONTH = 5
 
-export function getStationChoreForPost(crewPostName: string, month: number): string | null {
-  const crewIndex = HARRISON_CREWS.indexOf(crewPostName)
+export function getStationChoreForPost(shiftProfileName: string, month: number): string | null {
+  const crewIndex = HARRISON_CREWS.indexOf(shiftProfileName)
   if (crewIndex === -1) return null
   const idx = (((month - BASE_MONTH) + crewIndex) % 4 + 4) % 4
   return STATION_CHORES[idx]

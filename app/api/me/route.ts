@@ -9,7 +9,7 @@ export async function GET() {
   const employee = await prisma.employee.findUnique({
     where: { id: session.userId },
     include: {
-      default_post: { include: { station: true, default_unit: true, bays: { orderBy: { sort_order: 'asc' } } } },
+      default_shift_profile: { include: { station: true, default_unit: true, bays: { orderBy: { sort_order: 'asc' } } } },
       default_partner: true,
     },
   })
@@ -19,7 +19,7 @@ export async function GET() {
 
 // Employees may update only their own profile/default fields — never role, status, name, etc.
 const ALLOWED_FIELDS = new Set([
-  'default_crew_post_id',
+  'default_shift_profile_id',
   'default_partner_id',
   'default_shift_length_hours',
   'birthday_month',
@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   // Null-coerce optional FK fields so empty string → null
-  for (const fk of ['default_crew_post_id', 'default_partner_id', 'reminder_hours_before_shift_end', 'birthday_month', 'birthday_day']) {
+  for (const fk of ['default_shift_profile_id', 'default_partner_id', 'reminder_hours_before_shift_end', 'birthday_month', 'birthday_day']) {
     if (fk in data) data[fk] = data[fk] || null
   }
   if ('default_shift_length_hours' in data) {
@@ -79,7 +79,7 @@ export async function PATCH(req: NextRequest) {
   const updated = await prisma.employee.update({
     where: { id: employeeId },
     data,
-    include: { default_post: { include: { station: true } }, default_partner: true },
+    include: { default_shift_profile: { include: { station: true } }, default_partner: true },
   })
 
   return NextResponse.json({ user: updated })
