@@ -145,7 +145,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   const day2Chores = allDailyChores.filter(c => c.chore_date && c.chore_date.getTime() >= day2Date.getTime())
 
   const sortedPreviousPersistentChores = sortChores(previousPersistentChores)
-  const isMyLog = log.primary_employee_id === session.userId
+  const isMyLog = log.primary_employee_id === session.userId || log.partner_employee_id === session.userId
   const myChoresForProgress = isMyLog
     ? [...allDailyChores, ...persistentChores, ...sortedPreviousPersistentChores]
     : []
@@ -196,26 +196,15 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-            <div className="text-zinc-500 text-xs mb-1">Primary</div>
-            <div className="text-zinc-100 text-sm font-medium">{log.primary_employee.name}</div>
+        {/* Shift summary */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6">
+          <div className="font-semibold text-zinc-100">
+            {log.primary_employee.name}
+            {log.partner_employee && <span className="text-zinc-400 font-normal"> &amp; {log.partner_employee.name}</span>}
           </div>
-          {log.partner_employee && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-              <div className="text-zinc-500 text-xs mb-1">Partner</div>
-              <div className="text-zinc-100 text-sm font-medium">{log.partner_employee.name}</div>
-            </div>
-          )}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-            <div className="text-zinc-500 text-xs mb-1">Unit</div>
-            <div className="text-zinc-100 text-sm font-medium">{formatUnit(log.primary_unit, false)}</div>
-          </div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 col-span-2 sm:col-span-1">
-            <div className="text-zinc-500 text-xs mb-1">Shift</div>
-            <div className="text-zinc-100 text-sm font-medium">{formatShiftDt(log.actual_start)}</div>
-            <div className="text-zinc-400 text-sm">→ {formatShiftDt(log.actual_end)}</div>
+          <div className="text-sm text-zinc-400 mt-0.5">{formatUnit(log.primary_unit, false)}</div>
+          <div className="text-sm text-zinc-500 mt-0.5">
+            {formatShiftDt(log.actual_start)} → {formatShiftDt(log.actual_end)}
           </div>
         </div>
 
