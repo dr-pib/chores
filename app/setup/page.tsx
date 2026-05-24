@@ -204,14 +204,14 @@ export default function SetupPage() {
             </div>
             <div className="space-y-4">
             <div>
-              <label htmlFor="crew-post" className="block text-sm text-zinc-300 mb-1.5">Crew</label>
+              <label htmlFor="crew-post" className="block text-sm text-zinc-300 mb-1.5">Shift Profile</label>
               <select
                 id="crew-post"
                 value={selectedPostId ?? ''}
                 onChange={(e) => handlePostChange(Number(e.target.value))}
                 className={`w-full ${inputClass}`}
               >
-                <option value="">Select crew…</option>
+                <option value="">Select shift profile…</option>
                 {crewPosts.map(p => (
                   <option key={p.id} value={p.id}>{p.name} — {p.station.name}</option>
                 ))}

@@ -99,7 +99,7 @@ export default function CrewPostEditPanel({ postId }: { postId: number }) {
     return <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">Loading…</div>
   }
   if (!post) {
-    return <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">Crew post not found.</div>
+    return <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">Shift profile not found.</div>
   }
 
   return (
@@ -111,7 +111,7 @@ export default function CrewPostEditPanel({ postId }: { postId: number }) {
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
           <h2 className="text-base font-semibold text-zinc-100 mb-1">Schedule defaults</h2>
-          <p className="text-sm text-zinc-500 mb-4">Pre-filled on Shift Setup when this crew is selected.</p>
+          <p className="text-sm text-zinc-500 mb-4">Pre-filled on Shift Setup when this shift profile is selected.</p>
           <div>
             <label htmlFor="cp-start-time" className={labelClass}>Default start time</label>
             <input id="cp-start-time" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className={inputClass} />
@@ -120,7 +120,7 @@ export default function CrewPostEditPanel({ postId }: { postId: number }) {
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
           <h2 className="text-base font-semibold text-zinc-100 mb-1">Primary truck</h2>
-          <p className="text-sm text-zinc-500 mb-4">The unit most commonly associated with this crew (used for display).</p>
+          <p className="text-sm text-zinc-500 mb-4">The unit most commonly associated with this shift profile (used for display).</p>
           <select value={defaultUnitId} onChange={e => setDefaultUnitId(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
             <option value="">No primary truck</option>
             {units.map(u => <option key={u.id} value={u.id}>{formatUnit(u)}</option>)}

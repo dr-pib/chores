@@ -68,9 +68,10 @@ export default function CrewPostsPage() {
         {/* Left: list */}
         <div className="lg:w-72 lg:flex-shrink-0 lg:border-r lg:border-zinc-800 lg:overflow-y-auto">
           <div className="px-4 py-6">
+            {/* User-facing name: Shift Profile. Internal model/route remains CrewPost until a dedicated refactor. */}
             <div className="mb-6">
-              <h1 className="text-2xl font-bold text-zinc-100">Crews</h1>
-              <p className="mt-1 text-sm text-zinc-500">{posts.length} crew posts</p>
+              <h1 className="text-2xl font-bold text-zinc-100">Shift Profiles</h1>
+              <p className="mt-1 text-sm text-zinc-500">{posts.length} shift profiles</p>
             </div>
 
             <div className="space-y-6">
@@ -109,7 +110,7 @@ export default function CrewPostsPage() {
             <CrewPostEditPanel key={selectedId} postId={selectedId} />
           ) : (
             <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
-              Click a crew on the left to edit.
+              Click a shift profile on the left to edit.
             </div>
           )}
         </div>

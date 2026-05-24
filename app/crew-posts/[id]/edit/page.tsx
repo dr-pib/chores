@@ -125,7 +125,7 @@ export default function EditCrewPostPage() {
           <button
             onClick={() => router.push('/crew-posts')}
             className="text-zinc-500 hover:text-zinc-300 transition-colors"
-            aria-label="Back to crews"
+            aria-label="Back to shift profiles"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -141,7 +141,7 @@ export default function EditCrewPostPage() {
           {/* Schedule defaults */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
             <h2 className="text-base font-semibold text-zinc-100 mb-1">Schedule defaults</h2>
-            <p className="text-sm text-zinc-500 mb-4">Pre-filled on Shift Setup when this crew is selected.</p>
+            <p className="text-sm text-zinc-500 mb-4">Pre-filled on Shift Setup when this shift profile is selected.</p>
             <div>
               <label htmlFor="start-time" className={labelClass}>Default start time</label>
               <input
@@ -157,7 +157,7 @@ export default function EditCrewPostPage() {
           {/* Default truck */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
             <h2 className="text-base font-semibold text-zinc-100 mb-1">Primary truck</h2>
-            <p className="text-sm text-zinc-500 mb-4">The unit most commonly associated with this crew (used for display).</p>
+            <p className="text-sm text-zinc-500 mb-4">The unit most commonly associated with this shift profile (used for display).</p>
             <select
               value={defaultUnitId}
               onChange={e => setDefaultUnitId(e.target.value ? Number(e.target.value) : '')}

@@ -45,7 +45,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
   const [badges, setBadges] = useState<BadgeState | null>(null)
 
   const links = SUPERVISOR_ROLES.includes(userRole)
-    ? [...BASE_LINKS, { href: '/crew-posts', label: 'Crews' }, { href: '/employees', label: 'Employees' }, { href: '/chore-templates', label: 'Chores' }, { href: '/change-log', label: 'Change Log' }]
+    ? [...BASE_LINKS, { href: '/crew-posts', label: 'Shift Profiles' }, { href: '/employees', label: 'Employees' }, { href: '/chore-templates', label: 'Chores' }, { href: '/change-log', label: 'Change Log' }]
     : BASE_LINKS
 
   function isActive(href: string) {
