@@ -14,23 +14,19 @@ function formatDate(d: Date | string) {
 function formatShortDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })
 }
-function formatTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' })
-}
-function formatShiftDt(d: Date | string) {
-  return new Date(d).toLocaleString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' })
+function formatShiftMil(d: Date | string) {
+  const dt = new Date(d)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short', month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'America/Chicago',
+  }).formatToParts(dt)
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  let hour = get('hour')
+  if (hour === '24') hour = '00'
+  return `${get('weekday')}, ${get('month')}/${get('day')}, ${hour}${get('minute')}`
 }
 
-const statusColors: Record<string, string> = {
-  unit_present: 'text-green-400',
-  empty_bay: 'text-zinc-500',
-  unit_at_shop: 'text-yellow-400',
-}
-const statusLabels: Record<string, string> = {
-  unit_present: 'Present',
-  empty_bay: 'Empty bay',
-  unit_at_shop: 'At shop',
-}
 
 const LOG_INCLUDE = {
   crew_post: { include: { station: true } },
@@ -168,8 +164,9 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           <div>
             <h1 className="text-xl font-bold text-zinc-100">{isMyLog ? 'My Chores' : log.crew_post.name}</h1>
             <p className="text-zinc-400 text-sm mt-0.5">
-              {isMyLog && <span>{log.crew_post.name} · </span>}
-              {log.station.name} · {formatDate(log.service_date)}
+              {isMyLog
+                ? formatDate(log.service_date)
+                : `${log.crew_post.name} · ${log.station.name} · ${formatDate(log.service_date)}`}
             </p>
           </div>
           {log.supervisor_confirmed_at ? (
@@ -197,32 +194,31 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         )}
 
         {/* Shift summary */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6">
-          <div className="font-semibold text-zinc-100">
-            {log.primary_employee.name}
-            {log.partner_employee && <span className="text-zinc-400 font-normal"> &amp; {log.partner_employee.name}</span>}
-          </div>
-          <div className="text-sm text-zinc-400 mt-0.5">{formatUnit(log.primary_unit, false)}</div>
-          <div className="text-sm text-zinc-500 mt-0.5">
-            {formatShiftDt(log.actual_start)} → {formatShiftDt(log.actual_end)}
-          </div>
-        </div>
-
-        {/* Bays */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-5">
-          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">Bays</h2>
-          <div className="space-y-2">
-            {log.bays.map(bay => (
-              <div key={bay.bay_label} className="flex items-center justify-between text-sm">
-                <span className="text-zinc-400">{bay.bay_label}</span>
-                <span className={statusColors[bay.unit_status]}>
-                  {bay.unit ? formatUnit(bay.unit) : '—'}
-                  {' · '}{statusLabels[bay.unit_status]}
-                </span>
+        {(() => {
+          const secondUnit = log.bays.find(
+            b => b.unit && b.unit_id !== log.primary_unit_id && b.unit_status === 'unit_present'
+          )?.unit ?? null
+          return (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6">
+              <div className="font-semibold text-zinc-100">
+                {log.primary_employee.name}, {log.primary_employee.licensure_level}
+                {log.partner_employee && (
+                  <> | {log.partner_employee.name}, {log.partner_employee.licensure_level}</>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="text-sm font-semibold text-zinc-100 mt-0.5">
+                {log.crew_post.name} {log.station.name}{' '}
+                {formatUnit(log.primary_unit, false)}
+                {secondUnit && (
+                  <span className="font-normal text-zinc-500"> ({formatUnit(secondUnit, false)})</span>
+                )}
+              </div>
+              <div className="text-sm text-zinc-500 mt-0.5">
+                {formatShiftMil(log.actual_start)} → {formatShiftMil(log.actual_end)}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Chores */}
         <div className="space-y-5">
