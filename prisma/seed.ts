@@ -167,7 +167,8 @@ async function main() {
   const choreTemplates: Record<string, { id: number }> = {}
   for (const c of choreDefs) {
     choreTemplates[c.name] = await prisma.choreTemplate.upsert({
-      where: { name: c.name }, update: {},
+      where: { name: c.name },
+      update: { due_offset_hours: c.due_offset_hours, lock_offset_hours: c.lock_offset_hours },
       create: { name: c.name, lifecycle_type: c.lifecycle_type, due_offset_hours: c.due_offset_hours, lock_offset_hours: c.lock_offset_hours },
     })
   }
