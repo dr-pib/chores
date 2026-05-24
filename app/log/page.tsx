@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import { formatUnit } from '@/lib/units'
+import { nextServiceDate } from '@/lib/dates'
 
 function formatRosterDate(d: Date) {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
@@ -37,7 +38,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
 
   const isToday = serviceDate.getTime() === todayLocal.getTime()
   const prevDate = new Date(serviceDate.getTime() - 24 * 3600 * 1000)
-  const nextDate = new Date(serviceDate.getTime() + 24 * 3600 * 1000)
+  const nextDate = nextServiceDate(serviceDate)
 
   const [shiftProfiles, logs] = await Promise.all([
     prisma.shiftProfile.findMany({
@@ -45,7 +46,10 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
       orderBy: [{ station: { name: 'asc' } }, { name: 'asc' }],
     }),
     prisma.operationsLog.findMany({
-      where: { service_date: serviceDate },
+      where: {
+        actual_start: { lt: nextDate },
+        actual_end: { gt: serviceDate },
+      },
       include: {
         shift_profile: true,
         primary_employee: true,

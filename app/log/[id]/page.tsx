@@ -150,7 +150,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
   const sortedPreviousPersistentChores = sortChores(previousPersistentChores)
   const isMyLog = log.primary_employee_id === session.userId || log.partner_employee_id === session.userId
-  const pastShift = isPastShift(log.service_date)
+  const pastShift = isPastShift(log.service_date, log.actual_end)
 
   // Birthday check — only relevant on "My Chores" view
   let isBirthday = false

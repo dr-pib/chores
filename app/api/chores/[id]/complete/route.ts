@@ -14,7 +14,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
     where: { id: Number(id) },
     include: {
       chore_template: true,
-      operations_log: { select: { service_date: true } },
+      operations_log: { select: { service_date: true, actual_end: true } },
     },
   })
   if (!chore) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -23,7 +23,8 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
 
   // Past-shift enforcement
   const serviceDate = new Date(chore.operations_log.service_date)
-  if (isPastShift(serviceDate)) {
+  const pastShift = isPastShift(serviceDate, chore.operations_log.actual_end)
+  if (pastShift) {
     if (!isSupervisor) {
       return NextResponse.json(
         { error: 'Past shift chores can only be edited by a supervisor' },
@@ -97,7 +98,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
     include: { chore_template: true, completed_by: true },
   })
 
-  if (isPastShift(serviceDate)) {
+  if (pastShift) {
     await prisma.changeLog.create({
       data: {
         operations_log_id: chore.operations_log_id,

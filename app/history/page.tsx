@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
-import { todayChicago } from '@/lib/dates'
 import { formatUnit } from '@/lib/units'
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
@@ -51,11 +50,11 @@ export default async function HistoryPage() {
   if (!session.isLoggedIn) redirect('/login')
 
   const isSupervisor = SUPERVISOR_ROLES.includes(session.role)
-  const today = todayChicago()
+  const now = new Date()
 
   const logs = await prisma.operationsLog.findMany({
     where: {
-      service_date: { lt: today },
+      actual_end: { lt: now },
       ...(isSupervisor
         ? {}
         : {

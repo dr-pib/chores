@@ -12,15 +12,16 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
   const { id } = await ctx.params
   const chore = await prisma.chore.findUnique({
     where: { id: Number(id) },
-    include: { operations_log: { select: { service_date: true, id: true } } },
+    include: { operations_log: { select: { service_date: true, actual_end: true, id: true } } },
   })
   if (!chore) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (chore.status !== 'completed') return NextResponse.json({ error: 'Chore is not completed' }, { status: 400 })
 
   const isSupervisor = SUPERVISOR_ROLES.includes(session.role)
   const serviceDate = new Date(chore.operations_log.service_date)
+  const pastShift = isPastShift(serviceDate, chore.operations_log.actual_end)
 
-  if (isPastShift(serviceDate) && !isSupervisor) {
+  if (pastShift && !isSupervisor) {
     return NextResponse.json(
       { error: 'Past shift chores can only be edited by a supervisor' },
       { status: 403 },
@@ -33,7 +34,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
     include: { chore_template: true },
   })
 
-  if (isPastShift(serviceDate)) {
+  if (pastShift) {
     await prisma.changeLog.create({
       data: {
         operations_log_id: chore.operations_log.id,

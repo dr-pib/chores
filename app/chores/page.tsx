@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
 import { sortChores } from '@/lib/chore-rotation'
+import { nextServiceDate } from '@/lib/dates'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -63,9 +64,13 @@ export default async function ChoresPage() {
   const serviceDate = new Date(
     today.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) + 'T00:00:00Z'
   )
+  const nextDate = nextServiceDate(serviceDate)
 
   const logs = await prisma.operationsLog.findMany({
-    where: { service_date: serviceDate },
+    where: {
+      actual_start: { lt: nextDate },
+      actual_end: { gt: serviceDate },
+    },
     include: {
       shift_profile: true,
       primary_employee: true,
@@ -89,7 +94,7 @@ export default async function ChoresPage() {
     where: {
       status: 'pending',
       chore_template: { lifecycle_type: 'persistent_until_complete' },
-      operations_log: { service_date: { lt: serviceDate } },
+      operations_log: { actual_end: { lt: today } },
     },
     include: {
       chore_template: true,
@@ -105,8 +110,8 @@ export default async function ChoresPage() {
     take: 20,
   })
 
-  const myLog = logs.find(l => l.primary_employee_id === session.userId) ?? null
-  const otherLogs = logs.filter(l => l.primary_employee_id !== session.userId)
+  const myLog = logs.find(l => l.primary_employee_id === session.userId || l.partner_employee_id === session.userId) ?? null
+  const otherLogs = logs.filter(l => l.id !== myLog?.id)
 
   const totalToday = logs.reduce((s, l) => s + l.chores.length, 0)
   const doneToday = logs.reduce((s, l) => s + l.chores.filter(c => c.status === 'completed').length, 0)

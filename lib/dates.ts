@@ -7,7 +7,13 @@ export function todayChicago(): Date {
   return new Date(`${get('year')}-${get('month')}-${get('day')}T00:00:00.000Z`)
 }
 
-// Returns true if the operations log's service_date is before today (Chicago time)
-export function isPastShift(serviceDate: Date): boolean {
+export function nextServiceDate(serviceDate: Date): Date {
+  return new Date(serviceDate.getTime() + 24 * 3600 * 1000)
+}
+
+// Prefer actual_end when available so 48-hour shifts remain current after midnight.
+export function isPastShift(serviceDate: Date, actualEnd?: Date): boolean {
+  if (actualEnd) return actualEnd.getTime() < Date.now()
+
   return serviceDate.getTime() < todayChicago().getTime()
 }

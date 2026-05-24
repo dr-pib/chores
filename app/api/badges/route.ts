@@ -11,6 +11,10 @@ function getChicagoServiceDate() {
   )
 }
 
+function nextServiceDate(serviceDate: Date) {
+  return new Date(serviceDate.getTime() + 24 * 3600 * 1000)
+}
+
 export async function GET() {
   const session = await getSession()
   if (!session.isLoggedIn) {
@@ -21,18 +25,21 @@ export async function GET() {
   }
 
   const serviceDate = getChicagoServiceDate()
+  const nextDate = nextServiceDate(serviceDate)
+  const now = new Date()
 
   const everyonePersistentCount = await prisma.chore.count({
     where: {
       status: 'pending',
       chore_template: { lifecycle_type: 'persistent_until_complete' },
-      operations_log: { service_date: { lt: serviceDate } },
+      operations_log: { actual_end: { lt: now } },
     },
   })
 
   const myLog = await prisma.operationsLog.findFirst({
     where: {
-      service_date: serviceDate,
+      actual_start: { lt: nextDate },
+      actual_end: { gt: now },
       OR: [
         { primary_employee_id: session.userId },
         { partner_employee_id: session.userId },
@@ -69,7 +76,7 @@ export async function GET() {
       where: {
         status: 'pending',
         chore_template: { lifecycle_type: 'persistent_until_complete' },
-        operations_log: { service_date: { lt: serviceDate } },
+        operations_log: { actual_end: { lt: now } },
         OR: currentUnitIds.length > 0
           ? [
               { unit_id: { in: currentUnitIds } },
