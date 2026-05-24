@@ -15,14 +15,31 @@ interface Employee {
   default_crew_post_id: number | null
   default_shift_length_hours: number
   default_partner_id: number | null
+  direct_supervisor_id: number | null
 }
 
 interface Station { id: number; name: string }
 interface CrewPost { id: number; name: string; station: { name: string } }
-interface EmployeeSummary { id: number; name: string; licensure_level: string }
+interface EmployeeSummary { id: number; name: string; licensure_level: string; role: string; status: string }
 
 const inputClass = 'px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 w-full'
 const labelClass = 'block text-sm text-zinc-300 mb-1.5'
+
+const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
+
+function lastFirst(name: string) {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return name
+  const last = parts[parts.length - 1]
+  const first = parts.slice(0, -1).join(' ')
+  return `${last}, ${first}`
+}
+
+function byLastName(a: EmployeeSummary, b: EmployeeSummary) {
+  const aLast = a.name.trim().split(/\s+/).at(-1) ?? ''
+  const bLast = b.name.trim().split(/\s+/).at(-1) ?? ''
+  return aLast.localeCompare(bLast) || a.name.localeCompare(b.name)
+}
 
 export default function EmployeeEditPanel({ employeeId }: { employeeId: number }) {
   const [employee, setEmployee] = useState<Employee | null>(null)
@@ -39,6 +56,7 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
   const [defaultCrewPostId, setDefaultCrewPostId] = useState<number | ''>('')
   const [defaultShiftLengthHours, setDefaultShiftLengthHours] = useState(24)
   const [defaultPartnerId, setDefaultPartnerId] = useState<number | ''>('')
+  const [directSupervisorId, setDirectSupervisorId] = useState<number | ''>('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -52,7 +70,7 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
       fetch(`/api/employees/${employeeId}`).then(r => r.json()),
       fetch('/api/stations').then(r => r.json()),
       fetch('/api/crew-posts').then(r => r.json()),
-      fetch('/api/employees').then(r => r.json()),
+      fetch('/api/employees?all=true').then(r => r.json()),
     ]).then(([empData, stationsData, postsData, empsData]) => {
       if (empData.error) return
       setEmployee(empData)
@@ -69,6 +87,7 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
       setDefaultCrewPostId(empData.default_crew_post_id ?? '')
       setDefaultShiftLengthHours(empData.default_shift_length_hours)
       setDefaultPartnerId(empData.default_partner_id ?? '')
+      setDirectSupervisorId(empData.direct_supervisor_id ?? '')
       setLoading(false)
     })
   }, [employeeId])
@@ -96,6 +115,7 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
           default_crew_post_id: defaultCrewPostId || null,
           default_shift_length_hours: defaultShiftLengthHours,
           default_partner_id: defaultPartnerId || null,
+          direct_supervisor_id: directSupervisorId || null,
         }),
       })
       if (res.ok) {
@@ -114,7 +134,15 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
     return <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">Employee not found.</div>
   }
 
-  const otherEmployees = allEmployees.filter(e => e.id !== employeeId)
+  // Partner options: Active, non-Admin role — last, first, alphabetical
+  const partnerOptions = allEmployees
+    .filter(e => e.id !== employeeId && e.status === 'Active' && e.role !== 'Admin')
+    .sort(byLastName)
+
+  // Supervisor options: supervisor roles only — last, first, alphabetical
+  const supervisorOptions = allEmployees
+    .filter(e => SUPERVISOR_ROLES.includes(e.role))
+    .sort(byLastName)
 
   return (
     <div className="flex-1 px-6 py-6 max-w-2xl">
@@ -198,18 +226,31 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
                 </select>
               </div>
             </div>
-            <div>
-              <label htmlFor="ep-shift-length" className={labelClass}>Default shift length</label>
-              <select id="ep-shift-length" value={defaultShiftLengthHours} onChange={e => setDefaultShiftLengthHours(Number(e.target.value))} className={inputClass}>
-                <option value={24}>24 hours</option>
-                <option value={48}>48 hours</option>
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="ep-shift-length" className={labelClass}>Default shift length</label>
+                <select id="ep-shift-length" value={defaultShiftLengthHours} onChange={e => setDefaultShiftLengthHours(Number(e.target.value))} className={inputClass}>
+                  <option value={24}>24 hours</option>
+                  <option value={48}>48 hours</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="ep-partner" className={labelClass}>Default partner</label>
+                <select id="ep-partner" value={defaultPartnerId} onChange={e => setDefaultPartnerId(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
+                  <option value="">No default partner</option>
+                  {partnerOptions.map(e => (
+                    <option key={e.id} value={e.id}>{lastFirst(e.name)} ({e.licensure_level})</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div>
-              <label htmlFor="ep-partner" className={labelClass}>Default partner</label>
-              <select id="ep-partner" value={defaultPartnerId} onChange={e => setDefaultPartnerId(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
-                <option value="">No default partner</option>
-                {otherEmployees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.licensure_level})</option>)}
+              <label htmlFor="ep-supervisor" className={labelClass}>Direct supervisor</label>
+              <select id="ep-supervisor" value={directSupervisorId} onChange={e => setDirectSupervisorId(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
+                <option value="">No supervisor assigned</option>
+                {supervisorOptions.map(e => (
+                  <option key={e.id} value={e.id}>{lastFirst(e.name)}</option>
+                ))}
               </select>
             </div>
           </div>

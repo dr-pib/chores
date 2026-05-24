@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
       default_crew_post_id: true,
       default_shift_length_hours: true,
       default_partner_id: true,
+      direct_supervisor_id: true,
     },
     orderBy: { name: 'asc' },
   })

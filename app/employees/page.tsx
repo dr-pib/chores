@@ -95,7 +95,7 @@ export default function EmployeesPage() {
                 href="/employees/partners"
                 className="shrink-0 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-700 transition-colors"
               >
-                Partner Grid
+                Employee Grid
               </Link>
             </div>
 

@@ -20,10 +20,13 @@ model Employee {
   default_crew_post_id       Int?
   default_shift_length_hours Int      @default(24)
   default_partner_id         Int?
+  direct_supervisor_id       Int?
   created_at                 DateTime @default(now())
 
   default_partner          Employee?        @relation("EmployeePartner", fields: [default_partner_id], references: [id])
   partner_of               Employee[]       @relation("EmployeePartner")
+  direct_supervisor        Employee?        @relation("EmployeeSupervisor", fields: [direct_supervisor_id], references: [id])
+  supervised_employees     Employee[]       @relation("EmployeeSupervisor")
   default_station          Station?         @relation("EmployeeDefaultStation", fields: [default_station_id], references: [id])
   default_post             CrewPost?        @relation("EmployeeDefaultPost", fields: [default_crew_post_id], references: [id])
   primary_logs             OperationsLog[]  @relation("PrimaryEmployee")
