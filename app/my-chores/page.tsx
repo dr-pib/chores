@@ -7,7 +7,9 @@ export default async function MyChoresPage() {
   if (!session.isLoggedIn) redirect('/login')
 
   const today = new Date()
-  const serviceDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const serviceDate = new Date(
+    today.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) + 'T00:00:00Z'
+  )
   const myLog = await prisma.operationsLog.findFirst({
     where: { service_date: serviceDate, primary_employee_id: session.userId },
     orderBy: { created_at: 'desc' },

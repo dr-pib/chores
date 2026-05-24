@@ -7,7 +7,7 @@ import ChoreItem from '@/components/ChoreItem'
 import { sortChores } from '@/lib/chore-rotation'
 
 function formatDate(d: Date | string) {
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
 interface ChoreTemplate { name: string; lifecycle_type: string; due_offset_hours: number | null }
@@ -60,7 +60,9 @@ export default async function ChoresPage() {
   if (!session.isLoggedIn) redirect('/login')
 
   const today = new Date()
-  const serviceDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const serviceDate = new Date(
+    today.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) + 'T00:00:00Z'
+  )
 
   const logs = await prisma.operationsLog.findMany({
     where: { service_date: serviceDate },

@@ -9,7 +9,7 @@ import { sortChores, getStationChoreForPost } from '@/lib/chore-rotation'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
 
 function formatDate(d: Date | string) {
-  return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
 function formatShortDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })

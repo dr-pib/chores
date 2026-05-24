@@ -30,7 +30,7 @@ interface Chore {
 
 function formatTime(d: Date | string | null) {
   if (!d) return ''
-  return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' })
 }
 
 function formatShortDate(d: Date | string) {
