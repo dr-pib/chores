@@ -33,8 +33,18 @@ function formatTime(d: Date | string | null) {
   return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' })
 }
 
-function formatShortDate(d: Date | string) {
-  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })
+function formatDue(d: Date | string | null) {
+  if (!d) return ''
+  const dt = new Date(d)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short', month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'America/Chicago',
+  }).formatToParts(dt)
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  let hour = get('hour')
+  if (hour === '24') hour = '00'
+  return `Due ${get('weekday')}, ${get('month')}/${get('day')} ${hour}${get('minute')}`
 }
 
 export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole: string }) {
@@ -153,13 +163,8 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
             )}
           </div>
           <div className="flex items-center gap-3 mt-0.5">
-            {chore.chore_date && (
-              <span className={`text-xs font-medium ${isDone ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                {formatShortDate(chore.chore_date)}
-              </span>
-            )}
             {chore.due_at && !isDone && (
-              <span className="text-xs text-zinc-500">Due {formatTime(chore.due_at)}</span>
+              <span className="text-xs text-zinc-500">{formatDue(chore.due_at)}</span>
             )}
             {isDone && chore.completed_by && (
               <span className="text-xs text-zinc-500">

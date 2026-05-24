@@ -7,6 +7,7 @@ import ChoreItem from '@/components/ChoreItem'
 import { formatUnit } from '@/lib/units'
 import { sortChores, getStationChoreForPost } from '@/lib/chore-rotation'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
+import LiveClock from '@/components/LiveClock'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
@@ -24,7 +25,7 @@ function formatShiftMil(d: Date | string) {
   const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
   let hour = get('hour')
   if (hour === '24') hour = '00'
-  return `${get('weekday')}, ${get('month')}/${get('day')}, ${hour}${get('minute')}`
+  return `${get('weekday')}, ${get('month')}/${get('day')} ${hour}${get('minute')}`
 }
 
 
@@ -162,12 +163,16 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         </div>
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">{isMyLog ? 'My Chores' : log.crew_post.name}</h1>
-            <p className="text-zinc-400 text-sm mt-0.5">
-              {isMyLog
-                ? formatDate(log.service_date)
-                : `${log.crew_post.name} · ${log.station.name} · ${formatDate(log.service_date)}`}
-            </p>
+            <h1 className="text-xl font-bold text-zinc-100">
+              {isMyLog ? (
+                <>My Chores <span className="font-normal text-zinc-400">— {formatDate(log.service_date)} <LiveClock /></span></>
+              ) : log.crew_post.name}
+            </h1>
+            {!isMyLog && (
+              <p className="text-zinc-400 text-sm mt-0.5">
+                {log.crew_post.name} · {log.station.name} · {formatDate(log.service_date)}
+              </p>
+            )}
           </div>
           {log.supervisor_confirmed_at ? (
             <span className="px-2.5 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">Confirmed</span>
@@ -207,7 +212,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                 )}
               </div>
               <div className="text-sm font-semibold text-zinc-100 mt-0.5">
-                {log.crew_post.name} {log.station.name}{' '}
+                {log.crew_post.name} {log.station.name}{' | '}
                 {formatUnit(log.primary_unit, false)}
                 {secondUnit && (
                   <span className="font-normal text-zinc-500"> ({formatUnit(secondUnit, false)})</span>
