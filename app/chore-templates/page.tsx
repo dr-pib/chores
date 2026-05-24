@@ -29,8 +29,6 @@ export default function ChoreTemplatesPage() {
   const [templates, setTemplates] = useState<ChoreTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [applyingOffsets, setApplyingOffsets] = useState(false)
-  const [offsetsResult, setOffsetsResult] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -54,15 +52,6 @@ export default function ChoreTemplatesPage() {
     } else {
       router.push(`/chore-templates/${id}`)
     }
-  }
-
-  async function applyOffsetDefaults() {
-    setApplyingOffsets(true)
-    setOffsetsResult(null)
-    const res = await fetch('/api/chore-templates/set-offsets', { method: 'POST' })
-    const data = await res.json()
-    setApplyingOffsets(false)
-    setOffsetsResult(res.ok ? `Done — ${data.updated} templates updated.` : (data.error ?? 'Error'))
   }
 
   function handleDeleted() {
@@ -117,23 +106,6 @@ export default function ChoreTemplatesPage() {
                   </div>
                 </button>
               ))}
-            </div>
-
-            {/* One-time: set offset defaults on all templates */}
-            <div className="mb-6 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-              <p className="text-xs text-zinc-400 mb-2 font-medium">Set all templates to due +1h / lock +31h</p>
-              <button
-                onClick={applyOffsetDefaults}
-                disabled={applyingOffsets}
-                className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 text-zinc-200 text-xs rounded-lg font-medium transition-colors"
-              >
-                {applyingOffsets ? 'Applying…' : 'Apply Offset Defaults'}
-              </button>
-              {offsetsResult && (
-                <p className={`text-xs mt-2 ${offsetsResult.startsWith('Done') ? 'text-green-400' : 'text-red-400'}`}>
-                  {offsetsResult}
-                </p>
-              )}
             </div>
 
             {/* Harrison Rotation Grid */}
