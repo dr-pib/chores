@@ -61,10 +61,22 @@ export default function ChoreItem({ chore, userRole }: { chore: Chore; userRole:
   const isPersistent = chore.chore_template.lifecycle_type === 'persistent_until_complete'
   const isTruckCheck = chore.chore_template.name === 'Truck Check'
 
+  function chicagoMidnight(d: Date): Date {
+    for (const h of [5, 6]) {
+      const candidate = new Date(d.getTime() + h * 3600 * 1000)
+      const hhmm = candidate.toLocaleString('en-US', {
+        hour: '2-digit', minute: '2-digit', hour12: false,
+        timeZone: 'America/Chicago',
+      })
+      if (hhmm.startsWith('00:')) return candidate
+    }
+    return new Date(d.getTime() + 5 * 3600 * 1000)
+  }
+
   const isNotYetAvailable = !isDone
     && chore.chore_template.lifecycle_type === 'daily_reset'
     && chore.chore_date != null
-    && new Date() < new Date(chore.chore_date)
+    && new Date() < chicagoMidnight(new Date(chore.chore_date))
 
   async function complete() {
     setConflictMsg('')

@@ -25,8 +25,23 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
     const choreDay = new Date(chore.chore_date ?? chore.operations_log.service_date)
     const now = new Date()
 
-    // Can't complete before midnight UTC of the chore date (Day 2 chores visible but locked)
-    if (now < choreDay) {
+    // Find the UTC time that is midnight Chicago time on the chore's calendar date.
+    // choreDay is midnight UTC; Chicago is UTC-5 (CDT) or UTC-6 (CST), so midnight
+    // Chicago = choreDay + 5h or + 6h depending on DST.
+    function chicagoMidnight(d: Date): Date {
+      for (const h of [5, 6]) {
+        const candidate = new Date(d.getTime() + h * 3600 * 1000)
+        const hhmm = candidate.toLocaleString('en-US', {
+          hour: '2-digit', minute: '2-digit', hour12: false,
+          timeZone: 'America/Chicago',
+        })
+        if (hhmm.startsWith('00:')) return candidate
+      }
+      return new Date(d.getTime() + 5 * 3600 * 1000) // fallback CDT
+    }
+
+    // Can't complete before midnight Chicago time of the chore date
+    if (now < chicagoMidnight(choreDay)) {
       return NextResponse.json(
         { error: 'These chores are not available until midnight' },
         { status: 403 },
