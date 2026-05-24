@@ -13,6 +13,7 @@ const BASE_LINKS = [
   { href: '/setup', label: 'Shift Setup' },
   { href: '/my-chores', label: 'My Chores' },
   { href: '/log', label: "Today's Roster" },
+  { href: '/history', label: 'History' },
   { href: '/chores', label: "Everyone's Chores" },
 ]
 
