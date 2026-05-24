@@ -71,7 +71,14 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       if (!hasDay2) {
         const templates = await prisma.choreTemplate.findMany()
         const truckCheck = templates.find(t => t.name === 'Truck Check')!
-        const day2TruckDue = new Date(day2Date.getTime() + 3600 * 1000) // 01:00 AM
+
+        // Compute due_at from template's due_offset_hours (hours after shift start + 24h for day 2)
+        function day2DueAt(tmpl: { due_offset_hours: number | null }): Date {
+          if (tmpl.due_offset_hours != null) {
+            return new Date(log!.actual_start.getTime() + (24 + tmpl.due_offset_hours) * 3600 * 1000)
+          }
+          return log!.actual_end
+        }
 
         const day2Chores = [
           ...log.bays
@@ -82,13 +89,13 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               unit_id: b.unit_id!,
               bay_label: b.bay_label,
               status: 'pending',
-              due_at: day2TruckDue,
+              due_at: day2DueAt(truckCheck),
               chore_date: day2Date,
             })),
           ...((() => {
             const name = getStationChoreForPost(log!.crew_post.name, day2Date.getUTCMonth() + 1)
             const tmpl = name ? templates.find(t => t.name === name) : null
-            return tmpl ? [{ operations_log_id: log!.id, chore_template_id: tmpl.id, status: 'pending', due_at: log!.actual_end, chore_date: day2Date }] : []
+            return tmpl ? [{ operations_log_id: log!.id, chore_template_id: tmpl.id, status: 'pending', due_at: day2DueAt(tmpl), chore_date: day2Date }] : []
           })()),
         ]
         if (day2Chores.length > 0) {

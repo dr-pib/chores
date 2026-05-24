@@ -155,14 +155,14 @@ async function main() {
   // Chore Templates
   const choreDefs = [
     { name: 'Truck Check', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
-    { name: 'Bathroom', lifecycle_type: 'daily_reset', due_offset_hours: null },
-    { name: 'Kitchen', lifecycle_type: 'daily_reset', due_offset_hours: null },
-    { name: 'Garage', lifecycle_type: 'daily_reset', due_offset_hours: null },
-    { name: 'Quarters', lifecycle_type: 'daily_reset', due_offset_hours: null },
-    { name: 'Monthly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
-    { name: 'NARC Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
-    { name: 'Quarterly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
-    { name: 'Additional Chore', lifecycle_type: 'persistent_until_complete', due_offset_hours: null },
+    { name: 'Bathroom', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
+    { name: 'Kitchen', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
+    { name: 'Garage', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
+    { name: 'Quarters', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
+    { name: 'Monthly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1 },
+    { name: 'NARC Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1 },
+    { name: 'Quarterly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1 },
+    { name: 'Additional Chore', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1 },
   ]
   const choreTemplates: Record<string, { id: number }> = {}
   for (const c of choreDefs) {

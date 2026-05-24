@@ -69,7 +69,18 @@ export async function POST(req: NextRequest) {
   const templates = await prisma.choreTemplate.findMany()
   const truckCheck = templates.find((t) => t.name === 'Truck Check')!
 
-  function buildTruckChecks(choreDate: Date, dueAt: Date) {
+  // Compute due_at from template's due_offset_hours (hours after shift start).
+  // day2 = true adds 24h for the second day of a 48h shift.
+  // Falls back to shift end when the template has no offset.
+  function templateDueAt(tmpl: { due_offset_hours: number | null }, day2 = false): Date {
+    const dayOffset = day2 ? 24 * 3600 * 1000 : 0
+    if (tmpl.due_offset_hours != null) {
+      return new Date(startDt.getTime() + dayOffset + tmpl.due_offset_hours * 3600 * 1000)
+    }
+    return endDt
+  }
+
+  function buildTruckChecks(choreDate: Date, day2 = false) {
     return bays
       .filter((b) => b.unit_status === 'unit_present' && b.unit_id)
       .map((b) => ({
@@ -77,13 +88,12 @@ export async function POST(req: NextRequest) {
         unit_id: b.unit_id,
         bay_label: b.bay_label,
         status: 'pending',
-        due_at: dueAt,
+        due_at: templateDueAt(truckCheck, day2),
         chore_date: choreDate,
       }))
   }
 
-  const day1TruckDue = new Date(startDt.getTime() + 60 * 60 * 1000) // 1h after shift start
-  const day1TruckChecks = buildTruckChecks(serviceDate, day1TruckDue)
+  const day1TruckChecks = buildTruckChecks(serviceDate)
 
   // Check if this employee already has a log today for this post
   const existing = await prisma.operationsLog.findFirst({
@@ -92,8 +102,7 @@ export async function POST(req: NextRequest) {
   if (existing) {
     // Update — replace all truck check chores (day 1 + day 2) to match current bays
     const day2Date = is48h ? new Date(serviceDate.getTime() + 24 * 3600 * 1000) : null
-    const day2TruckDue = day2Date ? new Date(startDt.getTime() + 25 * 3600 * 1000) : null
-    const day2TruckChecks = day2Date && day2TruckDue ? buildTruckChecks(day2Date, day2TruckDue) : []
+    const day2TruckChecks = day2Date ? buildTruckChecks(day2Date, true) : []
 
     await prisma.operationsLog.update({
       where: { id: existing.id },
@@ -135,7 +144,7 @@ export async function POST(req: NextRequest) {
             operations_log_id: existing.id,
             chore_template_id: t.id,
             status: 'pending',
-            due_at: endDt,
+            due_at: templateDueAt(t, true),
             chore_date: day2Date,
           }))
         if (toCreate.length > 0) await prisma.chore.createMany({ data: toCreate })
@@ -175,18 +184,16 @@ export async function POST(req: NextRequest) {
 
   const choresToCreate = [
     ...day1TruckChecks,
-    ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: endDt, chore_date: serviceDate }] : []),
+    ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: templateDueAt(stationTemplate), chore_date: serviceDate }] : []),
     ...scheduledPersistentTemplates
       .filter((t) => !existingDay1TemplateIds.has(t.id))
-      .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: endDt, chore_date: serviceDate })),
+      .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t), chore_date: serviceDate })),
   ]
 
   // Day 2 chores for 48h shifts — created immediately so they're visible from the start
   if (is48h) {
     const day2Date = new Date(serviceDate.getTime() + 24 * 3600 * 1000)
-    const day2TruckDue = new Date(startDt.getTime() + 25 * 3600 * 1000) // 1h into day 2
-
-    const day2TruckChecks = buildTruckChecks(day2Date, day2TruckDue)
+    const day2TruckChecks = buildTruckChecks(day2Date, true)
 
     const day2StationChoreName = getStationChoreForPost(crewPost.name, day2Date.getMonth() + 1)
     const day2StationTemplate = day2StationChoreName ? templates.find((t) => t.name === day2StationChoreName) ?? null : null
@@ -210,10 +217,10 @@ export async function POST(req: NextRequest) {
 
     choresToCreate.push(
       ...day2TruckChecks,
-      ...(day2StationTemplate ? [{ chore_template_id: day2StationTemplate.id, status: 'pending', due_at: endDt, chore_date: day2Date }] : []),
+      ...(day2StationTemplate ? [{ chore_template_id: day2StationTemplate.id, status: 'pending', due_at: templateDueAt(day2StationTemplate, true), chore_date: day2Date }] : []),
       ...scheduledDay2Templates
         .filter((t) => !existingDay2TemplateIds.has(t.id))
-        .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: endDt, chore_date: day2Date })),
+        .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t, true), chore_date: day2Date })),
     )
   }
 
