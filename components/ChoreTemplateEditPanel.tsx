@@ -8,6 +8,7 @@ interface ChoreTemplate {
   name: string
   lifecycle_type: string
   due_offset_hours: number | null
+  lock_offset_hours: number | null
   tasks: ChoreTemplateTask[]
 }
 
@@ -27,6 +28,7 @@ export default function ChoreTemplateEditPanel({
   const [name, setName] = useState('')
   const [lifecycle, setLifecycle] = useState('daily_reset')
   const [dueOffset, setDueOffset] = useState('')
+  const [lockOffset, setLockOffset] = useState('')
   const [tasks, setTasks] = useState<ChoreTemplateTask[]>([])
   const [newTaskName, setNewTaskName] = useState('')
   const [error, setError] = useState('')
@@ -45,6 +47,7 @@ export default function ChoreTemplateEditPanel({
         setName(data.name)
         setLifecycle(data.lifecycle_type)
         setDueOffset(data.due_offset_hours != null ? String(data.due_offset_hours) : '')
+        setLockOffset(data.lock_offset_hours != null ? String(data.lock_offset_hours) : '')
         setTasks(data.tasks)
         setLoading(false)
       })
@@ -62,6 +65,7 @@ export default function ChoreTemplateEditPanel({
           name: name.trim(),
           lifecycle_type: lifecycle,
           due_offset_hours: dueOffset !== '' ? Number(dueOffset) : null,
+          lock_offset_hours: lockOffset !== '' ? Number(lockOffset) : null,
         }),
       })
       if (res.ok) {
@@ -154,22 +158,36 @@ export default function ChoreTemplateEditPanel({
           </select>
           <p className="text-xs text-zinc-600 mt-1">
             {lifecycle === 'daily_reset'
-              ? 'Resets each shift day. Locked after 2 AM CDT the next day.'
+              ? 'Resets each shift day.'
               : 'Stays visible until completed. Carries over between shifts.'}
           </p>
         </div>
 
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">Due offset (hours after shift start) — optional</label>
-          <input
-            type="number"
-            value={dueOffset}
-            onChange={e => setDueOffset(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 text-sm focus:outline-none focus:border-blue-500"
-            placeholder="e.g. 1"
-            min="0"
-            step="0.5"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-zinc-500 mb-1">Due offset (hours after shift start)</label>
+            <input
+              type="number"
+              value={dueOffset}
+              onChange={e => setDueOffset(e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 text-sm focus:outline-none focus:border-blue-500"
+              placeholder="default: 1"
+              min="0"
+              step="0.5"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-zinc-500 mb-1">Lock offset (hours after midnight of chore date)</label>
+            <input
+              type="number"
+              value={lockOffset}
+              onChange={e => setLockOffset(e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 text-sm focus:outline-none focus:border-blue-500"
+              placeholder="default: 31"
+              min="0"
+              step="0.5"
+            />
+          </div>
         </div>
 
         {error && <p className="text-xs text-red-400">{error}</p>}

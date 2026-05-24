@@ -61,8 +61,9 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
       )
     }
 
-    // Lock at 02:00 AM CDT the following day (chore date + 31h in UTC)
-    const lockAfter = new Date(choreDay.getTime() + 31 * 60 * 60 * 1000)
+    // Lock after lock_offset_hours from chore date (midnight UTC). Default 31h = 2 AM CDT next day.
+    const lockHours = chore.chore_template.lock_offset_hours ?? 31
+    const lockAfter = new Date(choreDay.getTime() + lockHours * 60 * 60 * 1000)
     if (now > lockAfter) {
       return NextResponse.json(
         { error: 'Daily chores lock at 2:00 AM — ask a supervisor to mark this complete' },

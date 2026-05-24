@@ -24,11 +24,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params
   const body = await req.json()
-  const { name, lifecycle_type, due_offset_hours } = body
+  const { name, lifecycle_type, due_offset_hours, lock_offset_hours } = body
 
   const template = await prisma.choreTemplate.update({
     where: { id: Number(id) },
-    data: { name, lifecycle_type, due_offset_hours: due_offset_hours ?? null },
+    data: {
+      name,
+      lifecycle_type,
+      due_offset_hours: due_offset_hours != null ? Number(due_offset_hours) : null,
+      lock_offset_hours: lock_offset_hours != null ? Number(lock_offset_hours) : null,
+    },
     include: { tasks: { orderBy: { sort_order: 'asc' } } },
   })
   return NextResponse.json(template)

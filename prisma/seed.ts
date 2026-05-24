@@ -154,21 +154,21 @@ async function main() {
 
   // Chore Templates
   const choreDefs = [
-    { name: 'Truck Check', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
-    { name: 'Bathroom', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
-    { name: 'Kitchen', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
-    { name: 'Garage', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
-    { name: 'Quarters', lifecycle_type: 'daily_reset', due_offset_hours: 1 },
-    { name: 'Monthly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1 },
-    { name: 'NARC Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1 },
-    { name: 'Quarterly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1 },
-    { name: 'Additional Chore', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1 },
+    { name: 'Truck Check', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31 },
+    { name: 'Bathroom', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31 },
+    { name: 'Kitchen', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31 },
+    { name: 'Garage', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31 },
+    { name: 'Quarters', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31 },
+    { name: 'Monthly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31 },
+    { name: 'NARC Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31 },
+    { name: 'Quarterly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31 },
+    { name: 'Additional Chore', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31 },
   ]
   const choreTemplates: Record<string, { id: number }> = {}
   for (const c of choreDefs) {
     choreTemplates[c.name] = await prisma.choreTemplate.upsert({
       where: { name: c.name }, update: {},
-      create: { name: c.name, lifecycle_type: c.lifecycle_type, due_offset_hours: c.due_offset_hours ?? null },
+      create: { name: c.name, lifecycle_type: c.lifecycle_type, due_offset_hours: c.due_offset_hours, lock_offset_hours: c.lock_offset_hours },
     })
   }
 

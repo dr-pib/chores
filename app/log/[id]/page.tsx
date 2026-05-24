@@ -72,12 +72,11 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         const templates = await prisma.choreTemplate.findMany()
         const truckCheck = templates.find(t => t.name === 'Truck Check')!
 
-        // Compute due_at from template's due_offset_hours (hours after shift start + 24h for day 2)
+        // Compute due_at from template's due_offset_hours (hours after shift start + 24h for day 2).
+        // Defaults to 1h when the template has no offset set.
         function day2DueAt(tmpl: { due_offset_hours: number | null }): Date {
-          if (tmpl.due_offset_hours != null) {
-            return new Date(log!.actual_start.getTime() + (24 + tmpl.due_offset_hours) * 3600 * 1000)
-          }
-          return log!.actual_end
+          const offsetHours = tmpl.due_offset_hours ?? 1
+          return new Date(log!.actual_start.getTime() + (24 + offsetHours) * 3600 * 1000)
         }
 
         const day2Chores = [

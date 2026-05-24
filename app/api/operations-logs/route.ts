@@ -71,13 +71,11 @@ export async function POST(req: NextRequest) {
 
   // Compute due_at from template's due_offset_hours (hours after shift start).
   // day2 = true adds 24h for the second day of a 48h shift.
-  // Falls back to shift end when the template has no offset.
+  // Defaults to 1h when the template has no offset set.
   function templateDueAt(tmpl: { due_offset_hours: number | null }, day2 = false): Date {
     const dayOffset = day2 ? 24 * 3600 * 1000 : 0
-    if (tmpl.due_offset_hours != null) {
-      return new Date(startDt.getTime() + dayOffset + tmpl.due_offset_hours * 3600 * 1000)
-    }
-    return endDt
+    const offsetHours = tmpl.due_offset_hours ?? 1
+    return new Date(startDt.getTime() + dayOffset + offsetHours * 3600 * 1000)
   }
 
   function buildTruckChecks(choreDate: Date, day2 = false) {
