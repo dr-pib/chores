@@ -54,7 +54,7 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
   const [status, setStatus] = useState('')
   const [defaultStationId, setDefaultStationId] = useState<number | ''>('')
   const [defaultCrewPostId, setDefaultCrewPostId] = useState<number | ''>('')
-  const [defaultShiftLengthHours, setDefaultShiftLengthHours] = useState(24)
+  const [defaultShiftLengthHours, setDefaultShiftLengthHours] = useState<number | ''>(24)
   const [defaultPartnerId, setDefaultPartnerId] = useState<number | ''>('')
   const [directSupervisorId, setDirectSupervisorId] = useState<number | ''>('')
   const [error, setError] = useState('')
@@ -85,7 +85,7 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
       setStatus(empData.status)
       setDefaultStationId(empData.default_station_id ?? '')
       setDefaultCrewPostId(empData.default_crew_post_id ?? '')
-      setDefaultShiftLengthHours(empData.default_shift_length_hours)
+      setDefaultShiftLengthHours(empData.default_shift_length_hours ?? '')
       setDefaultPartnerId(empData.default_partner_id ?? '')
       setDirectSupervisorId(empData.direct_supervisor_id ?? '')
       setLoading(false)
@@ -113,7 +113,7 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
           status,
           default_station_id: defaultStationId || null,
           default_crew_post_id: defaultCrewPostId || null,
-          default_shift_length_hours: defaultShiftLengthHours,
+          default_shift_length_hours: defaultShiftLengthHours !== '' ? defaultShiftLengthHours : null,
           default_partner_id: defaultPartnerId || null,
           direct_supervisor_id: directSupervisorId || null,
         }),
@@ -229,7 +229,8 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="ep-shift-length" className={labelClass}>Default shift length</label>
-                <select id="ep-shift-length" value={defaultShiftLengthHours} onChange={e => setDefaultShiftLengthHours(Number(e.target.value))} className={inputClass}>
+                <select id="ep-shift-length" value={defaultShiftLengthHours} onChange={e => setDefaultShiftLengthHours(e.target.value !== '' ? Number(e.target.value) : '')} className={inputClass}>
+                  <option value="">N/A</option>
                   <option value={24}>24 hours</option>
                   <option value={48}>48 hours</option>
                 </select>

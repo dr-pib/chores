@@ -13,7 +13,7 @@ interface Employee {
   role: string
   status: string
   default_partner_id: number | null
-  default_shift_length_hours: number
+  default_shift_length_hours: number | null
   direct_supervisor_id: number | null
 }
 
@@ -34,6 +34,7 @@ function byLastName(a: Employee, b: Employee) {
 }
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
+const NEEDS_DEFAULTS = ['Active', 'PRN']
 
 function SaveIndicator({ state }: { state: SaveState }) {
   if (state === 'saving') return <span className="text-zinc-500 text-xs">…</span>
@@ -47,7 +48,7 @@ export default function EmployeeGridPage() {
   const [currentUser, setCurrentUser] = useState<{ id: number; name: string; role: string } | null>(null)
   const [employees, setEmployees] = useState<Employee[]>([])
   const [partners, setPartners] = useState<Record<number, number | ''>>({})
-  const [shifts, setShifts] = useState<Record<number, number>>({})
+  const [shifts, setShifts] = useState<Record<number, number | ''>>({})
   const [supervisors, setSupervisors] = useState<Record<number, number | ''>>({})
   const [saveStates, setSaveStates] = useState<Record<number, SaveState>>({})
   const [loading, setLoading] = useState(true)
@@ -63,11 +64,11 @@ export default function EmployeeGridPage() {
       const emps: Employee[] = Array.isArray(empsData) ? empsData : []
       setEmployees(emps)
       const initPartners: Record<number, number | ''> = {}
-      const initShifts: Record<number, number> = {}
+      const initShifts: Record<number, number | ''> = {}
       const initSupervisors: Record<number, number | ''> = {}
       emps.forEach(e => {
         initPartners[e.id] = e.default_partner_id ?? ''
-        initShifts[e.id] = e.default_shift_length_hours
+        initShifts[e.id] = e.default_shift_length_hours ?? ''
         initSupervisors[e.id] = e.direct_supervisor_id ?? ''
       })
       setPartners(initPartners)
@@ -79,7 +80,7 @@ export default function EmployeeGridPage() {
 
   async function autoSave(
     employeeId: number,
-    patch: { default_partner_id?: number | null; default_shift_length_hours?: number; direct_supervisor_id?: number | null },
+    patch: { default_partner_id?: number | null; default_shift_length_hours?: number | null; direct_supervisor_id?: number | null },
   ) {
     setSaveStates(s => ({ ...s, [employeeId]: 'saving' }))
     const res = await fetch(`/api/employees/${employeeId}`, {
@@ -122,16 +123,22 @@ export default function EmployeeGridPage() {
   const prn = employees.filter(e => e.status === 'PRN').sort(byLastName)
   const inactive = employees.filter(e => e.status === 'Inactive').sort(byLastName)
 
-  const selectClass = 'px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full'
+  function selectClass(alert: boolean) {
+    const border = alert ? 'border-red-700' : 'border-zinc-700'
+    return `px-2 py-1.5 bg-zinc-800 border ${border} rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full`
+  }
 
   function renderGroup(label: string, group: Employee[]) {
     if (group.length === 0) return null
+    const needsDefaults = NEEDS_DEFAULTS.includes(label)
     return (
       <div key={label}>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">{label}</h2>
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden divide-y divide-zinc-800">
           {group.map(emp => {
             const partnerChoices = partnerEligible.filter(e => e.id !== emp.id)
+            const shiftMissing = needsDefaults && !shifts[emp.id]
+            const supervisorMissing = needsDefaults && !supervisors[emp.id]
             return (
               <div key={emp.id} className="flex items-center gap-3 px-4 py-2">
                 <div className="w-56 shrink-0">
@@ -140,19 +147,20 @@ export default function EmployeeGridPage() {
                 </div>
                 <div className="w-28 shrink-0">
                   <select
-                    value={shifts[emp.id] ?? 24}
+                    value={shifts[emp.id] ?? ''}
                     onChange={e => {
-                      const val = Number(e.target.value)
+                      const val = e.target.value !== '' ? Number(e.target.value) : ''
                       setShifts(prev => ({ ...prev, [emp.id]: val }))
-                      autoSave(emp.id, { default_shift_length_hours: val })
+                      autoSave(emp.id, { default_shift_length_hours: val !== '' ? val : null })
                     }}
-                    className={selectClass}
+                    className={selectClass(shiftMissing)}
                   >
+                    <option value="">N/A</option>
                     <option value={24}>24 hours</option>
                     <option value={48}>48 hours</option>
                   </select>
                 </div>
-                <div className="w-48 shrink-0">
+                <div className="w-56 shrink-0">
                   <select
                     value={partners[emp.id] ?? ''}
                     onChange={e => {
@@ -160,9 +168,9 @@ export default function EmployeeGridPage() {
                       setPartners(prev => ({ ...prev, [emp.id]: val }))
                       autoSave(emp.id, { default_partner_id: val || null })
                     }}
-                    className={selectClass}
+                    className={selectClass(false)}
                   >
-                    <option value="">No default partner</option>
+                    <option value="">N/A</option>
                     {partnerChoices.map(p => (
                       <option key={p.id} value={p.id}>{lastFirst(p.name)} ({p.licensure_level})</option>
                     ))}
@@ -176,9 +184,9 @@ export default function EmployeeGridPage() {
                       setSupervisors(prev => ({ ...prev, [emp.id]: val }))
                       autoSave(emp.id, { direct_supervisor_id: val || null })
                     }}
-                    className={selectClass}
+                    className={selectClass(supervisorMissing)}
                   >
-                    <option value="">No supervisor</option>
+                    <option value="">N/A</option>
                     {supervisorOptions.map(s => (
                       <option key={s.id} value={s.id}>{lastFirst(s.name)}</option>
                     ))}
@@ -215,7 +223,7 @@ export default function EmployeeGridPage() {
         <div className="flex items-center gap-3 px-4 pb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
           <div className="w-56 shrink-0">Employee</div>
           <div className="w-28 shrink-0">Default Shift</div>
-          <div className="w-48 shrink-0">Default Partner</div>
+          <div className="w-56 shrink-0">Default Partner</div>
           <div className="w-44 shrink-0">Direct Supervisor</div>
           <div className="w-4 shrink-0" />
         </div>

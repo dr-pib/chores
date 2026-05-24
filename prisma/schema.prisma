@@ -18,7 +18,7 @@ model Employee {
   status                     String   @default("Active")
   default_station_id         Int?
   default_crew_post_id       Int?
-  default_shift_length_hours Int      @default(24)
+  default_shift_length_hours Int?     @default(24)
   default_partner_id         Int?
   direct_supervisor_id       Int?
   created_at                 DateTime @default(now())
