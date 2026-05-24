@@ -22,17 +22,20 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
   const { date: dateParam } = await searchParams
 
   const now = new Date()
-  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  // Determine today's date in Central Time (not UTC — UTC rolls over 5 hours early for CDT users)
+  const todayLocal = new Date(
+    now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) + 'T00:00:00Z'
+  )
 
   let serviceDate: Date
   if (dateParam) {
     const parsed = new Date(dateParam + 'T00:00:00Z')
-    serviceDate = isNaN(parsed.getTime()) ? todayUtc : parsed
+    serviceDate = isNaN(parsed.getTime()) ? todayLocal : parsed
   } else {
-    serviceDate = todayUtc
+    serviceDate = todayLocal
   }
 
-  const isToday = serviceDate.getTime() === todayUtc.getTime()
+  const isToday = serviceDate.getTime() === todayLocal.getTime()
   const prevDate = new Date(serviceDate.getTime() - 24 * 3600 * 1000)
   const nextDate = new Date(serviceDate.getTime() + 24 * 3600 * 1000)
 
