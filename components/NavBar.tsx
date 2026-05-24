@@ -32,7 +32,7 @@ function NavBadge({ count, color }: { count: number; color: keyof typeof BADGE_C
   if (!color || count <= 0) return null
 
   return (
-    <span className={`ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold leading-none ${BADGE_COLORS[color]}`}>
+    <span className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold leading-none ${BADGE_COLORS[color]}`}>
       {count > 99 ? '99+' : count}
     </span>
   )
@@ -85,6 +85,16 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
     return null
   }
 
+  function renderLinkLabel(link: { href: string; label: string }) {
+    const badge = badgeFor(link.href)
+    return (
+      <span className="inline-flex items-center gap-2 whitespace-nowrap">
+        {link.label}
+        <NavBadge count={badge?.count ?? 0} color={badge?.color ?? null} />
+      </span>
+    )
+  }
+
   return (
     <nav className="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
@@ -98,16 +108,13 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
             <Link
               key={l.href}
               href={l.href}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+              className={`shrink-0 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                 isActive(l.href)
                   ? 'bg-zinc-700 text-zinc-100'
                   : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
               }`}
             >
-              <span className="inline-flex items-center">
-                {l.label}
-                <NavBadge count={badgeFor(l.href)?.count ?? 0} color={badgeFor(l.href)?.color ?? null} />
-              </span>
+              {renderLinkLabel(l)}
             </Link>
           ))}
         </div>
@@ -154,10 +161,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
                   : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
               }`}
             >
-              <span className="inline-flex items-center">
-                {l.label}
-                <NavBadge count={badgeFor(l.href)?.count ?? 0} color={badgeFor(l.href)?.color ?? null} />
-              </span>
+              {renderLinkLabel(l)}
             </Link>
           ))}
           <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
