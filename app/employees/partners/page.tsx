@@ -35,6 +35,13 @@ function byLastName(a: Employee, b: Employee) {
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 
+function SaveIndicator({ state }: { state: SaveState }) {
+  if (state === 'saving') return <span className="text-zinc-500 text-xs">…</span>
+  if (state === 'saved') return <span className="text-green-400 text-base leading-none">✓</span>
+  if (state === 'error') return <span className="text-red-400 text-xs">!</span>
+  return null
+}
+
 export default function EmployeeGridPage() {
   const router = useRouter()
   const [currentUser, setCurrentUser] = useState<{ id: number; name: string; role: string } | null>(null)
@@ -70,25 +77,26 @@ export default function EmployeeGridPage() {
     })
   }, [router])
 
-  async function saveRow(employeeId: number) {
+  async function autoSave(
+    employeeId: number,
+    patch: { default_partner_id?: number | null; default_shift_length_hours?: number; direct_supervisor_id?: number | null },
+  ) {
     setSaveStates(s => ({ ...s, [employeeId]: 'saving' }))
     const res = await fetch(`/api/employees/${employeeId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        default_partner_id: partners[employeeId] || null,
-        default_shift_length_hours: shifts[employeeId],
-        direct_supervisor_id: supervisors[employeeId] || null,
-      }),
+      body: JSON.stringify(patch),
     })
     if (res.ok) {
-      const updated = await res.json()
-      const newPartnerId = updated.default_partner_id ?? ''
-      setPartners(prev => {
-        const next = { ...prev, [employeeId]: newPartnerId }
-        if (newPartnerId) next[newPartnerId as number] = employeeId
-        return next
-      })
+      if ('default_partner_id' in patch) {
+        const updated = await res.json()
+        const newPartnerId = updated.default_partner_id ?? ''
+        setPartners(prev => {
+          const next = { ...prev, [employeeId]: newPartnerId }
+          if (newPartnerId) next[newPartnerId as number] = employeeId
+          return next
+        })
+      }
       setSaveStates(s => ({ ...s, [employeeId]: 'saved' }))
       setTimeout(() => setSaveStates(s => ({ ...s, [employeeId]: 'idle' })), 2000)
     } else {
@@ -102,12 +110,10 @@ export default function EmployeeGridPage() {
   }
   if (!currentUser) return null
 
-  // Partner options: Active, non-Admin role, non-PRN status — last, first order
   const partnerEligible = employees
     .filter(e => e.status === 'Active' && e.role !== 'Admin')
     .sort(byLastName)
 
-  // Supervisor options: supervisor roles only — last, first order
   const supervisorOptions = employees
     .filter(e => SUPERVISOR_ROLES.includes(e.role))
     .sort(byLastName)
@@ -116,7 +122,7 @@ export default function EmployeeGridPage() {
   const prn = employees.filter(e => e.status === 'PRN').sort(byLastName)
   const inactive = employees.filter(e => e.status === 'Inactive').sort(byLastName)
 
-  const inputClass = 'px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full'
+  const selectClass = 'px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full'
 
   function renderGroup(label: string, group: Employee[]) {
     if (group.length === 0) return null
@@ -125,29 +131,36 @@ export default function EmployeeGridPage() {
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">{label}</h2>
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden divide-y divide-zinc-800">
           {group.map(emp => {
-            const state = saveStates[emp.id] ?? 'idle'
             const partnerChoices = partnerEligible.filter(e => e.id !== emp.id)
             return (
               <div key={emp.id} className="flex items-center gap-3 px-4 py-2">
-                <div className="w-40 shrink-0">
+                <div className="w-56 shrink-0">
                   <span className="text-sm text-zinc-100">{lastFirst(emp.name)}</span>
                   <span className="ml-2 text-xs text-zinc-600">{emp.licensure_level}</span>
                 </div>
                 <div className="w-28 shrink-0">
                   <select
                     value={shifts[emp.id] ?? 24}
-                    onChange={e => setShifts(prev => ({ ...prev, [emp.id]: Number(e.target.value) }))}
-                    className={inputClass}
+                    onChange={e => {
+                      const val = Number(e.target.value)
+                      setShifts(prev => ({ ...prev, [emp.id]: val }))
+                      autoSave(emp.id, { default_shift_length_hours: val })
+                    }}
+                    className={selectClass}
                   >
                     <option value={24}>24 hours</option>
                     <option value={48}>48 hours</option>
                   </select>
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="w-48 shrink-0">
                   <select
                     value={partners[emp.id] ?? ''}
-                    onChange={e => setPartners(prev => ({ ...prev, [emp.id]: e.target.value ? Number(e.target.value) : '' }))}
-                    className={inputClass}
+                    onChange={e => {
+                      const val = e.target.value ? Number(e.target.value) : ''
+                      setPartners(prev => ({ ...prev, [emp.id]: val }))
+                      autoSave(emp.id, { default_partner_id: val || null })
+                    }}
+                    className={selectClass}
                   >
                     <option value="">No default partner</option>
                     {partnerChoices.map(p => (
@@ -155,11 +168,15 @@ export default function EmployeeGridPage() {
                     ))}
                   </select>
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="w-44 shrink-0">
                   <select
                     value={supervisors[emp.id] ?? ''}
-                    onChange={e => setSupervisors(prev => ({ ...prev, [emp.id]: e.target.value ? Number(e.target.value) : '' }))}
-                    className={inputClass}
+                    onChange={e => {
+                      const val = e.target.value ? Number(e.target.value) : ''
+                      setSupervisors(prev => ({ ...prev, [emp.id]: val }))
+                      autoSave(emp.id, { direct_supervisor_id: val || null })
+                    }}
+                    className={selectClass}
                   >
                     <option value="">No supervisor</option>
                     {supervisorOptions.map(s => (
@@ -167,18 +184,9 @@ export default function EmployeeGridPage() {
                     ))}
                   </select>
                 </div>
-                <button
-                  onClick={() => saveRow(emp.id)}
-                  disabled={state === 'saving'}
-                  className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    state === 'saved'  ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
-                    state === 'error'  ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                    state === 'saving' ? 'bg-zinc-800 text-zinc-500 border border-zinc-700' :
-                                        'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700'
-                  }`}
-                >
-                  {state === 'saving' ? '…' : state === 'saved' ? 'Saved' : state === 'error' ? 'Error' : 'Save'}
-                </button>
+                <div className="w-4 shrink-0 flex items-center justify-center">
+                  <SaveIndicator state={saveStates[emp.id] ?? 'idle'} />
+                </div>
               </div>
             )
           })}
@@ -199,17 +207,17 @@ export default function EmployeeGridPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-zinc-100">Employee Grid</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">Setting a partner automatically updates the other side</p>
+            <p className="text-sm text-zinc-500 mt-0.5">Changes save automatically</p>
           </div>
         </div>
 
         {/* Column headers */}
         <div className="flex items-center gap-3 px-4 pb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          <div className="w-40 shrink-0">Employee</div>
+          <div className="w-56 shrink-0">Employee</div>
           <div className="w-28 shrink-0">Default Shift</div>
-          <div className="flex-1">Default Partner</div>
-          <div className="flex-1">Direct Supervisor</div>
-          <div className="w-14 shrink-0" />
+          <div className="w-48 shrink-0">Default Partner</div>
+          <div className="w-44 shrink-0">Direct Supervisor</div>
+          <div className="w-4 shrink-0" />
         </div>
 
         <div className="space-y-6">
