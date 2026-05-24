@@ -31,7 +31,13 @@ export async function GET() {
   })
 
   const myLog = await prisma.operationsLog.findFirst({
-    where: { service_date: serviceDate, primary_employee_id: session.userId },
+    where: {
+      service_date: serviceDate,
+      OR: [
+        { primary_employee_id: session.userId },
+        { partner_employee_id: session.userId },
+      ],
+    },
     include: {
       bays: true,
       chores: { include: { chore_template: true } },
