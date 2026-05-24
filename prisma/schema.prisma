@@ -19,9 +19,14 @@ model Employee {
   default_station_id         Int?
   default_crew_post_id       Int?
   default_shift_length_hours Int?     @default(24)
-  default_partner_id         Int?
-  direct_supervisor_id       Int?
-  created_at                 DateTime @default(now())
+  default_partner_id                Int?
+  direct_supervisor_id              Int?
+  birthday_month                    Int?
+  birthday_day                      Int?
+  personal_cell                     String?
+  notification_preference           String?  @default("none")
+  reminder_hours_before_shift_end   Int?
+  created_at                        DateTime @default(now())
 
   default_partner          Employee?        @relation("EmployeePartner", fields: [default_partner_id], references: [id])
   partner_of               Employee[]       @relation("EmployeePartner")

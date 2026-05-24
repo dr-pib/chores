@@ -120,9 +120,12 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <span className="text-zinc-400 text-sm">
+          <Link
+            href="/profile"
+            className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors"
+          >
             {userName} <span className="text-zinc-600 text-xs ml-1">{userRole}</span>
-          </span>
+          </Link>
           <button
             onClick={logout}
             className="text-sm text-zinc-400 hover:text-zinc-100 px-2 py-1 rounded hover:bg-zinc-800 transition-colors"
@@ -165,7 +168,13 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
             </Link>
           ))}
           <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
-            <span className="text-zinc-400 text-sm">{userName} · {userRole}</span>
+            <Link
+              href="/profile"
+              onClick={() => setMenuOpen(false)}
+              className="text-sm text-zinc-400 hover:text-zinc-100 transition-colors"
+            >
+              {userName} · {userRole}
+            </Link>
             <button onClick={logout} className="text-sm text-red-400 hover:text-red-300">
               Sign out
             </button>

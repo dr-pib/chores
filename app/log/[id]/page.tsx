@@ -6,7 +6,7 @@ import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
 import { formatUnit } from '@/lib/units'
 import { sortChores, getStationChoreForPost } from '@/lib/chore-rotation'
-import { isPastShift } from '@/lib/dates'
+import { isPastShift, todayChicago } from '@/lib/dates'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
 import LiveClock from '@/components/LiveClock'
 
@@ -151,6 +151,19 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   const sortedPreviousPersistentChores = sortChores(previousPersistentChores)
   const isMyLog = log.primary_employee_id === session.userId || log.partner_employee_id === session.userId
   const pastShift = isPastShift(log.service_date)
+
+  // Birthday check — only relevant on "My Chores" view
+  let isBirthday = false
+  if (isMyLog) {
+    const me = await prisma.employee.findUnique({
+      where: { id: session.userId },
+      select: { birthday_month: true, birthday_day: true },
+    })
+    if (me?.birthday_month != null && me?.birthday_day != null) {
+      const today = todayChicago()
+      isBirthday = me.birthday_month === today.getUTCMonth() + 1 && me.birthday_day === today.getUTCDate()
+    }
+  }
   const myChoresForProgress = isMyLog
     ? [...allDailyChores, ...persistentChores, ...sortedPreviousPersistentChores]
     : []
@@ -188,6 +201,12 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
             <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">Submitted</span>
           )}
         </div>
+
+        {isBirthday && (
+          <div className="mb-4 px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 text-sm text-center">
+            Happy Birthday, {session.name}!
+          </div>
+        )}
 
         {isMyLog && myChoresForProgress.length > 0 && (
           <div className="mb-6">
