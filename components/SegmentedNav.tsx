@@ -15,7 +15,7 @@ export default function SegmentedNav({ segments }: { segments: Segment[] }) {
           href={segment.href}
           className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
             segment.active
-              ? 'bg-zinc-700 text-zinc-100'
+              ? 'bg-blue-600 text-white shadow-sm shadow-blue-950/40'
               : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'
           }`}
         >
