@@ -85,7 +85,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
     prisma.operationsLog.findMany({
       where: {
         actual_start: { lt: nextDate },
-        actual_end: { gt: serviceDate },
+        actual_end: { gt: isToday ? now : serviceDate },
       },
       include: {
         shift_profile: true,
