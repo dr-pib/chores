@@ -6,6 +6,7 @@ import Link from 'next/link'
 import NavBar from '@/components/NavBar'
 import ChoreTemplateEditPanel from '@/components/ChoreTemplateEditPanel'
 import { getStationChoreForPost } from '@/lib/chore-rotation'
+import { isSupervisorRole } from '@/lib/roles'
 
 interface ChoreTemplate {
   id: number
@@ -40,7 +41,7 @@ export default function ChoreTemplatesPage() {
       fetch('/api/chore-templates').then(r => r.json()),
     ]).then(([meData, templatesData]) => {
       if (!meData.user) { router.push('/login'); return }
-      if (!['Dom', 'Admin', 'Supervisor'].includes(meData.user.role)) { router.push('/setup'); return }
+      if (!isSupervisorRole(meData.user.role)) { router.push('/setup'); return }
       setUser(meData.user)
       setTemplates(Array.isArray(templatesData) ? templatesData : [])
       setLoading(false)

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatUnit } from '@/lib/units'
+import { isSupervisorRole } from '@/lib/roles'
 import { formatEmployeeTitle } from '@/lib/employees'
 
 interface ChoreTemplate { name: string; lifecycle_type: string; due_offset_hours: number | null }
@@ -55,8 +56,8 @@ export default function ChoreItem({ chore, userRole, isPastShift = false, comple
   const [localTasks, setLocalTasks] = useState<ChoreTask[]>(chore.tasks ?? [])
   const [conflictMsg, setConflictMsg] = useState('')
 
-  const canOverride = ['Dom', 'Admin', 'Supervisor'].includes(userRole)
-  const isSupervisor = ['Dom', 'Admin', 'Supervisor'].includes(userRole)
+  const canOverride = isSupervisorRole(userRole)
+  const isSupervisor = isSupervisorRole(userRole)
 
   const hasTasks = localTasks.length > 0
   const isDone = localStatus === 'completed'

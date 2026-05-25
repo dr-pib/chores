@@ -6,6 +6,7 @@ import Link from 'next/link'
 import NavBar from '@/components/NavBar'
 import { lastFirstName, compareEmployeesByLastName } from '@/lib/employees'
 import { PerformanceStats, trendArrow, formatRate } from '@/lib/performance'
+import { isSupervisorRole } from '@/lib/roles'
 
 interface NowStats { rate: number | null; done: number; total: number }
 
@@ -40,7 +41,7 @@ export default function ReportPage() {
       fetch('/api/performance/all').then(r => r.json()),
     ]).then(([meData, perfData]) => {
       if (!meData.user) { router.push('/login'); return }
-      if (!['Dom', 'Admin', 'Supervisor'].includes(meData.user.role)) { router.push('/setup'); return }
+      if (!isSupervisorRole(meData.user.role)) { router.push('/setup'); return }
       setUser(meData.user)
       setData(Array.isArray(perfData) ? perfData : [])
       setLoading(false)

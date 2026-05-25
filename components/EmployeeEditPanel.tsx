@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react'
 import { compareEmployeesByLastName, formatEmployeeDropdown } from '@/lib/employees'
+import { isSupervisorRole } from '@/lib/roles'
 
 interface Employee {
   id: number
@@ -26,7 +27,6 @@ interface EmployeeSummary { id: number; name: string; licensure_level: string; r
 const inputClass = 'px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 w-full'
 const labelClass = 'block text-sm text-zinc-300 mb-1.5'
 
-const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 
 export default function EmployeeEditPanel({ employeeId }: { employeeId: number }) {
   const [employee, setEmployee] = useState<Employee | null>(null)
@@ -128,7 +128,7 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
 
   // Supervisor options: supervisor roles only — last, first, alphabetical
   const supervisorOptions = allEmployees
-    .filter(e => SUPERVISOR_ROLES.includes(e.role))
+    .filter(e => isSupervisorRole(e.role))
     .sort(compareEmployeesByLastName)
 
   return (

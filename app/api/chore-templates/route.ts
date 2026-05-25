@@ -1,8 +1,8 @@
+import { isSupervisorRole } from '@/lib/roles'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 
-const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 
 export async function GET() {
   const session = await getSession()
@@ -18,7 +18,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session.isLoggedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!SUPERVISOR_ROLES.includes(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!isSupervisorRole(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
   const { name, lifecycle_type, due_offset_hours } = body

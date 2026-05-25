@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { isSupervisorRole } from '@/lib/roles'
 
 interface NavBarProps {
   userName: string
@@ -14,7 +15,6 @@ const BASE_LINKS = [
   { href: '/log', label: 'Roster' },
 ]
 
-const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 const BADGE_COLORS: Record<string, string> = {
   blue: 'bg-blue-600 text-white',
   amber: 'bg-amber-400 text-zinc-950',
@@ -51,7 +51,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
     href: '/setup',
     label: badges?.hasActiveShift ? 'Edit Current Shift' : 'Shift Setup',
   }
-  const links = SUPERVISOR_ROLES.includes(userRole)
+  const links = isSupervisorRole(userRole)
     ? [setupLink, ...BASE_LINKS, { href: '/shift-profiles', label: 'Shift Profiles' }, { href: '/employees', label: 'Employees' }, { href: '/chore-templates', label: 'Chore Templates' }, { href: '/change-log', label: 'Change Log' }, { href: '/report', label: 'Report' }]
     : [setupLink, ...BASE_LINKS]
 
@@ -87,7 +87,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
   }, [pathname])
 
   useEffect(() => {
-    if (!SUPERVISOR_ROLES.includes(userRole)) return
+    if (!isSupervisorRole(userRole)) return
     let ignore = false
 
     async function loadExpireAlert() {
@@ -179,7 +179,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
         </button>
       </div>
 
-      {SUPERVISOR_ROLES.includes(userRole) && expireAlert?.hasAlert && (
+      {isSupervisorRole(userRole) && expireAlert?.hasAlert && (
         <Link
           href="/chores"
           className="block border-t border-red-700/50 bg-red-950/70 px-4 py-1.5 text-center text-xs font-medium text-red-100 transition-colors hover:bg-red-900/70"

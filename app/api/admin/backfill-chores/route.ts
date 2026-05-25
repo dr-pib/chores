@@ -2,13 +2,12 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { shouldGenerateScheduledChore } from '@/lib/chore-rotation'
-
-const ALLOWED_ROLES = ['Dom', 'Admin', 'Supervisor']
+import { isSupervisorRole } from '@/lib/roles'
 
 export async function POST() {
   const session = await getSession()
   if (!session.isLoggedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!ALLOWED_ROLES.includes(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!isSupervisorRole(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const now = new Date()
 

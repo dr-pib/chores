@@ -1,3 +1,4 @@
+import { isSupervisorRole } from '@/lib/roles'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSession } from '@/lib/session'
@@ -6,7 +7,6 @@ import NavBar from '@/components/NavBar'
 import { lastFirstName } from '@/lib/employees'
 import { computePerformanceStats, perShiftStats, trendArrow, formatRate } from '@/lib/performance'
 
-const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
@@ -22,7 +22,7 @@ function rateColor(rate: number | null) {
 export default async function EmployeeReportPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session.isLoggedIn) redirect('/login')
-  if (!SUPERVISOR_ROLES.includes(session.role)) redirect('/setup')
+  if (!isSupervisorRole(session.role)) redirect('/setup')
 
   const { id } = await params
   const employeeId = Number(id)

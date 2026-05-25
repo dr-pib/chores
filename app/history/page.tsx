@@ -1,3 +1,4 @@
+import { isSupervisorRole } from '@/lib/roles'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getSession } from '@/lib/session'
@@ -6,7 +7,6 @@ import NavBar from '@/components/NavBar'
 import { formatEmployeeTitle } from '@/lib/employees'
 import SegmentedNav from '@/components/SegmentedNav'
 
-const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
 
 function formatDate(d: Date | string) {
@@ -68,7 +68,7 @@ export default async function HistoryPage() {
   const session = await getSession()
   if (!session.isLoggedIn) redirect('/login')
 
-  const isSupervisor = SUPERVISOR_ROLES.includes(session.role)
+  const isSupervisor = isSupervisorRole(session.role)
   const now = new Date()
 
   const logs = await prisma.operationsLog.findMany({

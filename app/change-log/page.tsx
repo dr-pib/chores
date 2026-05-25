@@ -1,3 +1,4 @@
+import { isSupervisorRole } from '@/lib/roles'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
@@ -5,7 +6,6 @@ import NavBar from '@/components/NavBar'
 import DeleteChangeLogButton from '@/components/DeleteChangeLogButton'
 import { formatEmployeeTitle } from '@/lib/employees'
 
-const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 
 function formatDateTime(d: Date | string) {
   const dt = new Date(d)
@@ -34,7 +34,7 @@ function actionLabel(action: string) {
 export default async function ChangeLogPage() {
   const session = await getSession()
   if (!session.isLoggedIn) redirect('/login')
-  if (!SUPERVISOR_ROLES.includes(session.role)) redirect('/')
+  if (!isSupervisorRole(session.role)) redirect('/')
 
   const logs = await prisma.changeLog.findMany({
     include: {

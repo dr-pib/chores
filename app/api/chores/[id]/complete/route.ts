@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { isPastShift } from '@/lib/dates'
-
-const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
+import { isSupervisorRole } from '@/lib/roles'
 
 export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id]/complete'>) {
   const session = await getSession()
@@ -19,7 +18,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
   })
   if (!chore) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const isSupervisor = SUPERVISOR_ROLES.includes(session.role)
+  const isSupervisor = isSupervisorRole(session.role)
 
   // Past-shift enforcement
   const serviceDate = new Date(chore.operations_log.service_date)

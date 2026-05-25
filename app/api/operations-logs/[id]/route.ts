@@ -1,3 +1,4 @@
+import { isSupervisorRole } from '@/lib/roles'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
@@ -33,7 +34,7 @@ export async function DELETE(_req: Request, ctx: RouteContext<'/api/operations-l
   if (!log) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Only the primary employee or Dom/Admin/Supervisor can delete
-  const canDelete = log.primary_employee_id === session.userId || ['Dom', 'Admin', 'Supervisor'].includes(session.role)
+  const canDelete = log.primary_employee_id === session.userId || isSupervisorRole(session.role)
   if (!canDelete) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   await prisma.operationsLog.delete({ where: { id: Number(id) } })

@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
-
-const ALLOWED_ROLES = ['Dom', 'Admin', 'Supervisor']
+import { isSupervisorRole } from '@/lib/roles'
 
 export async function POST() {
   const session = await getSession()
   if (!session.isLoggedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!ALLOWED_ROLES.includes(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!isSupervisorRole(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const narcTemplate = await prisma.choreTemplate.findFirst({ where: { name: 'NARC Expires' } })
   if (!narcTemplate) return NextResponse.json({ deleted: 0 })

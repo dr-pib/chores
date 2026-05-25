@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import NavBar from '@/components/NavBar'
 import ShiftProfileEditPanel from '@/components/ShiftProfileEditPanel'
 import { compareShiftProfiles } from '@/lib/shift-profiles'
+import { isSupervisorRole } from '@/lib/roles'
 
 interface ShiftProfile {
   id: number
@@ -29,7 +30,7 @@ export default function ShiftProfilesPage() {
       fetch('/api/shift-profiles').then(r => r.json()),
     ]).then(([meData, postsData]) => {
       if (!meData.user) { router.push('/login'); return }
-      if (!['Dom', 'Admin', 'Supervisor'].includes(meData.user.role)) { router.push('/setup'); return }
+      if (!isSupervisorRole(meData.user.role)) { router.push('/setup'); return }
       setUser(meData.user)
       setPosts(Array.isArray(postsData) ? postsData : [])
       setLoading(false)

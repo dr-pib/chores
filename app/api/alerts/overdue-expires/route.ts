@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 
-const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
+import { isSupervisorRole } from '@/lib/roles'
 const EXPIRE_TEMPLATE_NAMES = ['Monthly Expires', 'Quarterly Expires', 'NARC Expires'] as const
 const DISPLAY_NAMES: Record<(typeof EXPIRE_TEMPLATE_NAMES)[number], string> = {
   'Monthly Expires': 'MONTHLY EXPIRES',
@@ -19,7 +19,7 @@ function formatList(values: string[]) {
 
 export async function GET() {
   const session = await getSession()
-  if (!session.isLoggedIn || !SUPERVISOR_ROLES.includes(session.role)) {
+  if (!session.isLoggedIn || !isSupervisorRole(session.role)) {
     return NextResponse.json({ hasAlert: false, categories: [], text: '' })
   }
 

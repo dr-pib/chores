@@ -1,3 +1,4 @@
+import { isSupervisorRole } from '@/lib/roles'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
@@ -7,7 +8,7 @@ import { getSession } from '@/lib/session'
 export async function POST() {
   const session = await getSession()
   if (!session.isLoggedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!['Dom', 'Admin', 'Supervisor'].includes(session.role)) {
+  if (!isSupervisorRole(session.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

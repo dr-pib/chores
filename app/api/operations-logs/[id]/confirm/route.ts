@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
+import { isSupervisorRole } from '@/lib/roles'
 
 export async function POST(_req: NextRequest, ctx: RouteContext<'/api/operations-logs/[id]/confirm'>) {
   const session = await getSession()
   if (!session.isLoggedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!['Dom', 'Admin', 'Supervisor'].includes(session.role)) {
+  if (!isSupervisorRole(session.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -27,7 +28,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/operations
 export async function DELETE(_req: NextRequest, ctx: RouteContext<'/api/operations-logs/[id]/confirm'>) {
   const session = await getSession()
   if (!session.isLoggedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!['Dom', 'Admin', 'Supervisor'].includes(session.role)) {
+  if (!isSupervisorRole(session.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

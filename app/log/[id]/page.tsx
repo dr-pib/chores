@@ -12,6 +12,7 @@ import DeleteShiftButton from '@/components/DeleteShiftButton'
 import LiveClock from '@/components/LiveClock'
 import { formatEmployeeTitle } from '@/lib/employees'
 import SegmentedNav from '@/components/SegmentedNav'
+import { isSupervisorRole } from '@/lib/roles'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
@@ -248,7 +249,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           ) : !isMyLog && (
             <Link href="/log" className="text-zinc-500 hover:text-zinc-300 text-sm">← Today&apos;s Roster</Link>
           )}
-          {(isMyLog || ['Dom', 'Admin', 'Supervisor'].includes(session.role)) && (
+          {(isMyLog || isSupervisorRole(session.role)) && (
             <DeleteShiftButton logId={log.id} />
           )}
         </div>

@@ -1,8 +1,8 @@
+import { isSupervisorRole } from '@/lib/roles'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 
-const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const all = new URL(req.url).searchParams.get('all') === 'true'
 
-  if (all && !SUPERVISOR_ROLES.includes(session.role)) {
+  if (all && !isSupervisorRole(session.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

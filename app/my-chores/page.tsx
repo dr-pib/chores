@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
+import { isSupervisorRole } from '@/lib/roles'
 
 export default async function MyChoresPage({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
   const session = await getSession()
@@ -22,7 +23,6 @@ export default async function MyChoresPage({ searchParams }: { searchParams: Pro
 
   // Supervisors/admins clicking the Chores nav (not coming from login) land on Everyone's Chores
   const { from } = await searchParams
-  const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
-  if (from !== 'login' && SUPERVISOR_ROLES.includes(session.role)) redirect('/chores')
+  if (from !== 'login' && isSupervisorRole(session.role)) redirect('/chores')
   redirect('/setup')
 }

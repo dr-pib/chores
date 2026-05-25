@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import NavBar from '@/components/NavBar'
 import { compareEmployeesByLastName, formatEmployeeDropdown } from '@/lib/employees'
+import { isSupervisorRole } from '@/lib/roles'
 
 interface Employee {
   id: number
@@ -71,7 +72,7 @@ export default function EditEmployeePage() {
     ]).then(([meData, empData, stationsData, postsData, empsData]) => {
       if (!meData.user) { router.push('/login'); return }
       const userRole = meData.user.role
-      if (!['Dom', 'Admin', 'Supervisor'].includes(userRole)) { router.push('/setup'); return }
+      if (!isSupervisorRole(userRole)) { router.push('/setup'); return }
       if (empData.error) { router.push('/employees'); return }
 
       setCurrentUser(meData.user)

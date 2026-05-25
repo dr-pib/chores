@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NavBar from '@/components/NavBar'
 import { compareEmployeesByLastName, formatEmployeeDropdown } from '@/lib/employees'
+import { isSupervisorRole } from '@/lib/roles'
 
 interface Employee {
   id: number
@@ -20,7 +21,6 @@ interface Employee {
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
-const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 const NEEDS_DEFAULTS = ['Active', 'PRN']
 
 function SaveIndicator({ state }: { state: SaveState }) {
@@ -46,7 +46,7 @@ export default function EmployeeGridPage() {
       fetch('/api/employees?all=true').then(r => r.json()),
     ]).then(([meData, empsData]) => {
       if (!meData.user) { router.push('/login'); return }
-      if (!SUPERVISOR_ROLES.includes(meData.user.role)) { router.push('/setup'); return }
+      if (!isSupervisorRole(meData.user.role)) { router.push('/setup'); return }
       setCurrentUser(meData.user)
       const emps: Employee[] = Array.isArray(empsData) ? empsData : []
       setEmployees(emps)
@@ -103,7 +103,7 @@ export default function EmployeeGridPage() {
     .sort(compareEmployeesByLastName)
 
   const supervisorOptions = employees
-    .filter(e => SUPERVISOR_ROLES.includes(e.role))
+    .filter(e => isSupervisorRole(e.role))
     .sort(compareEmployeesByLastName)
 
   const activeEmployees = employees.filter(e => e.status === 'Active').sort(compareEmployeesByLastName)

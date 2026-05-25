@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import NavBar from '@/components/NavBar'
 import { BAY_OPTIONS } from '@/lib/bays'
 import { formatUnit } from '@/lib/units'
+import { isSupervisorRole } from '@/lib/roles'
 
 interface Unit { id: number; unit_number: number; unit_type: string; unit_name: string | null }
 interface Station { id: number; name: string }
@@ -51,7 +52,7 @@ export default function EditShiftProfilePage() {
       fetch('/api/units').then(r => r.json()),
     ]).then(([meData, postData, stationsData, unitsData]) => {
       if (!meData.user) { router.push('/login'); return }
-      if (!['Dom', 'Admin', 'Supervisor'].includes(meData.user.role)) { router.push('/setup'); return }
+      if (!isSupervisorRole(meData.user.role)) { router.push('/setup'); return }
       if (postData.error) { router.push('/shift-profiles'); return }
 
       setCurrentUser(meData.user)
