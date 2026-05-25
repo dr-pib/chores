@@ -191,6 +191,11 @@ async function main() {
     }
   }
 
+  // NARC Boxes A-L
+  for (const letter of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']) {
+    await prisma.narcBox.upsert({ where: { letter }, update: {}, create: { letter, status: 'Active' } })
+  }
+
   // Employees
   const postsByName = new Map([
     [supervisorPost.name, supervisorPost.id],

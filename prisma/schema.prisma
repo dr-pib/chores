@@ -213,6 +213,15 @@ model ChoreTask {
   @@map("chore_tasks")
 }
 
+model NarcBox {
+  id         Int      @id @default(autoincrement())
+  letter     String   @unique
+  status     String   @default("Active")
+  created_at DateTime @default(now())
+
+  @@map("narc_boxes")
+}
+
 model ChangeLog {
   id                      Int      @id @default(autoincrement())
   operations_log_id       Int?
