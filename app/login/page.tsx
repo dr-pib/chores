@@ -20,6 +20,7 @@ export default function LoginPage() {
     { name: 'Duncan', emtNumber: '22407' },
     { name: 'Katie', emtNumber: '32740' },
     { name: 'Binford', emtNumber: '30141' },
+    { name: 'Teddy', emtNumber: '27898' },
   ]
 
   async function handleSubmit(e: React.FormEvent) {
