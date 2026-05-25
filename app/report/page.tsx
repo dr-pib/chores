@@ -7,6 +7,8 @@ import NavBar from '@/components/NavBar'
 import { lastFirstName, compareEmployeesByLastName } from '@/lib/employees'
 import { PerformanceStats, trendArrow, formatRate } from '@/lib/performance'
 
+interface NowStats { rate: number | null; done: number; total: number }
+
 interface EmployeePerf {
   employee_id: number
   name: string
@@ -14,6 +16,7 @@ interface EmployeePerf {
   role: string
   status: string
   windows: PerformanceStats
+  now: NowStats | null
 }
 
 type SortKey = 'd30' | 'd60'
@@ -82,20 +85,23 @@ export default function ReportPage() {
               href={`/report/${emp.employee_id}`}
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800/60 transition-colors"
             >
-              <div className="w-52 shrink-0">
+              <div className="w-44 shrink-0">
                 <span className="text-sm text-zinc-100">{lastFirstName(emp.name)}</span>
                 <span className="ml-2 text-xs text-zinc-500">{emp.licensure_level}</span>
               </div>
-              <div className={`w-16 shrink-0 text-sm font-medium ${sortKey === 'd60' ? 'text-zinc-100' : 'text-zinc-400'}`}>
+              <div className={`w-14 shrink-0 text-sm font-medium ${sortKey === 'd60' ? 'text-zinc-100' : 'text-zinc-400'}`}>
                 {formatRate(emp.windows.d60.rate)}
               </div>
-              <div className={`w-16 shrink-0 text-sm font-medium ${sortKey === 'd30' ? 'text-zinc-100' : 'text-zinc-400'}`}>
+              <div className={`w-14 shrink-0 text-sm font-medium ${sortKey === 'd30' ? 'text-zinc-100' : 'text-zinc-400'}`}>
                 {formatRate(emp.windows.d30.rate)}
               </div>
-              <div className="w-16 shrink-0 text-sm text-zinc-400 font-medium">
+              <div className="w-14 shrink-0 text-sm text-zinc-400 font-medium">
                 {formatRate(emp.windows.last_shift?.rate ?? null)}
               </div>
-              <div className="w-14 shrink-0 text-xs text-zinc-500">
+              <div className="w-14 shrink-0 text-sm font-medium text-zinc-300">
+                {emp.now ? formatRate(emp.now.rate) : '—'}
+              </div>
+              <div className="w-12 shrink-0 text-xs text-zinc-500">
                 {emp.windows.d60.shifts} shift{emp.windows.d60.shifts !== 1 ? 's' : ''}
               </div>
               <div className="w-8 shrink-0">
@@ -138,11 +144,12 @@ export default function ReportPage() {
 
         {/* Column headers */}
         <div className="flex items-center gap-3 px-4 pb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          <div className="w-52 shrink-0">Employee</div>
-          <div className="w-16 shrink-0">60d</div>
-          <div className="w-16 shrink-0">30d</div>
-          <div className="w-16 shrink-0">Last</div>
-          <div className="w-14 shrink-0">Shifts</div>
+          <div className="w-44 shrink-0">Employee</div>
+          <div className="w-14 shrink-0">60d</div>
+          <div className="w-14 shrink-0">30d</div>
+          <div className="w-14 shrink-0">Last</div>
+          <div className="w-14 shrink-0">Now</div>
+          <div className="w-12 shrink-0">Shifts</div>
           <div className="w-8 shrink-0">Trend</div>
         </div>
 

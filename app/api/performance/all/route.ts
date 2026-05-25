@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
-import { computePerformanceStats } from '@/lib/performance'
+import { computePerformanceStats, choreStats } from '@/lib/performance'
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 
@@ -32,6 +32,7 @@ export async function GET() {
     select: {
       id: true,
       service_date: true,
+      actual_start: true,
       actual_end: true,
       primary_employee_id: true,
       partner_employee_id: true,
@@ -50,7 +51,11 @@ export async function GET() {
     )
     const isNRP = emp.licensure_level === 'NRP'
     const windows = computePerformanceStats(isNRP, empLogs, now)
-    return { employee_id: emp.id, name: emp.name, licensure_level: emp.licensure_level, role: emp.role, status: emp.status, windows }
+    const activeLog = empLogs.find(
+      l => l.actual_start.getTime() <= now.getTime() && l.actual_end.getTime() > now.getTime()
+    )
+    const nowData = activeLog ? choreStats(activeLog.chores, isNRP) : null
+    return { employee_id: emp.id, name: emp.name, licensure_level: emp.licensure_level, role: emp.role, status: emp.status, windows, now: nowData }
   })
 
   return NextResponse.json(results)

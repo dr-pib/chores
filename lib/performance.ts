@@ -105,3 +105,9 @@ export function perShiftStats(log: PerformanceLog, isNRP: boolean) {
   const c = choreCount(log.chores, isNRP)
   return { done: c.done, total: c.total, rate: c.total > 0 ? c.done / c.total : null }
 }
+
+// In-progress stats for an active shift given its chores directly
+export function choreStats(chores: PerformanceChore[], isNRP: boolean) {
+  const c = choreCount(chores, isNRP)
+  return { done: c.done, total: c.total, rate: c.total > 0 ? c.done / c.total : null }
+}
