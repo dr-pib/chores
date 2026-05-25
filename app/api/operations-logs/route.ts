@@ -91,6 +91,25 @@ export async function POST(req: NextRequest) {
       }))
   }
 
+  function buildScheduledUnitChores(
+    scheduledTemplates: { id: number; due_offset_hours: number | null }[],
+    choreDate: Date,
+    day2 = false,
+  ) {
+    return scheduledTemplates.flatMap((t) =>
+      bays
+        .filter((b) => b.unit_status === 'unit_present' && b.unit_id)
+        .map((b) => ({
+          chore_template_id: t.id,
+          unit_id: b.unit_id,
+          bay_label: b.bay_label,
+          status: 'pending' as const,
+          due_at: templateDueAt(t, day2),
+          chore_date: choreDate,
+        }))
+    )
+  }
+
   const day1TruckChecks = buildTruckChecks(serviceDate)
 
   // Find any active shift this user is on, regardless of role
@@ -142,18 +161,12 @@ export async function POST(req: NextRequest) {
             operations_log_id: existing.id,
             chore_template_id: { in: scheduledDay2.map((t) => t.id) },
           },
-          select: { chore_template_id: true },
+          select: { chore_template_id: true, chore_date: true, unit_id: true },
         })
-        const existingIds = new Set(existingInLog.map((c) => c.chore_template_id))
-        const toCreate = scheduledDay2
-          .filter((t) => !existingIds.has(t.id))
-          .map((t) => ({
-            operations_log_id: existing.id,
-            chore_template_id: t.id,
-            status: 'pending',
-            due_at: templateDueAt(t, true),
-            chore_date: day2Date,
-          }))
+        const existingKeys = new Set(existingInLog.map((c) => `${c.chore_template_id}-${c.chore_date?.getTime() ?? 0}-${c.unit_id ?? 'shift'}`))
+        const toCreate = buildScheduledUnitChores(scheduledDay2, day2Date, true)
+          .filter((chore) => !existingKeys.has(`${chore.chore_template_id}-${day2Date.getTime()}-${chore.unit_id ?? 'shift'}`))
+          .map((chore) => ({ ...chore, operations_log_id: existing.id }))
         if (toCreate.length > 0) await prisma.chore.createMany({ data: toCreate })
       }
     }
@@ -182,7 +195,7 @@ export async function POST(req: NextRequest) {
   const choresToCreate = [
     ...day1TruckChecks,
     ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: templateDueAt(stationTemplate), chore_date: serviceDate }] : []),
-    ...scheduledPersistentTemplates.map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t), chore_date: serviceDate })),
+    ...buildScheduledUnitChores(scheduledPersistentTemplates, serviceDate),
   ]
 
   // Day 2 chores for 48h shifts — created immediately so they're visible from the start
@@ -203,7 +216,7 @@ export async function POST(req: NextRequest) {
     choresToCreate.push(
       ...day2TruckChecks,
       ...(day2StationTemplate ? [{ chore_template_id: day2StationTemplate.id, status: 'pending', due_at: templateDueAt(day2StationTemplate, true), chore_date: day2Date }] : []),
-      ...scheduledDay2Templates.map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t, true), chore_date: day2Date })),
+      ...buildScheduledUnitChores(scheduledDay2Templates, day2Date, true),
     )
   }
 

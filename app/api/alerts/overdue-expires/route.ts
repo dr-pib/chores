@@ -39,6 +39,15 @@ export async function GET() {
     select: {
       chore_template: { select: { name: true } },
       unit: { select: { unit_number: true } },
+      operations_log: {
+        select: {
+          primary_unit: { select: { unit_number: true } },
+          bays: {
+            where: { unit_status: 'unit_present', unit_id: { not: null } },
+            select: { unit: { select: { unit_number: true } } },
+          },
+        },
+      },
     },
   })
 
@@ -47,7 +56,15 @@ export async function GET() {
     const templateName = chore.chore_template.name as (typeof EXPIRE_TEMPLATE_NAMES)[number]
     if (!EXPIRE_TEMPLATE_NAMES.includes(templateName)) continue
     if (!grouped.has(templateName)) grouped.set(templateName, new Set())
-    grouped.get(templateName)!.add(chore.unit?.unit_number ?? 'Unassigned')
+    const unitNumbers = chore.unit
+      ? [chore.unit.unit_number]
+      : chore.operations_log.bays.map(bay => bay.unit?.unit_number).filter((n): n is number => n != null)
+    const fallbackUnitNumbers = unitNumbers.length > 0
+      ? unitNumbers
+      : chore.operations_log.primary_unit
+        ? [chore.operations_log.primary_unit.unit_number]
+        : ['Unassigned' as const]
+    for (const unitNumber of fallbackUnitNumbers) grouped.get(templateName)!.add(unitNumber)
   }
 
   const categories = EXPIRE_TEMPLATE_NAMES

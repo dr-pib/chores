@@ -20,7 +20,11 @@ export async function POST() {
         actual_start: true,
         actual_end: true,
         service_date: true,
-        chores: { select: { chore_template_id: true, chore_date: true } },
+        bays: {
+          where: { unit_status: 'unit_present', unit_id: { not: null } },
+          select: { bay_label: true, unit_id: true },
+        },
+        chores: { select: { chore_template_id: true, chore_date: true, unit_id: true } },
       },
     }),
     prisma.choreTemplate.findMany(),
@@ -36,9 +40,9 @@ export async function POST() {
       choreDates.push(new Date(log.service_date.getTime() + 24 * 3600 * 1000))
     }
 
-    // Track existing chores by template+date pair to avoid duplicates
+    // Track existing chores by template+date+unit to avoid duplicates.
     const existingPairs = new Set(
-      log.chores.map(c => `${c.chore_template_id}-${c.chore_date?.getTime() ?? 0}`)
+      log.chores.map(c => `${c.chore_template_id}-${c.chore_date?.getTime() ?? 0}-${c.unit_id ?? 'shift'}`)
     )
 
     for (const choreDate of choreDates) {
@@ -52,12 +56,15 @@ export async function POST() {
       )
 
       const toCreate = applicable
-        .filter(t => !existingPairs.has(`${t.id}-${choreDate.getTime()}`))
-        .map(t => {
-          const offsetHours = t.due_offset_hours ?? 1
+        .flatMap(t => log.bays.map(bay => ({ template: t, bay })))
+        .filter(({ template, bay }) => !existingPairs.has(`${template.id}-${choreDate.getTime()}-${bay.unit_id ?? 'shift'}`))
+        .map(({ template, bay }) => {
+          const offsetHours = template.due_offset_hours ?? 1
           return {
             operations_log_id: log.id,
-            chore_template_id: t.id,
+            chore_template_id: template.id,
+            unit_id: bay.unit_id,
+            bay_label: bay.bay_label,
             status: 'pending' as const,
             due_at: new Date(log.actual_start.getTime() + dayOffset + offsetHours * 3600 * 1000),
             chore_date: choreDate,
