@@ -20,7 +20,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - History opens the same underlying shift detail screen, but ended shifts should display as `Historical Shift Record` with a back link to Roster History.
 - `Chores` contains `My Chores` and `Everyone's Chores`.
 - `My Chores` is the active work view for the logged-in employee's current shift.
-- `Everyone's Chores` is the service-wide chore view, including open persistent chores.
+- `Everyone's Chores` lists the same active shifts as Today's Roster, plus a separate section for open persistent chores from past shifts.
 
 ## Deployment
 

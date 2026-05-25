@@ -38,6 +38,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Main nav uses `Chores` with a switch for `My Chores` and `Everyone's Chores`.
 - Main nav uses `Roster` with a switch for `Today` and `History`.
 - Historical shift records use the same underlying detail page as active shifts, but should show a clear historical heading/state and a back link to Roster History.
+- Everyone's Chores should list the same active shifts as Today's Roster; it should additionally show unchecked past persistent chores in a separate overdue/persistent section.
 - Supervisor/admin chore configuration should be called `Chore Templates` to avoid confusion with the main `Chores` tab.
 - Keep `Setup` or `Shift Setup` as the place where employees build their shift.
 

@@ -8,8 +8,7 @@ import { sortChores } from '@/lib/chore-rotation'
 import { nextServiceDate } from '@/lib/dates'
 import { formatEmployeeTitle } from '@/lib/employees'
 import SegmentedNav from '@/components/SegmentedNav'
-
-const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
+import { compareShiftProfiles } from '@/lib/shift-profiles'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -52,18 +51,6 @@ interface LogWithChores {
   chores: Chore[]
 }
 
-function shiftRank(log: LogWithChores) {
-  const profileName = log.shift_profile.name
-  const directRank = SHIFT_ORDER.indexOf(profileName)
-  if (directRank >= 0) return directRank
-
-  const stationName = log.shift_profile.station.name
-  if (stationName === 'Diamond City' || profileName.includes('DC')) return 4
-  if (stationName === 'Newton County' || profileName.includes('NC')) return 5
-
-  return 100
-}
-
 function LogBox({ log, highlight, userRole }: { log: LogWithChores; highlight?: boolean; userRole: string }) {
   const sorted = sortChores(log.chores)
   const done = sorted.filter(c => c.status === 'completed').length
@@ -99,16 +86,16 @@ export default async function ChoresPage() {
   const session = await getSession()
   if (!session.isLoggedIn) redirect('/login')
 
-  const today = new Date()
+  const now = new Date()
   const serviceDate = new Date(
-    today.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) + 'T00:00:00Z'
+    now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) + 'T00:00:00Z'
   )
   const nextDate = nextServiceDate(serviceDate)
 
   const logs = await prisma.operationsLog.findMany({
     where: {
       actual_start: { lt: nextDate },
-      actual_end: { gt: serviceDate },
+      actual_end: { gt: now },
     },
     include: {
       shift_profile: { include: { station: true } },
@@ -134,7 +121,7 @@ export default async function ChoresPage() {
     where: {
       status: 'pending',
       chore_template: { lifecycle_type: 'persistent_until_complete' },
-      operations_log: { actual_end: { lt: today } },
+      operations_log: { actual_end: { lt: now } },
     },
     include: {
       chore_template: true,
@@ -152,9 +139,9 @@ export default async function ChoresPage() {
 
   const myLog = logs.find(l => l.primary_employee_id === session.userId || l.partner_employee_id === session.userId) ?? null
   const sortedLogs = [...logs].sort((a, b) => {
-    const rankDiff = shiftRank(a) - shiftRank(b)
-    if (rankDiff !== 0) return rankDiff
-    return a.shift_profile.name.localeCompare(b.shift_profile.name)
+    if (a.id === myLog?.id) return -1
+    if (b.id === myLog?.id) return 1
+    return compareShiftProfiles(a.shift_profile, b.shift_profile)
   })
 
   const totalToday = logs.reduce((s, l) => s + l.chores.length, 0)
