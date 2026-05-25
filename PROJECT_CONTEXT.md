@@ -23,7 +23,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 
 - Daily chores reset by chore date.
 - Persistent chores remain open until completed.
-- NARC Expires generate on the 25th of every month and are unit-specific for the shift's primary manned ALS unit only. Backup/secondary/non-crewed trucks have no NARC box and must never receive a NARC Expires chore. Use a dedicated code path (`buildNarcExpires`) that targets `primary_unit_id` — do NOT route NARC through the generic per-bay-unit path used for Monthly/Quarterly.
+- NARC Expires generate on the 25th of every month and are unit-specific for the shift's primary manned ALS unit only. Backup/secondary/non-crewed trucks have no NARC box and must never receive a NARC Expires chore. Use `resolvePrimaryUnitTarget(primary_unit_id)` from `lib/chore-targeting.ts` — do NOT route NARC through `resolvePresentTruckTargets` (the generic per-bay-unit path used for Monthly/Quarterly).
 - Monthly Expires generate on the 3rd Tuesday of every month and are unit-specific per present truck (all bay units with `unit_status = 'unit_present'`).
 - Quarterly Expires generate on the Thursday after the 3rd Tuesday in January, April, July, and October and are unit-specific per present truck (all bay units).
 - All three scheduled expire chores (NARC, Monthly, Quarterly) are per-shift; do not deduplicate across shifts sharing a service date.
@@ -118,6 +118,23 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - create/edit chores
   - configure daily/weekly/monthly/quarterly/persistent frequency
   - configure station targeting (station-level | truck-level | crew-level | manned-ALS-truck-only)
+- Supervisor/Admin/Dom truck coverage view:
+  - show trucks not assigned to active shifts today
+  - show trucks with unchecked persistent/scheduled chores
+  - resolve the tracking gap for unit-specific Monthly/Quarterly chores when no shift is created for a truck or a truck is out of service
+- Operations Chief / command-level dashboard:
+  - higher-level view for supervisors/chiefs who are not assigned to a truck
+  - should surface coverage gaps, unassigned scheduled work, out-of-service/offsite trucks, unchecked expires, and eventually NARC box status
+- Future scheduled-work model:
+  - NARC, Monthly, Quarterly, and future persistent scheduled chores may need to generate from the calendar date independent of shift creation
+  - a crew/shift can take ownership when the relevant truck or asset is assigned to the shift
+  - work still needs to be visible when a truck is offsite, in Gerald's bays, at the shop, or never added to a shift
+- Future NARC box model:
+  - NARC tracking is by NARC box asset/letter, not only by truck/unit
+  - NARC boxes are labeled A-I
+  - primary ALS trucks carry NARC boxes, but boxes can also sit in the safe when fewer ALS trucks are staffed
+  - Harrison Supervisors are responsible for NARC expires on boxes not assigned to active trucks that day
+  - future Shift Setup may need a NARC box letter field; do not implement until the data model/workflow is designed
 - Performance reporting — **built**: `lib/performance.ts`, `/api/performance`, `/api/performance/all`, `/report`, `/report/[id]`, stat strip on My Chores detail, performance card on profile. Supervisor nav shows "Report" link.
   - Still to do: on-time rate (completed before `due_at`), export/CSV, peer comparison
 - Deeper route cleanup for Chores/Roster after the current UX shape proves stable.

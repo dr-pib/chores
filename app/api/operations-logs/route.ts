@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import type { SetShiftInput } from '@/lib/types'
 import { getStationChoreForPost, shouldGenerateScheduledChore } from '@/lib/chore-rotation'
+import { resolvePresentTruckTargets, resolvePrimaryUnitTarget, resolveCrewTarget, targetKey } from '@/lib/chore-targeting'
+import { buildChoreRows } from '@/lib/chore-generation'
 
 // Creates ChoreTask rows for any chore on this log that has template tasks but no instance tasks yet
 async function seedChoreTasks(operationsLogId: number) {
@@ -69,66 +71,10 @@ export async function POST(req: NextRequest) {
   const templates = await prisma.choreTemplate.findMany()
   const truckCheck = templates.find((t) => t.name === 'Truck Check')!
 
-  // Compute due_at from template's due_offset_hours (hours after shift start).
-  // day2 = true adds 24h for the second day of a 48h shift.
-  // Defaults to 1h when the template has no offset set.
-  function templateDueAt(tmpl: { due_offset_hours: number | null }, day2 = false): Date {
-    const dayOffset = day2 ? 24 * 3600 * 1000 : 0
-    const offsetHours = tmpl.due_offset_hours ?? 1
-    return new Date(startDt.getTime() + dayOffset + offsetHours * 3600 * 1000)
-  }
-
-  function buildTruckChecks(choreDate: Date, day2 = false) {
-    return bays
-      .filter((b) => b.unit_status === 'unit_present' && b.unit_id)
-      .map((b) => ({
-        chore_template_id: truckCheck.id,
-        unit_id: b.unit_id,
-        bay_label: b.bay_label,
-        status: 'pending',
-        due_at: templateDueAt(truckCheck, day2),
-        chore_date: choreDate,
-      }))
-  }
-
-  // Monthly/Quarterly Expires: one per present truck
-  function buildScheduledUnitChores(
-    scheduledTemplates: { id: number; due_offset_hours: number | null }[],
-    choreDate: Date,
-    day2 = false,
-  ) {
-    return scheduledTemplates.flatMap((t) =>
-      bays
-        .filter((b) => b.unit_status === 'unit_present' && b.unit_id)
-        .map((b) => ({
-          chore_template_id: t.id,
-          unit_id: b.unit_id,
-          bay_label: b.bay_label,
-          status: 'pending' as const,
-          due_at: templateDueAt(t, day2),
-          chore_date: choreDate,
-        }))
-    )
-  }
-
-  // NARC Expires: primary manned ALS truck only — backup/secondary trucks have no NARC box
-  function buildNarcExpires(
-    narcTemplate: { id: number; due_offset_hours: number | null },
-    choreDate: Date,
-    day2 = false,
-  ) {
-    if (!primary_unit_id) return []
-    return [{
-      chore_template_id: narcTemplate.id,
-      unit_id: primary_unit_id,
-      bay_label: null as string | null,
-      status: 'pending' as const,
-      due_at: templateDueAt(narcTemplate, day2),
-      chore_date: choreDate,
-    }]
-  }
-
-  const day1TruckChecks = buildTruckChecks(serviceDate)
+  // Targets derived from submitted bays and primary unit — used in both creation and update paths
+  const truckTargets = resolvePresentTruckTargets(bays)
+  const narcTargets = resolvePrimaryUnitTarget(primary_unit_id)
+  const DAY_2_OFFSET_MS = 24 * 3600 * 1000
 
   // Find any active shift this user is on, regardless of role
   const existing = await prisma.operationsLog.findFirst({
@@ -141,10 +87,14 @@ export async function POST(req: NextRequest) {
     },
     orderBy: [{ service_date: 'desc' }, { created_at: 'desc' }],
   })
+
   if (existing) {
     // Update — replace all truck check chores (day 1 + day 2) to match current bays
-    const day2Date = is48h ? new Date(serviceDate.getTime() + 24 * 3600 * 1000) : null
-    const day2TruckChecks = day2Date ? buildTruckChecks(day2Date, true) : []
+    const day2Date = is48h ? new Date(serviceDate.getTime() + DAY_2_OFFSET_MS) : null
+    const day1TruckChecks = buildChoreRows([truckCheck], truckTargets, serviceDate, startDt)
+    const day2TruckChecks = day2Date
+      ? buildChoreRows([truckCheck], truckTargets, day2Date, startDt, DAY_2_OFFSET_MS)
+      : []
 
     await prisma.operationsLog.update({
       where: { id: existing.id },
@@ -184,14 +134,17 @@ export async function POST(req: NextRequest) {
           },
           select: { chore_template_id: true, chore_date: true, unit_id: true },
         })
-        const existingKeys = new Set(existingInLog.map((c) => `${c.chore_template_id}-${c.chore_date?.getTime() ?? 0}-${c.unit_id ?? 'shift'}`))
-        const candidates = [
-          ...buildScheduledUnitChores(day2NonNarcTemplates, day2Date, true),
-          ...(day2NarcTemplate ? buildNarcExpires(day2NarcTemplate, day2Date, true) : []),
+        const existingKeys = new Set(
+          existingInLog.map((c) => `${c.chore_template_id}-${c.chore_date?.getTime() ?? 0}-${c.unit_id ?? 'shift'}`)
+        )
+
+        const toCreate = [
+          ...buildChoreRows(day2NonNarcTemplates, truckTargets, day2Date, startDt, DAY_2_OFFSET_MS),
+          ...buildChoreRows(day2NarcTemplate ? [day2NarcTemplate] : [], narcTargets, day2Date, startDt, DAY_2_OFFSET_MS),
         ]
-        const toCreate = candidates
-          .filter((chore) => !existingKeys.has(`${chore.chore_template_id}-${day2Date.getTime()}-${chore.unit_id ?? 'shift'}`))
-          .map((chore) => ({ ...chore, operations_log_id: existing.id }))
+          .filter(row => !existingKeys.has(targetKey(row.chore_template_id, row.chore_date, row)))
+          .map(row => ({ ...row, operations_log_id: existing.id }))
+
         if (toCreate.length > 0) await prisma.chore.createMany({ data: toCreate })
       }
     }
@@ -220,21 +173,19 @@ export async function POST(req: NextRequest) {
   const day1NonNarcTemplates = scheduledPersistentTemplates.filter(t => t.name !== 'NARC Expires')
 
   const choresToCreate = [
-    ...day1TruckChecks,
-    ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: templateDueAt(stationTemplate), chore_date: serviceDate }] : []),
-    ...buildScheduledUnitChores(day1NonNarcTemplates, serviceDate),
-    ...(day1NarcTemplate ? buildNarcExpires(day1NarcTemplate, serviceDate) : []),
+    ...buildChoreRows([truckCheck], truckTargets, serviceDate, startDt),
+    ...(stationTemplate ? buildChoreRows([stationTemplate], resolveCrewTarget(), serviceDate, startDt) : []),
+    ...buildChoreRows(day1NonNarcTemplates, truckTargets, serviceDate, startDt),
+    ...buildChoreRows(day1NarcTemplate ? [day1NarcTemplate] : [], narcTargets, serviceDate, startDt),
   ]
 
   // Day 2 chores for 48h shifts — created immediately so they're visible from the start
   if (is48h) {
-    const day2Date = new Date(serviceDate.getTime() + 24 * 3600 * 1000)
-    const day2TruckChecks = buildTruckChecks(day2Date, true)
+    const day2Date = new Date(serviceDate.getTime() + DAY_2_OFFSET_MS)
 
     const day2StationChoreName = getStationChoreForPost(shiftProfile.name, day2Date.getMonth() + 1)
     const day2StationTemplate = day2StationChoreName ? templates.find((t) => t.name === day2StationChoreName) ?? null : null
 
-    // Day 2 scheduled persistent chores — per-shift, no dedup needed
     const scheduledDay2Templates = templates.filter((t) =>
       t.lifecycle_type === 'persistent_until_complete'
       && t.name !== 'Additional Chore'
@@ -244,10 +195,10 @@ export async function POST(req: NextRequest) {
     const day2NonNarcTemplates = scheduledDay2Templates.filter(t => t.name !== 'NARC Expires')
 
     choresToCreate.push(
-      ...day2TruckChecks,
-      ...(day2StationTemplate ? [{ chore_template_id: day2StationTemplate.id, status: 'pending', due_at: templateDueAt(day2StationTemplate, true), chore_date: day2Date }] : []),
-      ...buildScheduledUnitChores(day2NonNarcTemplates, day2Date, true),
-      ...(day2NarcTemplate ? buildNarcExpires(day2NarcTemplate, day2Date, true) : []),
+      ...buildChoreRows([truckCheck], truckTargets, day2Date, startDt, DAY_2_OFFSET_MS),
+      ...(day2StationTemplate ? buildChoreRows([day2StationTemplate], resolveCrewTarget(), day2Date, startDt, DAY_2_OFFSET_MS) : []),
+      ...buildChoreRows(day2NonNarcTemplates, truckTargets, day2Date, startDt, DAY_2_OFFSET_MS),
+      ...buildChoreRows(day2NarcTemplate ? [day2NarcTemplate] : [], narcTargets, day2Date, startDt, DAY_2_OFFSET_MS),
     )
   }
 
