@@ -19,5 +19,8 @@ export default async function MyChoresPage() {
   })
 
   if (myLog) redirect(`/log/${myLog.id}`)
+
+  const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
+  if (SUPERVISOR_ROLES.includes(session.role)) redirect('/chores')
   redirect('/setup')
 }
