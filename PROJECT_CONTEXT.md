@@ -39,6 +39,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Use bay language only where the actual bay selector/label is being discussed.
 - Main nav uses `Chores` with a switch for `My Chores` and `Everyone's Chores`.
 - Main nav uses `Roster` with a switch for `Today` and `History`.
+- Chores nav routing rules: if user has an active shift → their log. If no active shift and Supervisor/Admin/Dom → Everyone's Chores (nav click) or Setup (login). If no active shift and regular employee → Setup always.
 - Historical shift records use the same underlying detail page as active shifts, but should show a clear historical heading/state and a back link to Roster History.
 - Everyone's Chores should list the same active shifts as Today's Roster; it should additionally show unchecked past persistent chores in a separate overdue/persistent section.
 - Supervisor/admin chore configuration should be called `Chore Templates` to avoid confusion with the main `Chores` tab.
@@ -63,10 +64,11 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Blue badge: My Chores has current/not-overdue chores.
 - Amber badge: Everyone's Chores has service-wide open persistent chores.
 - Do not collapse these badge colors into one priority badge unless the user asks.
-- Supervisor-only alert/ticker band is planned for overdue expires anywhere in the system.
+- Supervisor-only alert/ticker band is planned for overdue expires anywhere in the system. **In progress (Codex).**
 - Proposed supervisor ticker text pattern:
   `Overdue: MONTHLY EXPIRES: Unit(s) 1, 2, and 6 | QUARTERLY EXPIRES: Unit(s) 1, 2, 6, 7, and 14 | NARC EXPIRES: Unit(s) 4 and 11.`
 - The ticker should only show categories that have overdue units, deduplicate units per category, sort unit numbers ascending, and link to Everyone's Chores.
+- Ticker visibility: Supervisor, Admin, and Dom only.
 
 ## Permissions And Audit
 
@@ -95,6 +97,11 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - The build script includes `prisma generate`; keep that intact unless deployment strategy changes.
 - Railway database environment variables have needed fallback handling before; be careful changing DB connection setup.
 - Run `npm run build` before pushing meaningful app changes when possible.
+
+## In Progress (Codex)
+
+- **Supervisor ticker banner**: overdue expires alert strip visible to Supervisor/Admin/Dom. See Badges And Alerts section for spec.
+- **Persistent chore font treatment**: visual distinction on chore cards so persistent chores stand out to crews vs. daily-reset chores. Approach TBD by Codex — consider weight, color accent, or label badge rather than layout changes.
 
 ## Known Roadmap
 
