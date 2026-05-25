@@ -10,7 +10,10 @@ export async function GET() {
   const log = await prisma.operationsLog.findFirst({
     where: {
       actual_end: { gt: now },
-      primary_employee_id: session.userId,
+      OR: [
+        { primary_employee_id: session.userId },
+        { partner_employee_id: session.userId },
+      ],
     },
     select: {
       id: true,

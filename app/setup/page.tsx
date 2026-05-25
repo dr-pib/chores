@@ -83,6 +83,7 @@ export default function SetupPage() {
       fetch('/api/operations-logs/current').then(r => r.json()),
     ]).then(([meData, postsData, empsData, unitsData, currentData]) => {
       if (!meData.user) { router.push('/login'); return }
+
       setUser(meData.user)
       setShiftProfiles(postsData)
       setEmployees(empsData)

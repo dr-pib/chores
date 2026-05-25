@@ -93,9 +93,16 @@ export async function POST(req: NextRequest) {
 
   const day1TruckChecks = buildTruckChecks(serviceDate)
 
-  // Check if this employee already has a log today for this post
+  // Find any active shift this user is on, regardless of role
   const existing = await prisma.operationsLog.findFirst({
-    where: { service_date: serviceDate, shift_profile_id, primary_employee_id: session.userId },
+    where: {
+      actual_end: { gt: new Date() },
+      OR: [
+        { primary_employee_id: session.userId },
+        { partner_employee_id: session.userId },
+      ],
+    },
+    orderBy: [{ service_date: 'desc' }, { created_at: 'desc' }],
   })
   if (existing) {
     // Update — replace all truck check chores (day 1 + day 2) to match current bays
