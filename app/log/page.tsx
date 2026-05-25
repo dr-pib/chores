@@ -9,8 +9,17 @@ import { nextServiceDate } from '@/lib/dates'
 function formatRosterDate(d: Date) {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
-function formatTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' })
+function formatShiftMil(d: Date | string) {
+  const dt = new Date(d)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short', month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'America/Chicago',
+  }).formatToParts(dt)
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  let hour = get('hour')
+  if (hour === '24') hour = '00'
+  return `${get('weekday')}, ${get('month')}/${get('day')} ${hour}${get('minute')}`
 }
 function toDateParam(d: Date) {
   return d.toISOString().slice(0, 10)
@@ -146,7 +155,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                                 {log.primary_employee.name}
                                 {log.partner_employee && <span> &amp; {log.partner_employee.name}</span>}
                                 <span className="text-zinc-600 mx-1.5">·</span>
-                                {formatTime(log.actual_start)}–{formatTime(log.actual_end)}
+                                {formatShiftMil(log.actual_start)} – {formatShiftMil(log.actual_end)}
                                 <span className="text-zinc-600 mx-1.5">·</span>
                                 {formatUnit(log.primary_unit, false)}
                                 {(() => {
