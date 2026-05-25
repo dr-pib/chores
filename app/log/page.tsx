@@ -29,6 +29,27 @@ function toDateParam(d: Date) {
   return d.toISOString().slice(0, 10)
 }
 
+function unitLine(log: {
+  primary_unit: { unit_number: number } | null
+  bays: { unit: { unit_number: number } | null; unit_status: string }[]
+}) {
+  const primaryNum = log.primary_unit?.unit_number ?? null
+  const secondaryNums = log.bays
+    .filter(b => b.unit_status === 'unit_present' && b.unit && b.unit.unit_number !== primaryNum)
+    .map(b => b.unit!.unit_number)
+
+  if (!primaryNum && secondaryNums.length === 0) return null
+
+  return (
+    <div className="flex items-center gap-1 mt-0.5">
+      {primaryNum && <span className="text-sm font-semibold text-zinc-100">Unit {primaryNum}</span>}
+      {secondaryNums.map(n => (
+        <span key={n} className="text-sm text-zinc-500">(Unit {n})</span>
+      ))}
+    </div>
+  )
+}
+
 function shiftRank(post: { name: string; station: { name: string } }) {
   const directRank = SHIFT_ORDER.indexOf(post.name)
   if (directRank >= 0) return directRank
@@ -175,6 +196,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                             <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">Confirmed</span>
                           )}
                         </div>
+                        {unitLine(log)}
                         <div className="text-zinc-400 text-sm mt-0.5">
                           {formatShiftMil(log.actual_start)} – {formatShiftMil(log.actual_end)}
                         </div>

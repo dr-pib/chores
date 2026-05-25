@@ -68,6 +68,8 @@ export default function SetupPage() {
   const [units, setUnits] = useState<Unit[]>([])
 
   const [hasExistingShift, setHasExistingShift] = useState(false)
+  const [currentLogId, setCurrentLogId] = useState<number | null>(null)
+  const [activeBayMap, setActiveBayMap] = useState<Map<number, { logId: number; shiftName: string }>>(new Map())
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null)
   const [startDt, setStartDt] = useState('')
   const [endDt, setEndDt] = useState('')
@@ -81,7 +83,8 @@ export default function SetupPage() {
       fetch('/api/employees').then(r => r.json()),
       fetch('/api/units').then(r => r.json()),
       fetch('/api/operations-logs/current').then(r => r.json()),
-    ]).then(([meData, postsData, empsData, unitsData, currentData]) => {
+      fetch('/api/units/active-bays').then(r => r.json()),
+    ]).then(([meData, postsData, empsData, unitsData, currentData, activeBaysData]) => {
       if (!meData.user) { router.push('/login'); return }
 
       setUser(meData.user)
@@ -89,9 +92,18 @@ export default function SetupPage() {
       setEmployees(empsData)
       setUnits(unitsData)
 
+      if (Array.isArray(activeBaysData)) {
+        const map = new Map<number, { logId: number; shiftName: string }>()
+        for (const b of activeBaysData) {
+          if (b.unit_id) map.set(b.unit_id, { logId: b.operations_log_id, shiftName: b.operations_log.shift_profile.name })
+        }
+        setActiveBayMap(map)
+      }
+
       const currentLog = currentData?.log
       if (currentLog) {
         setHasExistingShift(true)
+        setCurrentLogId(currentLog.id)
         setSelectedPostId(currentLog.shift_profile_id)
         setStartDt(formatLocalDatetime(new Date(currentLog.actual_start)))
         setEndDt(formatLocalDatetime(new Date(currentLog.actual_end)))
@@ -421,6 +433,17 @@ export default function SetupPage() {
                         <option key={u.id} value={u.id}>{formatUnit(u)}</option>
                       ))}
                     </select>
+                    {(() => {
+                      const conflict = bay.unit_id ? activeBayMap.get(bay.unit_id) : null
+                      if (conflict && conflict.logId !== currentLogId) {
+                        return (
+                          <p className="text-amber-400 text-xs mt-1">
+                            Unit {units.find(u => u.id === bay.unit_id)?.unit_number} is already on the {conflict.shiftName} shift
+                          </p>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
 
                   <div>
