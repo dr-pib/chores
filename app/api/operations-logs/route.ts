@@ -112,6 +112,8 @@ export async function POST(req: NextRequest) {
     await prisma.operationsLog.update({
       where: { id: existing.id },
       data: {
+        shift_profile_id,
+        station_id: shiftProfile.station_id,
         partner_employee_id,
         primary_unit_id,
         actual_start: startDt,
@@ -170,10 +172,17 @@ export async function POST(req: NextRequest) {
   const stationChoreName = getStationChoreForPost(shiftProfile.name, serviceMonth)
   const stationTemplate = stationChoreName ? templates.find((t) => t.name === stationChoreName) ?? null : null
 
-  // Day 1 scheduled persistent chores (dedup across same service_date)
+  // NARC Expires is per-shift (each shift gets its own regardless of other shifts that day).
+  // Monthly/Quarterly Expires are station-wide — dedup so only one exists per service_date.
+  const narcDay1Templates = templates.filter((t) =>
+    t.lifecycle_type === 'persistent_until_complete'
+    && t.name === 'NARC Expires'
+    && shouldGenerateScheduledChore(t.name, serviceDate)
+  )
   const scheduledPersistentTemplates = templates.filter((t) =>
     t.lifecycle_type === 'persistent_until_complete'
     && t.name !== 'Additional Chore'
+    && t.name !== 'NARC Expires'
     && shouldGenerateScheduledChore(t.name, serviceDate)
   )
   const existingDay1Scheduled = scheduledPersistentTemplates.length > 0
@@ -190,6 +199,7 @@ export async function POST(req: NextRequest) {
   const choresToCreate = [
     ...day1TruckChecks,
     ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: templateDueAt(stationTemplate), chore_date: serviceDate }] : []),
+    ...narcDay1Templates.map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t), chore_date: serviceDate })),
     ...scheduledPersistentTemplates
       .filter((t) => !existingDay1TemplateIds.has(t.id))
       .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t), chore_date: serviceDate })),
@@ -203,10 +213,16 @@ export async function POST(req: NextRequest) {
     const day2StationChoreName = getStationChoreForPost(shiftProfile.name, day2Date.getMonth() + 1)
     const day2StationTemplate = day2StationChoreName ? templates.find((t) => t.name === day2StationChoreName) ?? null : null
 
-    // Day 2 scheduled persistent chores — dedup by chore_date across all logs
+    // Day 2 scheduled persistent chores — NARC Expires per-shift; others dedup by chore_date
+    const narcDay2Templates = templates.filter((t) =>
+      t.lifecycle_type === 'persistent_until_complete'
+      && t.name === 'NARC Expires'
+      && shouldGenerateScheduledChore(t.name, day2Date)
+    )
     const scheduledDay2Templates = templates.filter((t) =>
       t.lifecycle_type === 'persistent_until_complete'
       && t.name !== 'Additional Chore'
+      && t.name !== 'NARC Expires'
       && shouldGenerateScheduledChore(t.name, day2Date)
     )
     const existingDay2Scheduled = scheduledDay2Templates.length > 0
@@ -223,6 +239,7 @@ export async function POST(req: NextRequest) {
     choresToCreate.push(
       ...day2TruckChecks,
       ...(day2StationTemplate ? [{ chore_template_id: day2StationTemplate.id, status: 'pending', due_at: templateDueAt(day2StationTemplate, true), chore_date: day2Date }] : []),
+      ...narcDay2Templates.map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t, true), chore_date: day2Date })),
       ...scheduledDay2Templates
         .filter((t) => !existingDay2TemplateIds.has(t.id))
         .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t, true), chore_date: day2Date })),
