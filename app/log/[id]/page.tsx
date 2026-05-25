@@ -158,6 +158,9 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   // Birthday check + performance stats — only relevant on "My Chores" view
   let isBirthday = false
   let perfStats = null
+  let nowDone = 0
+  let nowTotal = 0
+  let nowRate: number | null = null
   if (isMyLog) {
     const [me, perfLogs] = await Promise.all([
       prisma.employee.findUnique({
@@ -190,7 +193,16 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       isBirthday = me.birthday_month === today.getUTCMonth() + 1 && me.birthday_day === today.getUTCDate()
     }
     if (me) {
-      perfStats = computePerformanceStats(me.licensure_level === 'NRP', perfLogs)
+      const isNRP = me.licensure_level === 'NRP'
+      perfStats = computePerformanceStats(isNRP, perfLogs)
+      if (!pastShift) {
+        const eligible = [...allDailyChores, ...persistentChores].filter(
+          c => isNRP || c.chore_template.name !== 'NARC Expires'
+        )
+        nowDone = eligible.filter(c => c.status === 'completed').length
+        nowTotal = eligible.length
+        nowRate = nowTotal > 0 ? nowDone / nowTotal : null
+      }
     }
   }
   const myChoresForProgress = isMyLog
@@ -247,16 +259,27 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        {perfStats && (perfStats.d60.total > 0 || perfStats.d30.total > 0 || perfStats.last_shift !== null) && (
+        {(nowDone > 0 || (perfStats && (perfStats.d60.total > 0 || perfStats.d30.total > 0 || perfStats.last_shift !== null))) && (
           <div className="mb-4 flex items-center gap-5 text-xs">
-            <span className="text-zinc-500">60d <span className="text-zinc-200 font-medium">{formatRate(perfStats.d60.rate)}</span></span>
-            <span className="text-zinc-500">30d <span className="text-zinc-200 font-medium">{formatRate(perfStats.d30.rate)}</span></span>
-            <span className="text-zinc-500">Last <span className="text-zinc-200 font-medium">{formatRate(perfStats.last_shift?.rate ?? null)}</span></span>
-            <span className={
-              trendArrow(perfStats.d60.rate, perfStats.d30.rate) === '↑' ? 'text-green-400' :
-              trendArrow(perfStats.d60.rate, perfStats.d30.rate) === '↓' ? 'text-red-400' :
-              'text-zinc-600'
-            }>{trendArrow(perfStats.d60.rate, perfStats.d30.rate)}</span>
+            {perfStats && perfStats.d60.total > 0 && (
+              <span className="text-zinc-500">60d <span className="text-zinc-200 font-medium">{formatRate(perfStats.d60.rate)}</span></span>
+            )}
+            {perfStats && perfStats.d30.total > 0 && (
+              <span className="text-zinc-500">30d <span className="text-zinc-200 font-medium">{formatRate(perfStats.d30.rate)}</span></span>
+            )}
+            {perfStats && perfStats.last_shift !== null && (
+              <>
+                <span className="text-zinc-500">Last <span className="text-zinc-200 font-medium">{formatRate(perfStats.last_shift.rate)}</span></span>
+                <span className={
+                  trendArrow(perfStats.d60.rate, perfStats.d30.rate) === '↑' ? 'text-green-400' :
+                  trendArrow(perfStats.d60.rate, perfStats.d30.rate) === '↓' ? 'text-red-400' :
+                  'text-zinc-600'
+                }>{trendArrow(perfStats.d60.rate, perfStats.d30.rate)}</span>
+              </>
+            )}
+            {nowDone > 0 && (
+              <span className="text-zinc-500">Now <span className="text-zinc-200 font-medium">{formatRate(nowRate)}</span></span>
+            )}
           </div>
         )}
 
