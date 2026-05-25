@@ -15,6 +15,7 @@ interface ShiftProfile {
 }
 interface Employee { id: number; name: string; email_username: string; licensure_level: string; role: string; default_shift_profile_id: number | null }
 interface PrevBay { bay_label: string; unit_id: number | null; unit_status: string; unit: Unit | null }
+interface NarcBox { id: number; letter: string; active_log_id: number | null; active_shift_name: string | null }
 
 interface BayState {
   bay_label: string
@@ -66,6 +67,7 @@ export default function SetupPage() {
   const [shiftProfiles, setShiftProfiles] = useState<ShiftProfile[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [units, setUnits] = useState<Unit[]>([])
+  const [narcBoxes, setNarcBoxes] = useState<NarcBox[]>([])
 
   const [hasExistingShift, setHasExistingShift] = useState(false)
   const [currentLogId, setCurrentLogId] = useState<number | null>(null)
@@ -74,6 +76,7 @@ export default function SetupPage() {
   const [startDt, setStartDt] = useState('')
   const [endDt, setEndDt] = useState('')
   const [partnerId, setPartnerId] = useState<number | ''>('')
+  const [narcBoxId, setNarcBoxId] = useState<number | null>(null)
   const [bays, setBays] = useState<BayState[]>([])
 
   useEffect(() => {
@@ -84,13 +87,15 @@ export default function SetupPage() {
       fetch('/api/units').then(r => r.json()),
       fetch('/api/operations-logs/current').then(r => r.json()),
       fetch('/api/units/active-bays').then(r => r.json()),
-    ]).then(([meData, postsData, empsData, unitsData, currentData, activeBaysData]) => {
+      fetch('/api/narc-boxes').then(r => r.json()),
+    ]).then(([meData, postsData, empsData, unitsData, currentData, activeBaysData, narcBoxesData]) => {
       if (!meData.user) { router.push('/login'); return }
 
       setUser(meData.user)
       setShiftProfiles(postsData)
       setEmployees(empsData)
       setUnits(unitsData)
+      if (Array.isArray(narcBoxesData)) setNarcBoxes(narcBoxesData)
 
       if (Array.isArray(activeBaysData)) {
         const map = new Map<number, { logId: number; shiftName: string }>()
@@ -108,6 +113,7 @@ export default function SetupPage() {
         setStartDt(formatLocalDatetime(new Date(currentLog.actual_start)))
         setEndDt(formatLocalDatetime(new Date(currentLog.actual_end)))
         setPartnerId(currentLog.partner_employee_id ?? '')
+        setNarcBoxId(currentLog.narc_box_id ?? null)
         setBays(currentLog.bays.map((b: { bay_label: string; unit_id: number | null; unit_status: string; sort_order: number }) => ({
           bay_label: normalizeBayLabel(b.bay_label),
           unit_id: b.unit_id,
@@ -133,7 +139,6 @@ export default function SetupPage() {
     const end = new Date(start.getTime() + shiftHours * 60 * 60 * 1000)
     setStartDt(formatLocalDatetime(start))
     setEndDt(formatLocalDatetime(end))
-    // One bay row per shift profile default bay; use per-bay unit_id (fallback to the profile default for bay 1 only)
     const defaultBays = post.bays.length > 0
       ? post.bays.map((b, i) => ({
           bay_label: BAY_OPTIONS.includes(normalizeBayLabel(b.bay_label)) ? normalizeBayLabel(b.bay_label) : '',
@@ -208,7 +213,6 @@ export default function SetupPage() {
     setBays(prev => prev.filter((_, i) => i !== index).map((b, i) => ({ ...b, sort_order: i + 1 })))
   }
 
-  // Bays already used in other rows (to flag duplicates)
   const usedBays = (currentIndex: number) =>
     bays.filter((_, i) => i !== currentIndex).map(b => b.bay_label).filter(Boolean)
 
@@ -241,6 +245,7 @@ export default function SetupPage() {
           primary_unit_id: primaryUnit,
           actual_start: new Date(startDt).toISOString(),
           actual_end: new Date(endDt).toISOString(),
+          narc_box_id: narcBoxId,
           bays,
         }),
       })
@@ -365,6 +370,26 @@ export default function SetupPage() {
                 {employees.filter(e => e.id !== user.id).sort(compareEmployeesByLastName).map(e => (
                   <option key={e.id} value={e.id}>{formatEmployeeDropdown(e)}</option>
                 ))}
+              </select>
+            </div>
+
+            <div className="mb-5">
+              <label htmlFor="narc-box" className={labelClass}>NARC Box</label>
+              <select
+                id="narc-box"
+                value={narcBoxId ?? ''}
+                onChange={e => setNarcBoxId(e.target.value ? Number(e.target.value) : null)}
+                className={`w-full ${inputClass}`}
+              >
+                <option value="">None / not applicable</option>
+                {narcBoxes.map(box => {
+                  const takenByOther = box.active_log_id !== null && box.active_log_id !== currentLogId
+                  return (
+                    <option key={box.id} value={box.id} disabled={takenByOther}>
+                      {takenByOther ? `Box ${box.letter} — assigned to ${box.active_shift_name}` : `Box ${box.letter}`}
+                    </option>
+                  )
+                })}
               </select>
             </div>
 

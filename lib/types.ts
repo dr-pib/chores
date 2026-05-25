@@ -19,5 +19,6 @@ export interface SetShiftInput {
   primary_unit_id: number
   actual_start: string // ISO datetime
   actual_end: string   // ISO datetime
+  narc_box_id: number | null
   bays: BayInput[]
 }

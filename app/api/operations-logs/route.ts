@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   if (!session.isLoggedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body: SetShiftInput = await req.json()
-  const { shift_profile_id, partner_employee_id, primary_unit_id, actual_start, actual_end, bays } = body
+  const { shift_profile_id, partner_employee_id, primary_unit_id, actual_start, actual_end, narc_box_id, bays } = body
 
   const shiftProfile = await prisma.shiftProfile.findUnique({ where: { id: shift_profile_id } })
   if (!shiftProfile) return NextResponse.json({ error: 'Shift profile not found' }, { status: 404 })
@@ -88,6 +88,26 @@ export async function POST(req: NextRequest) {
     orderBy: [{ service_date: 'desc' }, { created_at: 'desc' }],
   })
 
+  // Validate NARC box uniqueness across active shifts
+  if (narc_box_id) {
+    const boxConflict = await prisma.operationsLog.findFirst({
+      where: {
+        narc_box_id,
+        actual_end: { gt: new Date() },
+        // When editing, exclude the current shift from the conflict check
+        ...(existing ? { id: { not: existing.id } } : {}),
+      },
+      select: { shift_profile: { select: { name: true } } },
+    })
+    if (boxConflict) {
+      const box = await prisma.narcBox.findUnique({ where: { id: narc_box_id }, select: { letter: true } })
+      return NextResponse.json(
+        { error: `NARC Box ${box?.letter} is already assigned to ${boxConflict.shift_profile.name}.` },
+        { status: 409 }
+      )
+    }
+  }
+
   if (existing) {
     // Update — replace all truck check chores (day 1 + day 2) to match current bays
     const day2Date = is48h ? new Date(serviceDate.getTime() + DAY_2_OFFSET_MS) : null
@@ -103,6 +123,7 @@ export async function POST(req: NextRequest) {
         station_id: shiftProfile.station_id,
         partner_employee_id,
         primary_unit_id,
+        narc_box_id: narc_box_id ?? null,
         actual_start: startDt,
         actual_end: endDt,
         bays: {
@@ -210,6 +231,7 @@ export async function POST(req: NextRequest) {
       primary_employee_id: session.userId,
       partner_employee_id,
       primary_unit_id,
+      narc_box_id: narc_box_id ?? null,
       actual_start: startDt,
       actual_end: endDt,
       status: 'confirmed',

@@ -18,6 +18,9 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Today/Roster views should include shifts that overlap the selected day.
 - Employees can be either the primary employee or partner on a shift; both count as being part of the shift.
 - Shift Setup is the dedicated place to create/build a shift.
+- Bays are assignment/responsibility details, not owning entities. They help capture which trucks/bays a Harrison crew is responsible for during a shift and drive Daily Truck Checks, Monthly Expires, and Quarterly Expires accountability.
+- Harrison crews usually have two bay responsibilities. The normal truck is often in the primary bay, and the secondary bay often has a familiar backup/second truck, but real-world circumstances can change this. Crews may verbally trade secondary bay/truck responsibility for a shift; the app records the actual shift-specific responsibility rather than assuming bay ownership.
+- Trucks/units and NARC boxes are assets; bays are not assets. Do not attach non-bay assets to a bay unless the workflow is specifically bay-level. NARC box responsibility follows the medic/shift responsibility, not the physical bay row.
 
 ## Chore Lifecycle Rules
 
@@ -131,9 +134,12 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - work still needs to be visible when a truck is offsite, in Gerald's bays, at the shop, or never added to a shift
 - Future NARC box model:
   - NARC tracking is by NARC box asset/letter, not only by truck/unit
-  - NARC boxes are labeled A-I
+  - NARC boxes are labeled A-L
   - primary ALS trucks carry NARC boxes, but boxes can also sit in the safe when fewer ALS trucks are staffed
   - Harrison Supervisors are responsible for NARC expires on boxes not assigned to active trucks that day
+  - NARC Expires likely need to generate for every active NARC box on the 25th, independent of shift creation
+  - when a NARC box is selected in Shift Setup, the shift/crew can take ownership of that box's open NARC Expires chore for that date
+  - NARC boxes should probably have their own database table/model before adding the Shift Setup dropdown
   - future Shift Setup may need a NARC box letter field; do not implement until the data model/workflow is designed
 - Performance reporting — **built**: `lib/performance.ts`, `/api/performance`, `/api/performance/all`, `/report`, `/report/[id]`, stat strip on My Chores detail, performance card on profile. Supervisor nav shows "Report" link.
   - Still to do: on-time rate (completed before `due_at`), export/CSV, peer comparison

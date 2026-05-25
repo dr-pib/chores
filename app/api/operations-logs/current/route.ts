@@ -21,6 +21,7 @@ export async function GET() {
       partner_employee_id: true,
       actual_start: true,
       actual_end: true,
+      narc_box_id: true,
       bays: {
         select: { bay_label: true, unit_id: true, unit_status: true, sort_order: true },
         orderBy: { sort_order: 'asc' },

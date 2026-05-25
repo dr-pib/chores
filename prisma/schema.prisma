@@ -120,14 +120,16 @@ model OperationsLog {
   supervisor_confirmed_by_id Int?
   notes                    String?
   chore_date               DateTime? @db.Date
+  narc_box_id              Int?
   created_at               DateTime  @default(now())
 
-  shift_profile                ShiftProfile           @relation(fields: [shift_profile_id], references: [id])
+  shift_profile            ShiftProfile       @relation(fields: [shift_profile_id], references: [id])
   station                  Station            @relation(fields: [station_id], references: [id])
   primary_employee         Employee           @relation("PrimaryEmployee", fields: [primary_employee_id], references: [id])
   partner_employee         Employee?          @relation("PartnerEmployee", fields: [partner_employee_id], references: [id])
   primary_unit             Unit               @relation("PrimaryUnit", fields: [primary_unit_id], references: [id])
   supervisor_confirmed_by  Employee?          @relation("SupervisorConfirmedBy", fields: [supervisor_confirmed_by_id], references: [id])
+  narc_box                 NarcBox?           @relation(fields: [narc_box_id], references: [id])
   bays                     OperationsLogBay[]
   chores                   Chore[]
   change_logs              ChangeLog[]
@@ -218,6 +220,8 @@ model NarcBox {
   letter     String   @unique
   status     String   @default("Active")
   created_at DateTime @default(now())
+
+  operations_logs OperationsLog[]
 
   @@map("narc_boxes")
 }
