@@ -262,23 +262,23 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         {(nowDone > 0 || (perfStats && (perfStats.d60.total > 0 || perfStats.d30.total > 0 || perfStats.last_shift !== null))) && (
           <div className="mb-4 flex items-center gap-5 text-xs">
             {perfStats && perfStats.d60.total > 0 && (
-              <span className="text-zinc-500">60d <span className="text-zinc-200 font-medium">{formatRate(perfStats.d60.rate)}</span></span>
+              <span className="text-zinc-500">60d <span className="text-base text-zinc-200 font-medium">{formatRate(perfStats.d60.rate)}</span></span>
             )}
             {perfStats && perfStats.d30.total > 0 && (
-              <span className="text-zinc-500">30d <span className="text-zinc-200 font-medium">{formatRate(perfStats.d30.rate)}</span></span>
+              <span className="text-zinc-500">30d <span className="text-base text-zinc-200 font-medium">{formatRate(perfStats.d30.rate)}</span></span>
             )}
             {perfStats && perfStats.last_shift !== null && (
               <>
-                <span className="text-zinc-500">Last <span className="text-zinc-200 font-medium">{formatRate(perfStats.last_shift.rate)}</span></span>
-                <span className={
+                <span className="text-zinc-500">Last <span className="text-base text-zinc-200 font-medium">{formatRate(perfStats.last_shift.rate)}</span></span>
+                <span className={`text-base font-medium ${
                   trendArrow(perfStats.d60.rate, perfStats.d30.rate) === '↑' ? 'text-green-400' :
                   trendArrow(perfStats.d60.rate, perfStats.d30.rate) === '↓' ? 'text-red-400' :
                   'text-zinc-600'
-                }>{trendArrow(perfStats.d60.rate, perfStats.d30.rate)}</span>
+                }`}>{trendArrow(perfStats.d60.rate, perfStats.d30.rate)}</span>
               </>
             )}
             {nowDone > 0 && (
-              <span className="text-zinc-500">Now <span className="text-zinc-200 font-medium">{formatRate(nowRate)}</span></span>
+              <span className="text-zinc-500">Now <span className="text-base text-zinc-200 font-medium">{formatRate(nowRate)}</span></span>
             )}
           </div>
         )}
