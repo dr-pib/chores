@@ -83,6 +83,9 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Audit/tracking should record the person who clicked, not just the employee assigned to the shift.
 - If a supervisor edits a past shift, the log should show that supervisor as the actor.
 - Build audit history first; derive performance percentages later from trustworthy events.
+- Performance stats are computed from completed OperationsLogs (shifts where `actual_end` has passed). Active shifts are excluded from historical rates. Computation lives in `lib/performance.ts` (`computePerformanceStats`).
+- NARC Expires are excluded from a non-NRP employee's performance denominator entirely; NRP employees include them.
+- Both primary and partner employees share credit for all chores on a shift (shift-level credit model).
 
 ## Data And Technical Notes
 
@@ -102,16 +105,21 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Railway database environment variables have needed fallback handling before; be careful changing DB connection setup.
 - Run `npm run build` before pushing meaningful app changes when possible.
 
+## Admin Utilities
+
+Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supervisor+ only):
+
+- **Backfill Missing Scheduled Chores** — adds any missing NARC/Monthly/Quarterly Expires to all currently active shifts. Run after fixing bay assignments or when a shift was built on a day those chores should have generated.
+- **Fix NARC Expires (Remove Bad Records)** — deletes NARC Expires records that have no `unit_id` or whose `unit_id` does not match the shift's `primary_unit_id`. Run this first if bad NARC records are present, then run Backfill to add correct ones back. This two-step process was needed after a code bug created NARC Expires for every bay unit (including backup trucks) instead of primary unit only.
+
 ## Known Roadmap
 
 - Chore template/frequency editor:
   - create/edit chores
   - configure daily/weekly/monthly/quarterly/persistent frequency
-  - configure station targeting
-- Tracking/reporting foundation:
-  - record chore and task-level completion/uncompletion events
-  - preserve actor, timestamp, previous status, new status, and related shift/chore/task
-  - no performance dashboards until audit data is reliable
+  - configure station targeting (station-level | truck-level | crew-level | manned-ALS-truck-only)
+- Performance reporting — **built**: `lib/performance.ts`, `/api/performance`, `/api/performance/all`, `/report`, `/report/[id]`, stat strip on My Chores detail, performance card on profile. Supervisor nav shows "Report" link.
+  - Still to do: on-time rate (completed before `due_at`), export/CSV, peer comparison
 - Deeper route cleanup for Chores/Roster after the current UX shape proves stable.
 - Settings/Admin configuration later, including custom shift sort if needed.
 
