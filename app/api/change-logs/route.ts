@@ -13,11 +13,8 @@ export async function GET() {
     include: {
       changed_by_employee: { select: { name: true } },
       chore: { include: { chore_template: { select: { name: true } } } },
-      operations_log: {
-        include: {
-          shift_profile: { select: { name: true } },
-        },
-      },
+      operations_log: { include: { shift_profile: { select: { name: true } } } },
+      target_employee: { select: { name: true, licensure_level: true } },
     },
     orderBy: { created_at: 'desc' },
     take: 500,

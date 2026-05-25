@@ -27,6 +27,7 @@ function formatShiftDate(d: Date | string) {
 function actionLabel(action: string) {
   if (action === 'complete_chore') return 'Completed'
   if (action === 'uncomplete_chore') return 'Uncompleted'
+  if (action === 'emt_number_change') return 'EMT # changed'
   return action
 }
 
@@ -39,9 +40,8 @@ export default async function ChangeLogPage() {
     include: {
       changed_by_employee: { select: { name: true, licensure_level: true } },
       chore: { include: { chore_template: { select: { name: true } } } },
-      operations_log: {
-        include: { shift_profile: { select: { name: true } } },
-      },
+      operations_log: { include: { shift_profile: { select: { name: true } } } },
+      target_employee: { select: { name: true, licensure_level: true } },
     },
     orderBy: { created_at: 'desc' },
     take: 500,
@@ -79,13 +79,23 @@ export default async function ChangeLogPage() {
                   >
                     <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap">{formatDateTime(entry.created_at)}</td>
                     <td className="px-4 py-2.5 text-zinc-200">{formatEmployeeTitle(entry.changed_by_employee)}</td>
-                    <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap">{formatShiftDate(entry.operations_log.service_date)}</td>
-                    <td className="px-4 py-2.5 text-zinc-300">{entry.operations_log.shift_profile.name}</td>
-                    <td className="px-4 py-2.5 text-zinc-200">{entry.chore.chore_template.name}</td>
+                    <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap">
+                      {entry.operations_log ? formatShiftDate(entry.operations_log.service_date) : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-300">
+                      {entry.operations_log ? entry.operations_log.shift_profile.name : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-200">
+                      {entry.chore
+                        ? entry.chore.chore_template.name
+                        : entry.target_employee
+                          ? <span>{formatEmployeeTitle(entry.target_employee)}</span>
+                          : '—'}
+                    </td>
                     <td className="px-4 py-2.5">
                       <span className="text-zinc-500">{entry.previous_status}</span>
                       <span className="text-zinc-600 mx-1">→</span>
-                      <span className={entry.new_status === 'completed' ? 'text-green-400' : 'text-yellow-400'}>
+                      <span className={entry.new_status === 'completed' ? 'text-green-400' : 'text-amber-400'}>
                         {entry.new_status}
                       </span>
                       <span className="text-zinc-600 ml-1.5 text-xs">({actionLabel(entry.action)})</span>

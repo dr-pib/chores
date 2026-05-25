@@ -23,10 +23,10 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 
 - Daily chores reset by chore date.
 - Persistent chores remain open until completed.
-- NARC Expires generate on the 25th of every month — one per shift (per manned ALS truck; backup/non-crewed trucks have no NARC box).
-- Monthly Expires generate on the 3rd Tuesday of every month — one per shift (per truck; each crew checks their own unit).
-- Quarterly Expires generate on the Thursday after the 3rd Tuesday in January, April, July, and October — one per shift (per truck; each crew checks their own unit).
-- All three scheduled persistent chores (NARC, Monthly, Quarterly) are per-shift — no deduplication across shifts sharing a service date.
+- NARC Expires generate on the 25th of every month and are unit-specific for manned ALS trucks; backup/non-crewed trucks have no NARC box.
+- Monthly Expires generate on the 3rd Tuesday of every month and are unit-specific per present truck.
+- Quarterly Expires generate on the Thursday after the 3rd Tuesday in January, April, July, and October and are unit-specific per present truck.
+- All three scheduled expire chores (NARC, Monthly, Quarterly) are per-shift and per-unit; do not deduplicate across shifts sharing a service date.
 - Remote posts do not get Harrison station chore rotation.
 - Harrison station chore rotation assigns one station chore per crew per month and cycles Bathroom, Garage, Kitchen, Quarters.
 - Future chore template admin console needs a targeting-scope field: station-level chore | truck-level chore | crew-level chore | manned-ALS-truck-only chore.
@@ -76,6 +76,8 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Employees should see and work their own active shift, whether they are primary or partner.
 - Supervisors, Admin, and Dom can see broader operational/admin views.
 - Dom-only delete applies to change-log rows.
+- Dom-only edit applies to EMT numbers; the change is written to the change log with old and new value.
+- The change log houses multiple change types: chore status changes (chore_id + operations_log_id set) and employee record changes (target_employee_id set, chore_id/operations_log_id null). Both display in the same Change Log page.
 - Past shift edits require supervisor-level permission and should be logged.
 - Audit/tracking should record the person who clicked, not just the employee assigned to the shift.
 - If a supervisor edits a past shift, the log should show that supervisor as the actor.

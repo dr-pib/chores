@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
+const DOM_ONLY = ['Dom']
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -32,6 +33,35 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   const body = await req.json()
 
+  const employeeId = Number(id)
+
+  // EMT number change — Dom only, logged to change log
+  if ('emt_number' in body) {
+    if (!DOM_ONLY.includes(session.role)) {
+      return NextResponse.json({ error: 'Only Dom can change EMT numbers' }, { status: 403 })
+    }
+    const newEmtNumber = String(body.emt_number).trim()
+    if (!newEmtNumber) return NextResponse.json({ error: 'EMT number cannot be blank' }, { status: 400 })
+
+    const current = await prisma.employee.findUnique({ where: { id: employeeId }, select: { emt_number: true } })
+    if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const updated = await prisma.employee.update({
+      where: { id: employeeId },
+      data: { emt_number: newEmtNumber },
+    })
+    await prisma.changeLog.create({
+      data: {
+        target_employee_id: employeeId,
+        changed_by_employee_id: session.userId,
+        action: 'emt_number_change',
+        previous_status: current.emt_number,
+        new_status: newEmtNumber,
+      },
+    })
+    return NextResponse.json(updated)
+  }
+
   const {
     name,
     email,
@@ -45,8 +75,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     default_partner_id,
     direct_supervisor_id,
   } = body
-
-  const employeeId = Number(id)
 
   // Only update default_partner_id if the partner field is explicitly present in the body.
   // This lets the partner grid send a partial body without blanking unrelated fields.

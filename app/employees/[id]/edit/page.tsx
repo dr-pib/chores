@@ -54,6 +54,13 @@ export default function EditEmployeePage() {
   const [success, setSuccess] = useState(false)
   const [isPending, startTransition] = useTransition()
 
+  // EMT number edit — Dom only
+  const [showEmtDialog, setShowEmtDialog] = useState(false)
+  const [newEmtNumber, setNewEmtNumber] = useState('')
+  const [emtPending, setEmtPending] = useState(false)
+  const [emtError, setEmtError] = useState('')
+  const [emtSuccess, setEmtSuccess] = useState(false)
+
   useEffect(() => {
     Promise.all([
       fetch('/api/me').then(r => r.json()),
@@ -119,6 +126,31 @@ export default function EditEmployeePage() {
         setError(data.error ?? 'Failed to save changes')
       }
     })
+  }
+
+  async function handleEmtSave() {
+    if (!newEmtNumber.trim()) { setEmtError('EMT number cannot be blank'); return }
+    setEmtPending(true)
+    setEmtError('')
+    try {
+      const res = await fetch(`/api/employees/${employeeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emt_number: newEmtNumber.trim() }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setEmployee(prev => prev ? { ...prev, emt_number: updated.emt_number } : prev)
+        setEmtSuccess(true)
+        setShowEmtDialog(false)
+        setNewEmtNumber('')
+      } else {
+        const data = await res.json()
+        setEmtError(data.error ?? 'Failed to update EMT number')
+      }
+    } finally {
+      setEmtPending(false)
+    }
   }
 
   if (!currentUser || !employee) {
@@ -190,10 +222,24 @@ export default function EditEmployeePage() {
                 </div>
               </div>
               <div>
-                <label className={labelClass}>EMT number <span className="text-zinc-600">(not editable)</span></label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={labelClass.replace('mb-1.5', '')}>EMT number</label>
+                  {currentUser.role === 'Dom' && (
+                    <button
+                      type="button"
+                      onClick={() => { setShowEmtDialog(true); setNewEmtNumber(''); setEmtError(''); setEmtSuccess(false) }}
+                      className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                    >
+                      Edit EMT Number
+                    </button>
+                  )}
+                </div>
                 <div className="px-3 py-2 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-zinc-500 text-sm">
                   {employee.emt_number}
                 </div>
+                {emtSuccess && (
+                  <p className="text-green-400 text-xs mt-1.5">EMT number updated and logged.</p>
+                )}
               </div>
             </div>
           </div>
@@ -308,6 +354,53 @@ export default function EditEmployeePage() {
           </div>
         </form>
       </div>
+
+      {/* EMT Number Edit Dialog — Dom only */}
+      {showEmtDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-sm shadow-xl">
+            <h2 className="text-base font-semibold text-zinc-100 mb-1">Change EMT Number</h2>
+            <p className="text-zinc-400 text-sm mb-4">
+              Current: <span className="text-zinc-200 font-mono">{employee.emt_number}</span>
+            </p>
+            <p className="text-amber-400 text-xs mb-4">
+              This change will be logged in the Change Log. Make sure the new number is correct before saving.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm text-zinc-300 mb-1.5">New EMT number</label>
+              <input
+                type="text"
+                value={newEmtNumber}
+                onChange={e => setNewEmtNumber(e.target.value)}
+                className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full font-mono"
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') handleEmtSave() }}
+              />
+            </div>
+            {emtError && (
+              <p className="text-red-400 text-xs mb-3">{emtError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setShowEmtDialog(false); setEmtError('') }}
+                disabled={emtPending}
+                className="flex-1 py-2.5 px-4 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-300 font-semibold rounded-xl transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleEmtSave}
+                disabled={emtPending || !newEmtNumber.trim()}
+                className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold rounded-xl transition-colors text-sm"
+              >
+                {emtPending ? 'Saving…' : 'Save & Log'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
