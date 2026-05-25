@@ -1,4 +1,10 @@
-import type { BayInput } from '@/lib/types'
+// Minimal bay shape required for target resolution — subset of BayInput.
+// sort_order is not needed here and is intentionally omitted.
+export interface TargetingBayInput {
+  bay_label: string | null
+  unit_id: number | null
+  unit_status: string
+}
 
 // What a chore template targets — used by generation helpers to resolve
 // the correct unit_id and bay_label for each chore row.
@@ -21,7 +27,7 @@ export interface ChoreTarget {
 
 // Truck Check, Monthly Expires, Quarterly Expires: one target per present truck.
 // Filters strictly to unit_status === 'unit_present' with a non-null unit_id.
-export function resolvePresentTruckTargets(bays: BayInput[]): ChoreTarget[] {
+export function resolvePresentTruckTargets(bays: TargetingBayInput[]): ChoreTarget[] {
   return bays
     .filter(b => b.unit_status === 'unit_present' && b.unit_id != null)
     .map(b => ({
@@ -45,7 +51,7 @@ export function resolveCrewTarget(): ChoreTarget[] {
 }
 
 // Deduplication key matching the format used in shift creation and backfill.
-// Use to avoid creating chore rows that already exist on a log.
-export function targetKey(templateId: number, choreDate: Date, target: ChoreTarget): string {
+// Accepts any object with unit_id — works with ChoreTarget or a generated ChoreCreateData row.
+export function targetKey(templateId: number, choreDate: Date, target: { unit_id: number | null }): string {
   return `${templateId}-${choreDate.getTime()}-${target.unit_id ?? 'shift'}`
 }
