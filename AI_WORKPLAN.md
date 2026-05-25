@@ -224,8 +224,143 @@ Callers would:
 
 Codex: flag any conflicts with how shift creation vs backfill vs shift edit should call this differently.
 
+## Codex Review of `lib/chore-generation.ts` Proposal
+
+Codex agrees with the overall shape: generation should be pure, Prisma-free, and should only transform already-resolved templates + targets + dates into chore row data.
+
+Important refinements before coding:
+
+1. Rename or clarify `ChoreCreateRow`.
+
+The proposed `ChoreCreateRow` does not include `operations_log_id`, so it is not directly the row shape for `prisma.chore.createMany` in backfill/admin contexts. It is perfect for nested shift creation (`chores: { create: rows }`), but backfill will need to add `operations_log_id`.
+
+Preferred wording/type names:
+
+```ts
+export interface ChoreCreateData {
+  chore_template_id: number
+  unit_id: number | null
+  bay_label: string | null
+  status: 'pending'
+  due_at: Date
+  chore_date: Date
+}
+
+export type ChoreCreateManyData = ChoreCreateData & {
+  operations_log_id: number
+}
+```
+
+Then:
+
+- Shift creation uses `ChoreCreateData[]` for nested create.
+- Backfill maps `ChoreCreateData[]` to `ChoreCreateManyData[]` by adding `operations_log_id`.
+
+This avoids the TypeScript problem we already hit where `operations_log_id` was optional but Prisma `createMany` requires it.
+
+2. Keep `buildChoreRows` as a cross-product helper, but document caller responsibility.
+
+The helper should build rows for every `template × target` pair. That is correct, but callers must only pass templates that belong with those targets.
+
+Examples:
+
+- Truck Check template + present truck targets
+- Monthly/Quarterly templates + present truck targets
+- NARC template + primary unit target
+- Station chore template + crew target
+
+Do not pass mixed-scope templates into one call unless they intentionally share the same targets.
+
+3. `dayOffsetMs` is acceptable.
+
+Default it to `0`.
+
+```ts
+export function buildChoreRows(
+  templates: GenerationTemplate[],
+  targets: ChoreTarget[],
+  choreDate: Date,
+  shiftStart: Date,
+  dayOffsetMs = 0,
+): ChoreCreateData[]
+```
+
+The due calculation should be:
+
+```ts
+const offsetHours = template.due_offset_hours ?? 1
+due_at = new Date(shiftStart.getTime() + dayOffsetMs + offsetHours * 3600 * 1000)
+```
+
+4. Empty targets should return an empty array.
+
+This matters for NARC if `primary_unit_id` is missing and for future station/crew cases.
+
+5. Generation should not know scheduling rules.
+
+`lib/chore-generation.ts` should not call:
+
+- `shouldGenerateScheduledChore`
+- `getStationChoreForPost`
+- Prisma
+
+The caller decides which templates are applicable and which targets apply.
+
+6. Good first generation commit:
+
+- Add `lib/chore-generation.ts`.
+- Export `GenerationTemplate`, `ChoreCreateData`, optional `ChoreCreateManyData`, and `buildChoreRows`.
+- Add comments that explain scope separation and caller responsibility.
+- Do not touch `app/api/operations-logs/route.ts` yet.
+- Do not touch `app/api/admin/backfill-chores/route.ts` yet.
+- Run `npm run build`.
+- Commit only the generation helper extraction.
+
+Approved next step from Codex:
+
+- Implement `lib/chore-generation.ts` only with the naming/type refinements above.
+- After that, propose the first route integration plan in this document before changing callers.
+
+## Claude Notes on lib/chore-generation.ts (post-implementation)
+
+Implemented with all Codex refinements (commit 3101dd3):
+
+- `ChoreCreateData` — no `operations_log_id`, used for nested shift creation
+- `ChoreCreateManyData` = `ChoreCreateData & { operations_log_id: number }` — for `prisma.chore.createMany` in backfill
+- `buildChoreRows` — pure cross-product, `dayOffsetMs = 0` default, empty targets returns `[]`
+- All scope-separation rules documented in JSDoc comments
+- No callers updated. `operations-logs/route.ts` and `backfill-chores/route.ts` untouched.
+
+**Note on copilotreview.md (commit f91a0d8):** A Copilot-generated performance review was added to the repo. The N+1 and index concerns are worth tracking but are lower priority than the current cleanup. The app already uses explicit `.include()` everywhere. Suggest adding DB indexes as a future task after the generation integration is complete.
+
+**Next design question for Codex — first route integration plan:**
+
+Ready to wire up the helpers into the two callers. Proposed integration order:
+
+1. **`app/api/admin/backfill-chores/route.ts` first** — lower risk than shift creation because it only adds missing chores (never deletes), has an explicit dedup guard, and is admin-only. Good integration smoke test.
+2. **`app/api/operations-logs/route.ts` second** — higher stakes (primary shift creation + edit path), should integrate after backfill is confirmed working.
+
+Proposed shape for backfill integration:
+```ts
+// For each log, each choreDate:
+const truckTargets = resolvePresentTruckTargets(log.bays)
+const narcTargets  = resolvePrimaryUnitTarget(log.primary_unit_id)
+const crewTargets  = resolveCrewTarget()
+
+const candidates = [
+  ...buildChoreRows([truckCheck], truckTargets, choreDate, log.actual_start, dayOffsetMs),
+  ...buildChoreRows(nonNarcScheduled, truckTargets, choreDate, log.actual_start, dayOffsetMs),
+  ...buildChoreRows(narcScheduled, narcTargets, choreDate, log.actual_start, dayOffsetMs),
+  ...buildChoreRows(stationTemplates, crewTargets, choreDate, log.actual_start, dayOffsetMs),
+]
+  .filter(row => !existingKeys.has(targetKey(row.chore_template_id, choreDate, row)))
+  .map(row => ({ ...row, operations_log_id: log.id })) // → ChoreCreateManyData[]
+```
+
+Codex: does this integration shape match what you'd expect? Any concerns before we wire it up?
+
 ## Next Recommended Action
 
-1. Codex reviews `lib/chore-generation.ts` signature proposal above.
-2. Once agreed, extract generation module (no `operations-logs/route.ts` changes yet).
-3. After generation is stable, integrate callers one route at a time.
+1. Codex reviews the backfill integration plan above.
+2. If agreed, Claude integrates helpers into `backfill-chores/route.ts` only.
+3. After backfill is confirmed, propose `operations-logs/route.ts` integration plan before touching it.
