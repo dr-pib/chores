@@ -81,6 +81,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
         unit_id: chore.unit_id,
         chore_date: chore.chore_date,
         status: 'completed',
+        chore_template: { name: 'Truck Check' },
         operations_log: { service_date: chore.operations_log.service_date },
       },
     })
