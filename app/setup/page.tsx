@@ -23,11 +23,25 @@ interface BayState {
   sort_order: number
 }
 
-const inputClass = 'px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50'
+const inputClass = 'h-10 px-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50'
+const labelClass = 'block text-sm text-zinc-300 mb-1.5'
 
 function formatLocalDatetime(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function localDatePart(value: string) {
+  return value.split('T')[0] ?? ''
+}
+
+function localTimePart(value: string) {
+  return value.split('T')[1] ?? ''
+}
+
+function combineLocalDatetime(date: string, time: string) {
+  if (!date || !time) return ''
+  return `${date}T${time}`
 }
 
 function buildDefaultStart(post: ShiftProfile, baseDate: Date): Date {
@@ -140,6 +154,39 @@ export default function SetupPage() {
     setBays(prev => prev.map((b, i) => i === index ? { ...b, [field]: value } : b))
   }
 
+  function updateStart(nextStart: string) {
+    const oldStartMs = new Date(startDt).getTime()
+    const oldEndMs = new Date(endDt).getTime()
+    const duration = oldEndMs - oldStartMs
+
+    if (!isNaN(new Date(nextStart).getTime()) && duration > 0) {
+      setEndDt(formatLocalDatetime(new Date(new Date(nextStart).getTime() + duration)))
+    }
+    setStartDt(nextStart)
+  }
+
+  function updateStartDate(date: string) {
+    updateStart(combineLocalDatetime(date, localTimePart(startDt)))
+  }
+
+  function updateStartTime(time: string) {
+    updateStart(combineLocalDatetime(localDatePart(startDt), time))
+  }
+
+  function updateEndDate(date: string) {
+    setEndDt(combineLocalDatetime(date, localTimePart(endDt)))
+  }
+
+  function updateEndTime(time: string) {
+    setEndDt(combineLocalDatetime(localDatePart(endDt), time))
+  }
+
+  function applyDuration(hours: 24 | 48) {
+    const start = new Date(startDt)
+    if (isNaN(start.getTime())) return
+    setEndDt(formatLocalDatetime(new Date(start.getTime() + hours * 60 * 60 * 1000)))
+  }
+
   function addBay() {
     setBays(prev => [...prev, makeEmptyBay(prev.length + 1)])
   }
@@ -153,6 +200,9 @@ export default function SetupPage() {
     bays.filter((_, i) => i !== currentIndex).map(b => b.bay_label).filter(Boolean)
 
   const selectedPost = shiftProfiles.find(p => p.id === selectedPostId)
+  const durationHours = startDt && endDt
+    ? (new Date(endDt).getTime() - new Date(startDt).getTime()) / (60 * 60 * 1000)
+    : null
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -199,32 +249,16 @@ export default function SetupPage() {
     <div className="min-h-screen bg-zinc-950">
       <NavBar userName={user.name} userRole={user.role} />
       <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
-        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-blue-300">Welcome, {user.name}</p>
-            <h1 className="mt-1 text-2xl font-bold text-zinc-100">
-              {hasExistingShift ? 'Edit your current shift' : 'Set up your shift'}
-            </h1>
-          </div>
-          {selectedPost && (
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
-              {selectedPost.name} · {selectedPost.station.name}
-            </div>
-          )}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-zinc-100">
+            {hasExistingShift ? 'Edit Current Shift' : 'Set Up Your Shift'}
+          </h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Shift profile & schedule */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-zinc-100">Shift Profile &amp; Schedule</h2>
-                <p className="mt-1 text-sm text-zinc-500">Defaults are filled from your profile and can be changed for today. You can change your defaults in your profile for long-term changes.</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-            <div>
-              <label htmlFor="crew-post" className="block text-sm text-zinc-300 mb-1.5">Shift Profile</label>
+            <div className="mb-5">
+              <label htmlFor="crew-post" className={labelClass}>Shift Profile</label>
               <select
                 id="crew-post"
                 value={selectedPostId ?? ''}
@@ -239,58 +273,90 @@ export default function SetupPage() {
             </div>
 
             {selectedPost && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="shift-start" className="block text-sm text-zinc-300 mb-1.5">Start</label>
-                  <input
-                    id="shift-start"
-                    type="datetime-local"
-                    value={startDt}
-                    onChange={e => {
-                      const newStart = e.target.value
-                      const oldStartMs = new Date(startDt).getTime()
-                      const oldEndMs = new Date(endDt).getTime()
-                      const duration = oldEndMs - oldStartMs
-                      if (!isNaN(new Date(newStart).getTime()) && duration > 0) {
-                        setEndDt(formatLocalDatetime(new Date(new Date(newStart).getTime() + duration)))
-                      }
-                      setStartDt(newStart)
-                    }}
-                    className={`w-full ${inputClass}`}
-                  />
+              <div className="mb-5 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                  <div>
+                    <label htmlFor="shift-start-date" className={labelClass}>Start date</label>
+                    <input
+                      id="shift-start-date"
+                      type="date"
+                      value={localDatePart(startDt)}
+                      onChange={e => updateStartDate(e.target.value)}
+                      className={`w-full ${inputClass}`}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="shift-start-time" className={labelClass}>Start time</label>
+                    <input
+                      id="shift-start-time"
+                      type="time"
+                      value={localTimePart(startDt)}
+                      onChange={e => updateStartTime(e.target.value)}
+                      className={`w-full ${inputClass}`}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:w-36">
+                    {[24, 48].map(hours => {
+                      const selectedDuration = durationHours != null && Math.abs(durationHours - hours) < 0.01
+                      return (
+                        <button
+                          key={hours}
+                          type="button"
+                          onClick={() => applyDuration(hours as 24 | 48)}
+                          className={`h-10 rounded-lg border px-3 text-sm font-semibold transition-colors ${
+                            selectedDuration
+                              ? 'border-blue-600 bg-blue-600 text-white'
+                              : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-blue-500 hover:text-zinc-100'
+                          }`}
+                        >
+                          {hours}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor="shift-end" className="block text-sm text-zinc-300 mb-1.5">End</label>
-                  <input id="shift-end" type="datetime-local" value={endDt} onChange={e => setEndDt(e.target.value)} className={`w-full ${inputClass}`} />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="shift-end-date" className={labelClass}>End date</label>
+                    <input
+                      id="shift-end-date"
+                      type="date"
+                      value={localDatePart(endDt)}
+                      onChange={e => updateEndDate(e.target.value)}
+                      className={`w-full ${inputClass}`}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="shift-end-time" className={labelClass}>End time</label>
+                    <input
+                      id="shift-end-time"
+                      type="time"
+                      value={localTimePart(endDt)}
+                      onChange={e => updateEndTime(e.target.value)}
+                      className={`w-full ${inputClass}`}
+                    />
+                  </div>
                 </div>
               </div>
             )}
+
+            <div className="mb-5">
+              <label htmlFor="partner" className={labelClass}>Partner</label>
+              <select
+                id="partner"
+                value={partnerId}
+                onChange={e => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
+                className={`w-full ${inputClass}`}
+              >
+                <option value="">No partner / solo</option>
+                {employees.filter(e => e.id !== user.id).sort(compareEmployeesByLastName).map(e => (
+                  <option key={e.id} value={e.id}>{formatEmployeeDropdown(e)}</option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* Partner */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
-            <label htmlFor="partner" className="mb-3 block text-base font-semibold text-zinc-100">Partner</label>
-            <select
-              id="partner"
-              value={partnerId}
-              onChange={e => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
-              className={`w-full ${inputClass}`}
-            >
-              <option value="">No partner / solo</option>
-              {employees.filter(e => e.id !== user.id).sort(compareEmployeesByLastName).map(e => (
-                <option key={e.id} value={e.id}>{formatEmployeeDropdown(e)}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Trucks */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-zinc-100">Trucks</h2>
-                <p className="mt-1 text-sm text-zinc-500">Add each bay your crew is responsible for today.</p>
-              </div>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-zinc-100">Trucks</h2>
               <button
                 type="button"
                 onClick={addBay}
@@ -319,7 +385,6 @@ export default function SetupPage() {
               const alreadyUsed = usedBays(i).includes(bay.bay_label) && bay.bay_label !== ''
               return (
                 <div key={i} className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3 sm:grid-cols-[7rem_minmax(0,1fr)_9rem_1.5rem] sm:items-end sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0">
-                  {/* Bay selector */}
                   <div>
                     <label htmlFor={`bay-${i}`} className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">
                       Bay
@@ -338,7 +403,6 @@ export default function SetupPage() {
                     </select>
                   </div>
 
-                  {/* Unit selector */}
                   <div>
                     <label htmlFor={`unit-${i}`} className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">
                       Unit
@@ -358,7 +422,6 @@ export default function SetupPage() {
                     </select>
                   </div>
 
-                  {/* Status selector */}
                   <div>
                     <label htmlFor={`status-${i}`} className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">
                       Status
@@ -379,7 +442,6 @@ export default function SetupPage() {
                     </select>
                   </div>
 
-                  {/* Remove */}
                   <button
                     type="button"
                     onClick={() => removeBay(i)}

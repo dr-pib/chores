@@ -21,7 +21,7 @@ interface ShiftProfile {
 
 interface BayRow { bay_label: string; unit_id: number | null; sort_order: number }
 
-const inputClass = 'px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full'
+const inputClass = 'h-10 px-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full'
 const labelClass = 'block text-sm text-zinc-300 mb-1.5'
 
 export default function EditShiftProfilePage() {
