@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EMS Chores
 
-## Getting Started
+Internal EMS operations app for shift setup, roster/history views, chore completion, persistent overdue chores, employee defaults, and supervisor/admin configuration.
 
-First, run the development server:
+## Local Development
 
 ```bash
+npm install
+npm run build
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Product Notes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `Setup` creates a new shift. If the logged-in employee is already on an active shift, the nav label becomes `Edit Current Shift`.
+- `Roster` contains `Today` and `History`.
+- A shift stays on Today's Roster until its actual end date/time, including 48-hour shifts that cross midnight.
+- History opens the same underlying shift detail screen, but ended shifts should display as `Historical Shift Record` with a back link to Roster History.
+- `Chores` contains `My Chores` and `Everyone's Chores`.
+- `My Chores` is the active work view for the logged-in employee's current shift.
+- `Everyone's Chores` is the service-wide chore view, including open persistent chores.
 
-## Learn More
+## Deployment
 
-To learn more about Next.js, take a look at the following resources:
+Railway should use:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The build script runs `prisma generate`; keep that in place unless the deployment strategy changes.
 
-## Deploy on Vercel
+## AI / Contributor Context
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Before making product, data model, date/time, role/permission, chore lifecycle, or navigation changes, read `PROJECT_CONTEXT.md`.

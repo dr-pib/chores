@@ -154,6 +154,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   const sortedPreviousPersistentChores = sortChores(previousPersistentChores)
   const isMyLog = log.primary_employee_id === session.userId || log.partner_employee_id === session.userId
   const pastShift = isPastShift(log.service_date, log.actual_end)
+  const historicalShift = pastShift
 
   // Detect pending truck checks already completed by another crew for the same unit on the same day
   const pendingTruckChecks = allDailyChores.filter(
@@ -241,8 +242,10 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       <NavBar userName={session.name} userRole={session.role} />
       <div className="max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className={`flex items-center mb-1 ${isMyLog ? 'justify-end' : 'justify-between'}`}>
-          {!isMyLog && (
+        <div className={`flex items-center mb-1 ${(historicalShift || !isMyLog) ? 'justify-between' : 'justify-end'}`}>
+          {historicalShift ? (
+            <Link href="/history" className="text-zinc-500 hover:text-zinc-300 text-sm">← Roster History</Link>
+          ) : !isMyLog && (
             <Link href="/log" className="text-zinc-500 hover:text-zinc-300 text-sm">← Today&apos;s Roster</Link>
           )}
           {(isMyLog || ['Dom', 'Admin', 'Supervisor'].includes(session.role)) && (
@@ -252,18 +255,20 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold text-zinc-100">
-              {isMyLog ? (
+              {historicalShift ? (
+                <>Historical Shift Record <span className="font-normal text-zinc-400">— {formatDate(log.service_date)}</span></>
+              ) : isMyLog ? (
                 <>My Chores <span className="font-normal text-zinc-400">— {formatDate(log.service_date)} <LiveClock /></span></>
               ) : log.shift_profile.name}
             </h1>
-            {!isMyLog && (
+            {(historicalShift || !isMyLog) && (
               <p className="text-zinc-400 text-sm mt-0.5">
                 {log.shift_profile.name} · {log.station.name} · {formatDate(log.service_date)}
               </p>
             )}
           </div>
           <div className="flex flex-col items-end gap-2">
-            {isMyLog && (
+            {isMyLog && !historicalShift && (
               <SegmentedNav
                 segments={[
                   { href: '/my-chores', label: 'My Chores', active: true },
@@ -278,6 +283,12 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
             )}
           </div>
         </div>
+
+        {historicalShift && (
+          <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            This shift ended {formatShiftMil(log.actual_end)}. You are viewing the historical record.
+          </div>
+        )}
 
         {isBirthday && (
           <div className="mb-4 px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 text-sm text-center">

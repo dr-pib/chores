@@ -14,6 +14,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Shifts can be 24 or 48 hours.
 - A shift remains current/active until `actual_end`, even after midnight.
 - History should include a shift only after `actual_end` has passed.
+- Shift detail pages for ended shifts should present as `Historical Shift Record`, not as active `My Chores`, even when the logged-in user was on that shift.
 - Today/Roster views should include shifts that overlap the selected day.
 - Employees can be either the primary employee or partner on a shift; both count as being part of the shift.
 - Shift Setup is the dedicated place to create/build a shift.
@@ -36,6 +37,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Use bay language only where the actual bay selector/label is being discussed.
 - Main nav uses `Chores` with a switch for `My Chores` and `Everyone's Chores`.
 - Main nav uses `Roster` with a switch for `Today` and `History`.
+- Historical shift records use the same underlying detail page as active shifts, but should show a clear historical heading/state and a back link to Roster History.
 - Supervisor/admin chore configuration should be called `Chore Templates` to avoid confusion with the main `Chores` tab.
 - Keep `Setup` or `Shift Setup` as the place where employees build their shift.
 
