@@ -172,37 +172,17 @@ export async function POST(req: NextRequest) {
   const stationChoreName = getStationChoreForPost(shiftProfile.name, serviceMonth)
   const stationTemplate = stationChoreName ? templates.find((t) => t.name === stationChoreName) ?? null : null
 
-  // NARC Expires is per-shift (each shift gets its own regardless of other shifts that day).
-  // Monthly/Quarterly Expires are station-wide — dedup so only one exists per service_date.
-  const narcDay1Templates = templates.filter((t) =>
-    t.lifecycle_type === 'persistent_until_complete'
-    && t.name === 'NARC Expires'
-    && shouldGenerateScheduledChore(t.name, serviceDate)
-  )
+  // All scheduled persistent chores are per-shift — each crew checks their own truck/narcs
   const scheduledPersistentTemplates = templates.filter((t) =>
     t.lifecycle_type === 'persistent_until_complete'
     && t.name !== 'Additional Chore'
-    && t.name !== 'NARC Expires'
     && shouldGenerateScheduledChore(t.name, serviceDate)
   )
-  const existingDay1Scheduled = scheduledPersistentTemplates.length > 0
-    ? await prisma.chore.findMany({
-        where: {
-          chore_template_id: { in: scheduledPersistentTemplates.map((t) => t.id) },
-          operations_log: { service_date: serviceDate },
-        },
-        select: { chore_template_id: true },
-      })
-    : []
-  const existingDay1TemplateIds = new Set(existingDay1Scheduled.map((c) => c.chore_template_id))
 
   const choresToCreate = [
     ...day1TruckChecks,
     ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: templateDueAt(stationTemplate), chore_date: serviceDate }] : []),
-    ...narcDay1Templates.map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t), chore_date: serviceDate })),
-    ...scheduledPersistentTemplates
-      .filter((t) => !existingDay1TemplateIds.has(t.id))
-      .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t), chore_date: serviceDate })),
+    ...scheduledPersistentTemplates.map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t), chore_date: serviceDate })),
   ]
 
   // Day 2 chores for 48h shifts — created immediately so they're visible from the start
@@ -213,36 +193,17 @@ export async function POST(req: NextRequest) {
     const day2StationChoreName = getStationChoreForPost(shiftProfile.name, day2Date.getMonth() + 1)
     const day2StationTemplate = day2StationChoreName ? templates.find((t) => t.name === day2StationChoreName) ?? null : null
 
-    // Day 2 scheduled persistent chores — NARC Expires per-shift; others dedup by chore_date
-    const narcDay2Templates = templates.filter((t) =>
-      t.lifecycle_type === 'persistent_until_complete'
-      && t.name === 'NARC Expires'
-      && shouldGenerateScheduledChore(t.name, day2Date)
-    )
+    // Day 2 scheduled persistent chores — per-shift, no dedup needed
     const scheduledDay2Templates = templates.filter((t) =>
       t.lifecycle_type === 'persistent_until_complete'
       && t.name !== 'Additional Chore'
-      && t.name !== 'NARC Expires'
       && shouldGenerateScheduledChore(t.name, day2Date)
     )
-    const existingDay2Scheduled = scheduledDay2Templates.length > 0
-      ? await prisma.chore.findMany({
-          where: {
-            chore_template_id: { in: scheduledDay2Templates.map((t) => t.id) },
-            chore_date: day2Date,
-          },
-          select: { chore_template_id: true },
-        })
-      : []
-    const existingDay2TemplateIds = new Set(existingDay2Scheduled.map((c) => c.chore_template_id))
 
     choresToCreate.push(
       ...day2TruckChecks,
       ...(day2StationTemplate ? [{ chore_template_id: day2StationTemplate.id, status: 'pending', due_at: templateDueAt(day2StationTemplate, true), chore_date: day2Date }] : []),
-      ...narcDay2Templates.map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t, true), chore_date: day2Date })),
-      ...scheduledDay2Templates
-        .filter((t) => !existingDay2TemplateIds.has(t.id))
-        .map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t, true), chore_date: day2Date })),
+      ...scheduledDay2Templates.map((t) => ({ chore_template_id: t.id, status: 'pending', due_at: templateDueAt(t, true), chore_date: day2Date })),
     )
   }
 

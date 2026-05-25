@@ -23,11 +23,13 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 
 - Daily chores reset by chore date.
 - Persistent chores remain open until completed.
-- NARC Expires generate on the 25th of every month.
-- Monthly Expires generate on the 3rd Tuesday of every month.
-- Quarterly Expires generate on the Thursday after the 3rd Tuesday in January, April, July, and October.
+- NARC Expires generate on the 25th of every month — one per shift (per manned ALS truck; backup/non-crewed trucks have no NARC box).
+- Monthly Expires generate on the 3rd Tuesday of every month — one per shift (per truck; each crew checks their own unit).
+- Quarterly Expires generate on the Thursday after the 3rd Tuesday in January, April, July, and October — one per shift (per truck; each crew checks their own unit).
+- All three scheduled persistent chores (NARC, Monthly, Quarterly) are per-shift — no deduplication across shifts sharing a service date.
 - Remote posts do not get Harrison station chore rotation.
 - Harrison station chore rotation assigns one station chore per crew per month and cycles Bathroom, Garage, Kitchen, Quarters.
+- Future chore template admin console needs a targeting-scope field: station-level chore | truck-level chore | crew-level chore | manned-ALS-truck-only chore.
 - Overdue persistent chores should generally mean the source shift has ended and the chore remains pending.
 
 ## UI Vocabulary

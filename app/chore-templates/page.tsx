@@ -29,6 +29,8 @@ export default function ChoreTemplatesPage() {
   const [templates, setTemplates] = useState<ChoreTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [backfilling, setBackfilling] = useState(false)
+  const [backfillResult, setBackfillResult] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -51,6 +53,26 @@ export default function ChoreTemplatesPage() {
       setSelectedId(id)
     } else {
       router.push(`/chore-templates/${id}`)
+    }
+  }
+
+  async function handleBackfill() {
+    setBackfilling(true)
+    setBackfillResult(null)
+    try {
+      const res = await fetch('/api/admin/backfill-chores', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setBackfillResult(data.created === 0
+          ? `All ${data.logs} active shifts already up to date.`
+          : `Added ${data.created} missing chore${data.created === 1 ? '' : 's'} across ${data.logs} active shifts.`)
+      } else {
+        setBackfillResult('Error: ' + (data.error ?? 'Unknown error'))
+      }
+    } catch {
+      setBackfillResult('Network error.')
+    } finally {
+      setBackfilling(false)
     }
   }
 
@@ -141,6 +163,26 @@ export default function ChoreTemplatesPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Admin Utilities */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mt-4">
+              <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                Admin Utilities
+              </h2>
+              <button
+                onClick={handleBackfill}
+                disabled={backfilling}
+                className="w-full px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 text-sm rounded-lg font-medium transition-colors text-left"
+              >
+                {backfilling ? 'Running…' : 'Backfill Missing Scheduled Chores'}
+              </button>
+              <p className="text-zinc-600 text-xs mt-1.5 leading-snug">
+                Adds any missing NARC / Monthly / Quarterly Expires to all currently active shifts.
+              </p>
+              {backfillResult && (
+                <p className="text-zinc-400 text-xs mt-2 font-medium">{backfillResult}</p>
+              )}
             </div>
           </div>
         </div>
