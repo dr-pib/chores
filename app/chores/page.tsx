@@ -8,8 +8,23 @@ import { sortChores } from '@/lib/chore-rotation'
 import { nextServiceDate } from '@/lib/dates'
 import { formatEmployeeTitle } from '@/lib/employees'
 
+const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
+
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+}
+
+function formatShiftMil(d: Date | string) {
+  const dt = new Date(d)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short', month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'America/Chicago',
+  }).formatToParts(dt)
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  let hour = get('hour')
+  if (hour === '24') hour = '00'
+  return `${get('weekday')}, ${get('month')}/${get('day')} ${hour}${get('minute')}`
 }
 
 interface ChoreTemplate { name: string; lifecycle_type: string; due_offset_hours: number | null }
@@ -28,10 +43,24 @@ interface Chore {
 }
 interface LogWithChores {
   id: number
-  shift_profile: { name: string }
+  shift_profile: { name: string; station: { name: string } }
   primary_employee: Employee
   partner_employee: Employee | null
+  actual_start: Date | string
+  actual_end: Date | string
   chores: Chore[]
+}
+
+function shiftRank(log: LogWithChores) {
+  const profileName = log.shift_profile.name
+  const directRank = SHIFT_ORDER.indexOf(profileName)
+  if (directRank >= 0) return directRank
+
+  const stationName = log.shift_profile.station.name
+  if (stationName === 'Diamond City' || profileName.includes('DC')) return 4
+  if (stationName === 'Newton County' || profileName.includes('NC')) return 5
+
+  return 100
 }
 
 function LogBox({ log, highlight, userRole }: { log: LogWithChores; highlight?: boolean; userRole: string }) {
@@ -42,13 +71,18 @@ function LogBox({ log, highlight, userRole }: { log: LogWithChores; highlight?: 
     : 'border-zinc-800 bg-zinc-900'
   return (
     <div className={`border rounded-xl p-4 ${borderClass}`}>
-      <div className="flex items-center justify-between mb-3">
-        <Link href={`/log/${log.id}`} className="flex items-center gap-2 hover:text-blue-400 transition-colors">
-          <span className="font-semibold text-zinc-100">
-            {log.shift_profile.name} | {formatEmployeeTitle(log.primary_employee)}
-            {log.partner_employee && <> &amp; {formatEmployeeTitle(log.partner_employee)}</>}
-          </span>
-        </Link>
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div className="flex-1 min-w-0">
+          <Link href={`/log/${log.id}`} className="hover:text-blue-400 transition-colors">
+            <span className="font-semibold text-zinc-100">
+              {log.shift_profile.name} | {formatEmployeeTitle(log.primary_employee)}
+              {log.partner_employee && <> &amp; {formatEmployeeTitle(log.partner_employee)}</>}
+            </span>
+          </Link>
+          <div className="text-zinc-400 text-sm mt-0.5">
+            {formatShiftMil(log.actual_start)} – {formatShiftMil(log.actual_end)}
+          </div>
+        </div>
         <span className="text-xs text-zinc-500">{done}/{sorted.length}</span>
       </div>
       <div className="space-y-1">
@@ -76,7 +110,7 @@ export default async function ChoresPage() {
       actual_end: { gt: serviceDate },
     },
     include: {
-      shift_profile: true,
+      shift_profile: { include: { station: true } },
       primary_employee: true,
       partner_employee: true,
       chores: {
@@ -116,7 +150,11 @@ export default async function ChoresPage() {
   })
 
   const myLog = logs.find(l => l.primary_employee_id === session.userId || l.partner_employee_id === session.userId) ?? null
-  const otherLogs = logs.filter(l => l.id !== myLog?.id)
+  const sortedLogs = [...logs].sort((a, b) => {
+    const rankDiff = shiftRank(a) - shiftRank(b)
+    if (rankDiff !== 0) return rankDiff
+    return a.shift_profile.name.localeCompare(b.shift_profile.name)
+  })
 
   const totalToday = logs.reduce((s, l) => s + l.chores.length, 0)
   const doneToday = logs.reduce((s, l) => s + l.chores.filter(c => c.status === 'completed').length, 0)
@@ -170,25 +208,9 @@ export default async function ChoresPage() {
           </div>
         ) : (
           <div className="space-y-5">
-            {/* Current user's shift — highlighted first */}
-            {myLog && (
-              <>
-                <h2 className="text-xs font-semibold text-blue-400 uppercase tracking-wider">My Chores</h2>
-                <LogBox log={myLog} highlight userRole={session.role} />
-              </>
-            )}
-
-            {/* Other crews */}
-            {otherLogs.length > 0 && (
-              <>
-                {myLog && (
-                  <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider pt-1">Other Crews</h2>
-                )}
-                {otherLogs.map(log => (
-                  <LogBox key={log.id} log={log} userRole={session.role} />
-                ))}
-              </>
-            )}
+            {sortedLogs.map(log => (
+              <LogBox key={log.id} log={log} highlight={log.id === myLog?.id} userRole={session.role} />
+            ))}
           </div>
         )}
       </div>
