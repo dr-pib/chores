@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
-import { formatUnit } from '@/lib/units'
 import { formatEmployeeTitle } from '@/lib/employees'
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
@@ -19,13 +18,17 @@ function formatDate(d: Date | string) {
   })
 }
 
-function formatTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
+function formatShiftMil(d: Date | string) {
+  const dt = new Date(d)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short', month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
     timeZone: 'America/Chicago',
-  })
+  }).formatToParts(dt)
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  let hour = get('hour')
+  if (hour === '24') hour = '00'
+  return `${get('weekday')}, ${get('month')}/${get('day')} ${hour}${get('minute')}`
 }
 
 function dateKey(d: Date) {
@@ -44,6 +47,20 @@ function shiftRank(log: {
   if (stationName === 'Newton County' || profileName.includes('NC')) return 5
 
   return 100
+}
+
+function crewLine(log: {
+  shift_profile: { name: string }
+  primary_employee: { name: string; licensure_level: string }
+  partner_employee: { name: string; licensure_level: string } | null
+}) {
+  return [
+    log.shift_profile.name,
+    [
+      formatEmployeeTitle(log.primary_employee),
+      log.partner_employee ? formatEmployeeTitle(log.partner_employee) : null,
+    ].filter(Boolean).join(' & '),
+  ].filter(Boolean).join(' | ')
 }
 
 export default async function HistoryPage() {
@@ -120,7 +137,6 @@ export default async function HistoryPage() {
                     const done = log.chores.filter(chore => chore.status === 'completed').length
                     const total = log.chores.length
                     const allDone = total > 0 && done === total
-                    const secondUnit = log.bays.find(bay => bay.unit && bay.unit_id !== log.primary_unit_id)?.unit
 
                     return (
                       <Link key={log.id} href={`/log/${log.id}`} className="block">
@@ -128,17 +144,10 @@ export default async function HistoryPage() {
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-semibold text-zinc-100">{log.shift_profile.name}</span>
-                                <span className="text-xs text-zinc-600">{log.shift_profile.station.name}</span>
+                                <span className="font-semibold text-zinc-100">{crewLine(log)}</span>
                               </div>
                               <div className="text-zinc-400 text-sm mt-0.5">
-                                {formatEmployeeTitle(log.primary_employee)}
-                                {log.partner_employee && <span> &amp; {formatEmployeeTitle(log.partner_employee)}</span>}
-                                <span className="text-zinc-600 mx-1.5">·</span>
-                                {formatTime(log.actual_start)}-{formatTime(log.actual_end)}
-                                <span className="text-zinc-600 mx-1.5">·</span>
-                                {formatUnit(log.primary_unit, false)}
-                                {secondUnit && <span className="text-zinc-600"> ({formatUnit(secondUnit, false)})</span>}
+                                {formatShiftMil(log.actual_start)} – {formatShiftMil(log.actual_end)}
                               </div>
                             </div>
                             <div className="text-right shrink-0">
