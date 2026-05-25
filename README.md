@@ -21,6 +21,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - `Chores` contains `My Chores` and `Everyone's Chores`.
 - `My Chores` is the active work view for the logged-in employee's current shift.
 - `Everyone's Chores` lists the same active shifts as Today's Roster, plus a separate section for open persistent chores from past shifts.
+- Supervisors, Admin, and Dom see a red overdue-expires ticker when pending Monthly, Quarterly, or NARC Expires are overdue anywhere in the service.
 
 ## Deployment
 

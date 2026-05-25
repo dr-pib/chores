@@ -61,8 +61,16 @@ export default function ChoreItem({ chore, userRole, isPastShift = false, comple
   const hasTasks = localTasks.length > 0
   const isDone = localStatus === 'completed'
   const isEffectivelyDone = isDone || completedElsewhere
-  const isPersistent = chore.chore_template.lifecycle_type === 'persistent_until_complete'
   const isTruckCheck = chore.chore_template.name === 'Truck Check'
+  const isExpireChore = ['Monthly Expires', 'Quarterly Expires', 'NARC Expires'].includes(chore.chore_template.name)
+  const isOverdue = !isEffectivelyDone && chore.due_at != null && new Date(chore.due_at).getTime() < Date.now()
+  const choreTitleClass = isEffectivelyDone
+    ? 'line-through text-zinc-500'
+    : isOverdue
+      ? 'text-red-300'
+      : isExpireChore
+        ? 'text-amber-300'
+        : 'text-zinc-100'
 
   function chicagoMidnight(d: Date): Date {
     for (const h of [5, 6]) {
@@ -175,7 +183,7 @@ export default function ChoreItem({ chore, userRole, isPastShift = false, comple
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-sm font-medium ${isEffectivelyDone ? 'line-through text-zinc-500' : 'text-zinc-100'}`}>
+            <span className={`text-sm font-medium ${choreTitleClass}`}>
               {chore.chore_template.name}
             </span>
             {isTruckCheck && chore.unit && (
@@ -183,9 +191,6 @@ export default function ChoreItem({ chore, userRole, isPastShift = false, comple
             )}
             {!isTruckCheck && chore.unit && (
               <span className="text-xs text-blue-400">{formatUnit(chore.unit, false)}</span>
-            )}
-            {isPersistent && !isEffectivelyDone && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">persistent</span>
             )}
           </div>
           <div className="flex items-center gap-3 mt-0.5">

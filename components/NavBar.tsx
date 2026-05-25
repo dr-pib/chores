@@ -25,6 +25,10 @@ interface BadgeState {
   chores: { count: number; color: keyof typeof BADGE_COLORS }[]
   hasActiveShift: boolean
 }
+interface ExpireAlertState {
+  hasAlert: boolean
+  text: string
+}
 
 function NavBadge({ count, color }: { count: number; color: keyof typeof BADGE_COLORS | null }) {
   if (!color || count <= 0) return null
@@ -41,6 +45,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [badges, setBadges] = useState<BadgeState | null>(null)
+  const [expireAlert, setExpireAlert] = useState<ExpireAlertState | null>(null)
 
   const setupLink = {
     href: '/setup',
@@ -80,6 +85,27 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
       ignore = true
     }
   }, [pathname])
+
+  useEffect(() => {
+    if (!SUPERVISOR_ROLES.includes(userRole)) return
+    let ignore = false
+
+    async function loadExpireAlert() {
+      try {
+        const res = await fetch('/api/alerts/overdue-expires', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!ignore) setExpireAlert(data)
+      } catch {
+        if (!ignore) setExpireAlert(null)
+      }
+    }
+
+    loadExpireAlert()
+    return () => {
+      ignore = true
+    }
+  }, [pathname, userRole])
 
   function badgesFor(href: string) {
     if (href === '/my-chores') return badges?.chores ?? []
@@ -152,6 +178,15 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
           </svg>
         </button>
       </div>
+
+      {SUPERVISOR_ROLES.includes(userRole) && expireAlert?.hasAlert && (
+        <Link
+          href="/chores"
+          className="block border-t border-red-700/50 bg-red-950/70 px-4 py-1.5 text-center text-xs font-medium text-red-100 transition-colors hover:bg-red-900/70"
+        >
+          {expireAlert.text}
+        </Link>
+      )}
 
       {/* Mobile menu */}
       {menuOpen && (

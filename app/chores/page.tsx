@@ -174,11 +174,11 @@ export default async function ChoresPage() {
           </div>
         )}
 
-        {/* Overdue persistent from previous days */}
+        {/* Overdue unfinished chores from previous shifts */}
         {openPersistent.length > 0 && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
             <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
-              Overdue / Incomplete Persistent
+              Overdue / Unfinished
             </h2>
             <div className="space-y-2">
               {openPersistent.map(chore => (

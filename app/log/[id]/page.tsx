@@ -423,7 +423,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           {persistentChores.length > 0 && (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
               <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-                Expires &amp; Persistent
+                Expires &amp; Other Scheduled Chores
               </h2>
               <div className="space-y-2">
                 {persistentChores.map(chore => (

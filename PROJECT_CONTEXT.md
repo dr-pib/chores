@@ -64,11 +64,12 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Blue badge: My Chores has current/not-overdue chores.
 - Amber badge: Everyone's Chores has service-wide open persistent chores.
 - Do not collapse these badge colors into one priority badge unless the user asks.
-- Supervisor-only alert/ticker band is planned for overdue expires anywhere in the system. **In progress (Codex).**
+- Supervisors, Admin, and Dom see a red overdue-expires ticker when pending Monthly, Quarterly, or NARC Expires are overdue anywhere in the service.
 - Proposed supervisor ticker text pattern:
   `Overdue: MONTHLY EXPIRES: Unit(s) 1, 2, and 6 | QUARTERLY EXPIRES: Unit(s) 1, 2, 6, 7, and 14 | NARC EXPIRES: Unit(s) 4 and 11.`
 - The ticker should only show categories that have overdue units, deduplicate units per category, sort unit numbers ascending, and link to Everyone's Chores.
 - Ticker visibility: Supervisor, Admin, and Dom only.
+- Avoid user-facing lifecycle jargon such as `Persistent`; prefer operational labels like overdue, unfinished, expires, or scheduled chores.
 
 ## Permissions And Audit
 
@@ -98,11 +99,6 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Railway database environment variables have needed fallback handling before; be careful changing DB connection setup.
 - Run `npm run build` before pushing meaningful app changes when possible.
 
-## In Progress (Codex)
-
-- **Supervisor ticker banner**: overdue expires alert strip visible to Supervisor/Admin/Dom. See Badges And Alerts section for spec.
-- **Persistent chore font treatment**: visual distinction on chore cards so persistent chores stand out to crews vs. daily-reset chores. Approach TBD by Codex — consider weight, color accent, or label badge rather than layout changes.
-
 ## Known Roadmap
 
 - Chore template/frequency editor:
@@ -113,7 +109,6 @@ The app should feel like a quiet operational tool: dense enough for repeated use
   - record chore and task-level completion/uncompletion events
   - preserve actor, timestamp, previous status, new status, and related shift/chore/task
   - no performance dashboards until audit data is reliable
-- Supervisor overdue-expires ticker.
 - Deeper route cleanup for Chores/Roster after the current UX shape proves stable.
 - Settings/Admin configuration later, including custom shift sort if needed.
 
