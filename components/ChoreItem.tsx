@@ -48,7 +48,7 @@ function formatDue(d: Date | string | null) {
   return `Due ${get('weekday')}, ${get('month')}/${get('day')} ${hour}${get('minute')}`
 }
 
-export default function ChoreItem({ chore, userRole, isPastShift = false }: { chore: Chore; userRole: string; isPastShift?: boolean }) {
+export default function ChoreItem({ chore, userRole, isPastShift = false, completedElsewhere = false }: { chore: Chore; userRole: string; isPastShift?: boolean; completedElsewhere?: boolean }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [localStatus, setLocalStatus] = useState(chore.status)
@@ -60,6 +60,7 @@ export default function ChoreItem({ chore, userRole, isPastShift = false }: { ch
 
   const hasTasks = localTasks.length > 0
   const isDone = localStatus === 'completed'
+  const isEffectivelyDone = isDone || completedElsewhere
   const isPersistent = chore.chore_template.lifecycle_type === 'persistent_until_complete'
   const isTruckCheck = chore.chore_template.name === 'Truck Check'
 
@@ -140,23 +141,25 @@ export default function ChoreItem({ chore, userRole, isPastShift = false }: { ch
   }
 
   return (
-    <div className={`py-2 rounded-lg ${isDone || isNotYetAvailable ? 'opacity-60' : ''}`}>
+    <div className={`py-2 rounded-lg ${isEffectivelyDone || isNotYetAvailable ? 'opacity-60' : ''}`}>
       <div className="flex items-start gap-3">
         {/* Status icon — only shown when there are no sub-tasks */}
         {!hasTasks && (
           <button
-            onClick={isDone ? uncomplete : isNotYetAvailable ? undefined : complete}
-            disabled={isPending || isNotYetAvailable || (isPastShift && !isSupervisor)}
-            aria-label={isDone ? 'Uncheck task' : isNotYetAvailable ? 'Not yet available' : 'Mark complete'}
+            onClick={isEffectivelyDone ? (completedElsewhere ? undefined : uncomplete) : isNotYetAvailable ? undefined : complete}
+            disabled={isPending || completedElsewhere || isNotYetAvailable || (isPastShift && !isSupervisor)}
+            aria-label={isEffectivelyDone ? 'Done' : isNotYetAvailable ? 'Not yet available' : 'Mark complete'}
             className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
-              isDone
-                ? 'border-green-500 bg-green-500 hover:border-red-400 hover:bg-red-500 cursor-pointer'
+              isEffectivelyDone
+                ? isDone
+                  ? 'border-green-500 bg-green-500 hover:border-red-400 hover:bg-red-500 cursor-pointer'
+                  : 'border-green-500 bg-green-500 cursor-default'
                 : isNotYetAvailable
                 ? 'border-zinc-700 bg-zinc-800 cursor-not-allowed'
                 : 'border-zinc-600 hover:border-blue-400 cursor-pointer'
             } ${isPending ? 'opacity-50' : ''}`}
           >
-            {isDone && (
+            {isEffectivelyDone && (
               <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
               </svg>
@@ -172,7 +175,7 @@ export default function ChoreItem({ chore, userRole, isPastShift = false }: { ch
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-sm font-medium ${isDone ? 'line-through text-zinc-500' : 'text-zinc-100'}`}>
+            <span className={`text-sm font-medium ${isEffectivelyDone ? 'line-through text-zinc-500' : 'text-zinc-100'}`}>
               {chore.chore_template.name}
             </span>
             {isTruckCheck && chore.unit && (
@@ -181,12 +184,12 @@ export default function ChoreItem({ chore, userRole, isPastShift = false }: { ch
             {!isTruckCheck && chore.unit && (
               <span className="text-xs text-blue-400">{formatUnit(chore.unit, false)}</span>
             )}
-            {isPersistent && !isDone && (
+            {isPersistent && !isEffectivelyDone && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">persistent</span>
             )}
           </div>
           <div className="flex items-center gap-3 mt-0.5">
-            {chore.due_at && !isDone && (
+            {chore.due_at && !isEffectivelyDone && (
               <span className="text-xs text-zinc-500">{formatDue(chore.due_at)}</span>
             )}
             {isDone && chore.completed_by && (
@@ -194,11 +197,14 @@ export default function ChoreItem({ chore, userRole, isPastShift = false }: { ch
                 Done by {formatEmployeeTitle(chore.completed_by)} at {formatTime(chore.completed_at)}
               </span>
             )}
+            {completedElsewhere && (
+              <span className="text-xs text-zinc-500">Completed by another crew</span>
+            )}
           </div>
           {isNotYetAvailable && (
             <p className="text-xs text-zinc-600 mt-0.5">Available at midnight</p>
           )}
-          {conflictMsg && (
+          {!completedElsewhere && conflictMsg && (
             <p className="text-xs text-yellow-400 mt-1">{conflictMsg}{canOverride && ' (you can still mark as done)'}</p>
           )}
 

@@ -155,6 +155,32 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   const isMyLog = log.primary_employee_id === session.userId || log.partner_employee_id === session.userId
   const pastShift = isPastShift(log.service_date, log.actual_end)
 
+  // Detect pending truck checks already completed by another crew for the same unit on the same day
+  const pendingTruckChecks = allDailyChores.filter(
+    c => c.chore_template.name === 'Truck Check' && c.status === 'pending' && c.unit_id && c.chore_date
+  )
+  const completedElsewhereIds = new Set<number>()
+  if (pendingTruckChecks.length > 0) {
+    const uniqueUnitIds = [...new Set(pendingTruckChecks.map(c => c.unit_id!))]
+    const uniqueDates = [...new Set(pendingTruckChecks.map(c => c.chore_date!.getTime()))].map(t => new Date(t))
+    const otherCompleted = await prisma.chore.findMany({
+      where: {
+        operations_log_id: { not: log.id },
+        chore_template: { name: 'Truck Check' },
+        unit_id: { in: uniqueUnitIds },
+        status: 'completed',
+        chore_date: { in: uniqueDates },
+      },
+      select: { unit_id: true, chore_date: true },
+    })
+    for (const tc of pendingTruckChecks) {
+      const match = otherCompleted.find(
+        o => o.unit_id === tc.unit_id && o.chore_date?.getTime() === tc.chore_date!.getTime()
+      )
+      if (match) completedElsewhereIds.add(tc.id)
+    }
+  }
+
   // Birthday check + performance stats — only relevant on "My Chores" view
   let isBirthday = false
   let perfStats = null
@@ -199,7 +225,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         const eligible = [...allDailyChores, ...persistentChores].filter(
           c => isNRP || c.chore_template.name !== 'NARC Expires'
         )
-        nowDone = eligible.filter(c => c.status === 'completed').length
+        nowDone = eligible.filter(c => c.status === 'completed' || completedElsewhereIds.has(c.id)).length
         nowTotal = eligible.length
         nowRate = nowTotal > 0 ? nowDone / nowTotal : null
       }
@@ -208,7 +234,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   const myChoresForProgress = isMyLog
     ? [...allDailyChores, ...persistentChores, ...sortedPreviousPersistentChores]
     : []
-  const myChoresDone = myChoresForProgress.filter(c => c.status === 'completed').length
+  const myChoresDone = myChoresForProgress.filter(c => c.status === 'completed' || completedElsewhereIds.has(c.id)).length
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -336,7 +362,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </h2>
               <div className="space-y-2">
                 {day1Chores.map(chore => (
-                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} />
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} completedElsewhere={completedElsewhereIds.has(chore.id)} />
                 ))}
               </div>
             </div>
@@ -349,7 +375,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </h2>
               <div className="space-y-2">
                 {day2Chores.map(chore => (
-                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} />
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} completedElsewhere={completedElsewhereIds.has(chore.id)} />
                 ))}
               </div>
             </div>
