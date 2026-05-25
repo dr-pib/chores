@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
+import { compareEmployeesByLastName, formatEmployeeDropdown } from '@/lib/employees'
 
 interface Employee {
   id: number
@@ -26,20 +27,6 @@ const inputClass = 'px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text
 const labelClass = 'block text-sm text-zinc-300 mb-1.5'
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
-
-function lastFirst(name: string) {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return name
-  const last = parts[parts.length - 1]
-  const first = parts.slice(0, -1).join(' ')
-  return `${last}, ${first}`
-}
-
-function byLastName(a: EmployeeSummary, b: EmployeeSummary) {
-  const aLast = a.name.trim().split(/\s+/).at(-1) ?? ''
-  const bLast = b.name.trim().split(/\s+/).at(-1) ?? ''
-  return aLast.localeCompare(bLast) || a.name.localeCompare(b.name)
-}
 
 export default function EmployeeEditPanel({ employeeId }: { employeeId: number }) {
   const [employee, setEmployee] = useState<Employee | null>(null)
@@ -137,12 +124,12 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
   // Partner options: Active, non-Admin role — last, first, alphabetical
   const partnerOptions = allEmployees
     .filter(e => e.id !== employeeId && e.status === 'Active' && e.role !== 'Admin')
-    .sort(byLastName)
+    .sort(compareEmployeesByLastName)
 
   // Supervisor options: supervisor roles only — last, first, alphabetical
   const supervisorOptions = allEmployees
     .filter(e => SUPERVISOR_ROLES.includes(e.role))
-    .sort(byLastName)
+    .sort(compareEmployeesByLastName)
 
   return (
     <div className="flex-1 px-6 py-6 max-w-2xl">
@@ -240,7 +227,7 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
                 <select id="ep-partner" value={defaultPartnerId} onChange={e => setDefaultPartnerId(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
                   <option value="">No default partner</option>
                   {partnerOptions.map(e => (
-                    <option key={e.id} value={e.id}>{lastFirst(e.name)} ({e.licensure_level})</option>
+                    <option key={e.id} value={e.id}>{formatEmployeeDropdown(e)}</option>
                   ))}
                 </select>
               </div>
@@ -250,7 +237,7 @@ export default function EmployeeEditPanel({ employeeId }: { employeeId: number }
               <select id="ep-supervisor" value={directSupervisorId} onChange={e => setDirectSupervisorId(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
                 <option value="">No supervisor assigned</option>
                 {supervisorOptions.map(e => (
-                  <option key={e.id} value={e.id}>{lastFirst(e.name)}</option>
+                  <option key={e.id} value={e.id}>{formatEmployeeDropdown(e)}</option>
                 ))}
               </select>
             </div>

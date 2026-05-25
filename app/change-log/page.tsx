@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import DeleteChangeLogButton from '@/components/DeleteChangeLogButton'
+import { formatEmployeeTitle } from '@/lib/employees'
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 
@@ -36,7 +37,7 @@ export default async function ChangeLogPage() {
 
   const logs = await prisma.changeLog.findMany({
     include: {
-      changed_by_employee: { select: { name: true } },
+      changed_by_employee: { select: { name: true, licensure_level: true } },
       chore: { include: { chore_template: { select: { name: true } } } },
       operations_log: {
         include: { shift_profile: { select: { name: true } } },
@@ -77,7 +78,7 @@ export default async function ChangeLogPage() {
                     className={`border-b border-zinc-800/50 ${i % 2 === 0 ? '' : 'bg-zinc-900/40'}`}
                   >
                     <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap">{formatDateTime(entry.created_at)}</td>
-                    <td className="px-4 py-2.5 text-zinc-200">{entry.changed_by_employee.name}</td>
+                    <td className="px-4 py-2.5 text-zinc-200">{formatEmployeeTitle(entry.changed_by_employee)}</td>
                     <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap">{formatShiftDate(entry.operations_log.service_date)}</td>
                     <td className="px-4 py-2.5 text-zinc-300">{entry.operations_log.shift_profile.name}</td>
                     <td className="px-4 py-2.5 text-zinc-200">{entry.chore.chore_template.name}</td>

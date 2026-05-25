@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import { formatUnit } from '@/lib/units'
+import { formatEmployeeTitle } from '@/lib/employees'
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
@@ -131,8 +132,8 @@ export default async function HistoryPage() {
                                 <span className="text-xs text-zinc-600">{log.shift_profile.station.name}</span>
                               </div>
                               <div className="text-zinc-400 text-sm mt-0.5">
-                                {log.primary_employee.name}
-                                {log.partner_employee && <span> &amp; {log.partner_employee.name}</span>}
+                                {formatEmployeeTitle(log.primary_employee)}
+                                {log.partner_employee && <span> &amp; {formatEmployeeTitle(log.partner_employee)}</span>}
                                 <span className="text-zinc-600 mx-1.5">·</span>
                                 {formatTime(log.actual_start)}-{formatTime(log.actual_end)}
                                 <span className="text-zinc-600 mx-1.5">·</span>

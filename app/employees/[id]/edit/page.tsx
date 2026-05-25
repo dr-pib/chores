@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import NavBar from '@/components/NavBar'
+import { compareEmployeesByLastName, formatEmployeeDropdown } from '@/lib/employees'
 
 interface Employee {
   id: number
@@ -124,7 +125,9 @@ export default function EditEmployeePage() {
     return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-400">Loading…</div>
   }
 
-  const otherEmployees = allEmployees.filter(e => e.id !== Number(employeeId))
+  const otherEmployees = allEmployees
+    .filter(e => e.id !== Number(employeeId))
+    .sort(compareEmployeesByLastName)
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -269,7 +272,7 @@ export default function EditEmployeePage() {
                 >
                   <option value="">No default partner</option>
                   {otherEmployees.map(e => (
-                    <option key={e.id} value={e.id}>{e.name} ({e.licensure_level})</option>
+                    <option key={e.id} value={e.id}>{formatEmployeeDropdown(e)}</option>
                   ))}
                 </select>
               </div>

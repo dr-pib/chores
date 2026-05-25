@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import NavBar from '@/components/NavBar'
 import { BAY_OPTIONS } from '@/lib/bays'
 import { formatUnit } from '@/lib/units'
+import { compareEmployeesByLastName, formatEmployeeDropdown } from '@/lib/employees'
 
 interface Unit { id: number; unit_number: number; unit_type: string; unit_name?: string | null }
 interface ShiftProfileBay { id: number; bay_label: string; unit_id: number | null; sort_order: number }
@@ -243,8 +244,8 @@ export default function SetupPage() {
               className={`w-full ${inputClass}`}
             >
               <option value="">No partner / solo</option>
-              {employees.filter(e => e.id !== user.id).map(e => (
-                <option key={e.id} value={e.id}>{e.name} ({e.licensure_level})</option>
+              {employees.filter(e => e.id !== user.id).sort(compareEmployeesByLastName).map(e => (
+                <option key={e.id} value={e.id}>{formatEmployeeDropdown(e)}</option>
               ))}
             </select>
           </div>

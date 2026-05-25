@@ -6,6 +6,7 @@ import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
 import { sortChores } from '@/lib/chore-rotation'
 import { nextServiceDate } from '@/lib/dates'
+import { formatEmployeeTitle } from '@/lib/employees'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -13,7 +14,7 @@ function formatDate(d: Date | string) {
 
 interface ChoreTemplate { name: string; lifecycle_type: string; due_offset_hours: number | null }
 interface Unit { unit_number: number; unit_type: string; unit_name?: string | null }
-interface Employee { name: string }
+interface Employee { name: string; licensure_level?: string | null }
 interface Chore {
   id: number
   status: string
@@ -28,7 +29,8 @@ interface Chore {
 interface LogWithChores {
   id: number
   shift_profile: { name: string }
-  primary_employee: { name: string }
+  primary_employee: Employee
+  partner_employee: Employee | null
   chores: Chore[]
 }
 
@@ -42,8 +44,10 @@ function LogBox({ log, highlight, userRole }: { log: LogWithChores; highlight?: 
     <div className={`border rounded-xl p-4 ${borderClass}`}>
       <div className="flex items-center justify-between mb-3">
         <Link href={`/log/${log.id}`} className="flex items-center gap-2 hover:text-blue-400 transition-colors">
-          <span className="font-semibold text-zinc-100">{log.shift_profile.name}</span>
-          <span className="text-zinc-500 text-sm">— {log.primary_employee.name}</span>
+          <span className="font-semibold text-zinc-100">
+            {log.shift_profile.name} | {formatEmployeeTitle(log.primary_employee)}
+            {log.partner_employee && <> &amp; {formatEmployeeTitle(log.partner_employee)}</>}
+          </span>
         </Link>
         <span className="text-xs text-zinc-500">{done}/{sorted.length}</span>
       </div>
@@ -74,6 +78,7 @@ export default async function ChoresPage() {
     include: {
       shift_profile: true,
       primary_employee: true,
+      partner_employee: true,
       chores: {
         include: {
           chore_template: true,

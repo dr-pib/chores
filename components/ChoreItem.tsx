@@ -3,10 +3,11 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatUnit } from '@/lib/units'
+import { formatEmployeeTitle } from '@/lib/employees'
 
 interface ChoreTemplate { name: string; lifecycle_type: string; due_offset_hours: number | null }
 interface Unit { unit_number: number; unit_type: string; unit_name?: string | null }
-interface Employee { name: string }
+interface Employee { name: string; licensure_level?: string | null }
 interface ChoreTemplateTask { id: number; name: string; sort_order: number }
 interface ChoreTask {
   id: number
@@ -190,7 +191,7 @@ export default function ChoreItem({ chore, userRole, isPastShift = false }: { ch
             )}
             {isDone && chore.completed_by && (
               <span className="text-xs text-zinc-500">
-                Done by {chore.completed_by.name} at {formatTime(chore.completed_at)}
+                Done by {formatEmployeeTitle(chore.completed_by)} at {formatTime(chore.completed_at)}
               </span>
             )}
           </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import NavBar from '@/components/NavBar'
+import { compareEmployeesByLastName, formatEmployeeDropdown } from '@/lib/employees'
 
 interface UserProfile {
   id: number
@@ -21,7 +22,7 @@ interface UserProfile {
 }
 
 interface ShiftProfile { id: number; name: string; station: { name: string } }
-interface EmployeeOption { id: number; name: string; status: string; role: string }
+interface EmployeeOption { id: number; name: string; licensure_level: string; status: string; role: string }
 
 const MONTHS = [
   { value: 1, label: 'January' }, { value: 2, label: 'February' }, { value: 3, label: 'March' },
@@ -31,20 +32,6 @@ const MONTHS = [
 ]
 
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1)
-
-function lastFirst(name: string) {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return name
-  const last = parts[parts.length - 1]
-  const first = parts.slice(0, -1).join(' ')
-  return `${last}, ${first}`
-}
-
-function byLastName(a: EmployeeOption, b: EmployeeOption) {
-  const aLast = a.name.trim().split(/\s+/).at(-1) ?? ''
-  const bLast = b.name.trim().split(/\s+/).at(-1) ?? ''
-  return aLast.localeCompare(bLast) || a.name.localeCompare(b.name)
-}
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -127,7 +114,7 @@ export default function ProfilePage() {
 
   const partnerOptions = employees
     .filter(e => e.status === 'Active' && e.role !== 'Admin' && e.id !== user.id)
-    .sort(byLastName)
+    .sort(compareEmployeesByLastName)
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -195,7 +182,7 @@ export default function ProfilePage() {
                 >
                   <option value="">N/A</option>
                   {partnerOptions.map(e => (
-                    <option key={e.id} value={e.id}>{lastFirst(e.name)}</option>
+                    <option key={e.id} value={e.id}>{formatEmployeeDropdown(e)}</option>
                   ))}
                 </select>
               </div>

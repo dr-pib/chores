@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NavBar from '@/components/NavBar'
 import EmployeeEditPanel from '@/components/EmployeeEditPanel'
+import { compareEmployeesByLastName, formatEmployeeDropdown } from '@/lib/employees'
 
 interface Employee {
   id: number
@@ -21,20 +22,6 @@ const STATUS_COLORS: Record<string, string> = {
   Active: 'text-green-400',
   PRN: 'text-yellow-400',
   Inactive: 'text-zinc-500',
-}
-
-function lastFirst(name: string) {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return name
-  const last = parts[parts.length - 1]
-  const first = parts.slice(0, -1).join(' ')
-  return `${last}, ${first}`
-}
-
-function sortByLastName(a: Employee, b: Employee) {
-  const aLast = a.name.trim().split(/\s+/).at(-1) ?? ''
-  const bLast = b.name.trim().split(/\s+/).at(-1) ?? ''
-  return aLast.localeCompare(bLast) || a.name.localeCompare(b.name)
 }
 
 export default function EmployeesPage() {
@@ -63,7 +50,7 @@ export default function EmployeesPage() {
   }
   if (!user) return null
 
-  const byStatus = (s: string) => employees.filter(e => e.status === s).sort(sortByLastName)
+  const byStatus = (s: string) => employees.filter(e => e.status === s).sort(compareEmployeesByLastName)
   const groups = [
     { label: 'Active', employees: byStatus('Active') },
     { label: 'PRN', employees: byStatus('PRN') },
@@ -111,11 +98,10 @@ export default function EmployeesPage() {
                         className={`w-full text-left flex items-center gap-3 px-4 py-2 hover:bg-zinc-800/60 transition-colors ${selectedId === emp.id ? 'bg-zinc-800/80 border-l-2 border-blue-500' : ''}`}
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium text-zinc-100 truncate">{lastFirst(emp.name)}</div>
+                          <div className="text-sm font-medium text-zinc-100 truncate">{formatEmployeeDropdown(emp)}</div>
                           <div className="text-xs text-zinc-500 truncate">{emp.email_username} · #{emp.emt_number}</div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">{emp.licensure_level}</span>
                           <span className={`text-xs font-medium ${STATUS_COLORS[emp.status] ?? 'text-zinc-400'}`}>{emp.status}</span>
                           <svg className="w-3.5 h-3.5 text-zinc-600 lg:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NavBar from '@/components/NavBar'
+import { compareEmployeesByLastName, formatEmployeeDropdown } from '@/lib/employees'
 
 interface Employee {
   id: number
@@ -18,20 +19,6 @@ interface Employee {
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
-
-function lastFirst(name: string) {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return name
-  const last = parts[parts.length - 1]
-  const first = parts.slice(0, -1).join(' ')
-  return `${last}, ${first}`
-}
-
-function byLastName(a: Employee, b: Employee) {
-  const aLast = a.name.trim().split(/\s+/).at(-1) ?? ''
-  const bLast = b.name.trim().split(/\s+/).at(-1) ?? ''
-  return aLast.localeCompare(bLast) || a.name.localeCompare(b.name)
-}
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 const NEEDS_DEFAULTS = ['Active', 'PRN']
@@ -113,15 +100,15 @@ export default function EmployeeGridPage() {
 
   const partnerEligible = employees
     .filter(e => e.status === 'Active' && e.role !== 'Admin')
-    .sort(byLastName)
+    .sort(compareEmployeesByLastName)
 
   const supervisorOptions = employees
     .filter(e => SUPERVISOR_ROLES.includes(e.role))
-    .sort(byLastName)
+    .sort(compareEmployeesByLastName)
 
-  const activeEmployees = employees.filter(e => e.status === 'Active').sort(byLastName)
-  const prn = employees.filter(e => e.status === 'PRN').sort(byLastName)
-  const inactive = employees.filter(e => e.status === 'Inactive').sort(byLastName)
+  const activeEmployees = employees.filter(e => e.status === 'Active').sort(compareEmployeesByLastName)
+  const prn = employees.filter(e => e.status === 'PRN').sort(compareEmployeesByLastName)
+  const inactive = employees.filter(e => e.status === 'Inactive').sort(compareEmployeesByLastName)
 
   function selectClass(alert: boolean) {
     const border = alert ? 'border-red-700' : 'border-zinc-700'
@@ -142,8 +129,7 @@ export default function EmployeeGridPage() {
             return (
               <div key={emp.id} className="flex items-center gap-3 px-4 py-2">
                 <div className="w-56 shrink-0">
-                  <span className="text-sm text-zinc-100">{lastFirst(emp.name)}</span>
-                  <span className="ml-2 text-xs text-zinc-600">{emp.licensure_level}</span>
+                  <span className="text-sm text-zinc-100">{formatEmployeeDropdown(emp)}</span>
                 </div>
                 <div className="w-28 shrink-0">
                   <select
@@ -172,7 +158,7 @@ export default function EmployeeGridPage() {
                   >
                     <option value="">N/A</option>
                     {partnerChoices.map(p => (
-                      <option key={p.id} value={p.id}>{lastFirst(p.name)} ({p.licensure_level})</option>
+                      <option key={p.id} value={p.id}>{formatEmployeeDropdown(p)}</option>
                     ))}
                   </select>
                 </div>
@@ -188,7 +174,7 @@ export default function EmployeeGridPage() {
                   >
                     <option value="">N/A</option>
                     {supervisorOptions.map(s => (
-                      <option key={s.id} value={s.id}>{lastFirst(s.name)}</option>
+                      <option key={s.id} value={s.id}>{formatEmployeeDropdown(s)}</option>
                     ))}
                   </select>
                 </div>

@@ -9,6 +9,7 @@ import { sortChores, getStationChoreForPost } from '@/lib/chore-rotation'
 import { isPastShift, todayChicago } from '@/lib/dates'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
 import LiveClock from '@/components/LiveClock'
+import { formatEmployeeTitle } from '@/lib/employees'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
@@ -233,9 +234,9 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           return (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6">
               <div className="font-semibold text-zinc-100">
-                {log.primary_employee.name}, {log.primary_employee.licensure_level}
+                {formatEmployeeTitle(log.primary_employee)}
                 {log.partner_employee && (
-                  <> | {log.partner_employee.name}, {log.partner_employee.licensure_level}</>
+                  <> | {formatEmployeeTitle(log.partner_employee)}</>
                 )}
               </div>
               <div className="text-sm font-semibold text-zinc-100 mt-0.5">
@@ -299,7 +300,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                       <ChoreItem chore={chore} userRole={session.role} isPastShift={true} />
                       <div className="ml-8 text-xs text-zinc-500">
                         From {chore.operations_log.shift_profile.name} · {formatDate(chore.operations_log.service_date)}
-                        {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(e => e.name).join(' & ')}</span>}
+                        {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(formatEmployeeTitle).join(' & ')}</span>}
                       </div>
                     </div>
                   )
