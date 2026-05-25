@@ -23,10 +23,11 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 
 - Daily chores reset by chore date.
 - Persistent chores remain open until completed.
-- NARC Expires generate on the 25th of every month and are unit-specific for manned ALS trucks; backup/non-crewed trucks have no NARC box.
-- Monthly Expires generate on the 3rd Tuesday of every month and are unit-specific per present truck.
-- Quarterly Expires generate on the Thursday after the 3rd Tuesday in January, April, July, and October and are unit-specific per present truck.
-- All three scheduled expire chores (NARC, Monthly, Quarterly) are per-shift and per-unit; do not deduplicate across shifts sharing a service date.
+- NARC Expires generate on the 25th of every month and are unit-specific for the shift's primary manned ALS unit only. Backup/secondary/non-crewed trucks have no NARC box and must never receive a NARC Expires chore. Use a dedicated code path (`buildNarcExpires`) that targets `primary_unit_id` — do NOT route NARC through the generic per-bay-unit path used for Monthly/Quarterly.
+- Monthly Expires generate on the 3rd Tuesday of every month and are unit-specific per present truck (all bay units with `unit_status = 'unit_present'`).
+- Quarterly Expires generate on the Thursday after the 3rd Tuesday in January, April, July, and October and are unit-specific per present truck (all bay units).
+- All three scheduled expire chores (NARC, Monthly, Quarterly) are per-shift; do not deduplicate across shifts sharing a service date.
+- CRITICAL: NARC, Monthly, and Quarterly Expires must never share a single generic "unit-specific scheduled chore" creation path. NARC = primary unit only; Monthly/Quarterly = all present trucks. Collapsing them into one path is a bug that creates NARC Expires on backup trucks.
 - Remote posts do not get Harrison station chore rotation.
 - Harrison station chore rotation assigns one station chore per crew per month and cycles Bathroom, Garage, Kitchen, Quarters.
 - Future chore template admin console needs a targeting-scope field: station-level chore | truck-level chore | crew-level chore | manned-ALS-truck-only chore.

@@ -20,6 +20,7 @@ export async function POST() {
         actual_start: true,
         actual_end: true,
         service_date: true,
+        primary_unit_id: true,
         bays: {
           where: { unit_status: 'unit_present', unit_id: { not: null } },
           select: { bay_label: true, unit_id: true },
@@ -54,22 +55,38 @@ export async function POST() {
         && t.name !== 'Additional Chore'
         && shouldGenerateScheduledChore(t.name, choreDate)
       )
+      const narcTemplate = applicable.find(t => t.name === 'NARC Expires')
+      const nonNarcTemplates = applicable.filter(t => t.name !== 'NARC Expires')
 
-      const toCreate = applicable
-        .flatMap(t => log.bays.map(bay => ({ template: t, bay })))
-        .filter(({ template, bay }) => !existingPairs.has(`${template.id}-${choreDate.getTime()}-${bay.unit_id ?? 'shift'}`))
-        .map(({ template, bay }) => {
-          const offsetHours = template.due_offset_hours ?? 1
-          return {
+      // Monthly/Quarterly: one per present truck
+      const bayChores = nonNarcTemplates
+        .flatMap(t => log.bays.map(bay => ({ template: t, unit_id: bay.unit_id, bay_label: bay.bay_label })))
+        .filter(c => !existingPairs.has(`${c.template.id}-${choreDate.getTime()}-${c.unit_id ?? 'shift'}`))
+        .map(c => ({
+          operations_log_id: log.id,
+          chore_template_id: c.template.id,
+          unit_id: c.unit_id,
+          bay_label: c.bay_label,
+          status: 'pending' as const,
+          due_at: new Date(log.actual_start.getTime() + dayOffset + (c.template.due_offset_hours ?? 1) * 3600 * 1000),
+          chore_date: choreDate,
+        }))
+
+      // NARC Expires: primary unit only
+      const narcChores = (narcTemplate && log.primary_unit_id
+        && !existingPairs.has(`${narcTemplate.id}-${choreDate.getTime()}-${log.primary_unit_id}`))
+        ? [{
             operations_log_id: log.id,
-            chore_template_id: template.id,
-            unit_id: bay.unit_id,
-            bay_label: bay.bay_label,
+            chore_template_id: narcTemplate.id,
+            unit_id: log.primary_unit_id,
+            bay_label: null as string | null,
             status: 'pending' as const,
-            due_at: new Date(log.actual_start.getTime() + dayOffset + offsetHours * 3600 * 1000),
+            due_at: new Date(log.actual_start.getTime() + dayOffset + (narcTemplate.due_offset_hours ?? 1) * 3600 * 1000),
             chore_date: choreDate,
-          }
-        })
+          }]
+        : []
+
+      const toCreate = [...bayChores, ...narcChores]
 
       if (toCreate.length > 0) {
         await prisma.chore.createMany({ data: toCreate })

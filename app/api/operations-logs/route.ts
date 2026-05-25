@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
       }))
   }
 
+  // Monthly/Quarterly Expires: one per present truck
   function buildScheduledUnitChores(
     scheduledTemplates: { id: number; due_offset_hours: number | null }[],
     choreDate: Date,
@@ -108,6 +109,23 @@ export async function POST(req: NextRequest) {
           chore_date: choreDate,
         }))
     )
+  }
+
+  // NARC Expires: primary manned ALS truck only — backup/secondary trucks have no NARC box
+  function buildNarcExpires(
+    narcTemplate: { id: number; due_offset_hours: number | null },
+    choreDate: Date,
+    day2 = false,
+  ) {
+    if (!primary_unit_id) return []
+    return [{
+      chore_template_id: narcTemplate.id,
+      unit_id: primary_unit_id,
+      bay_label: null as string | null,
+      status: 'pending' as const,
+      due_at: templateDueAt(narcTemplate, day2),
+      chore_date: choreDate,
+    }]
   }
 
   const day1TruckChecks = buildTruckChecks(serviceDate)
@@ -156,6 +174,9 @@ export async function POST(req: NextRequest) {
         && shouldGenerateScheduledChore(t.name, day2Date)
       )
       if (scheduledDay2.length > 0) {
+        const day2NarcTemplate = scheduledDay2.find(t => t.name === 'NARC Expires')
+        const day2NonNarcTemplates = scheduledDay2.filter(t => t.name !== 'NARC Expires')
+
         const existingInLog = await prisma.chore.findMany({
           where: {
             operations_log_id: existing.id,
@@ -164,7 +185,11 @@ export async function POST(req: NextRequest) {
           select: { chore_template_id: true, chore_date: true, unit_id: true },
         })
         const existingKeys = new Set(existingInLog.map((c) => `${c.chore_template_id}-${c.chore_date?.getTime() ?? 0}-${c.unit_id ?? 'shift'}`))
-        const toCreate = buildScheduledUnitChores(scheduledDay2, day2Date, true)
+        const candidates = [
+          ...buildScheduledUnitChores(day2NonNarcTemplates, day2Date, true),
+          ...(day2NarcTemplate ? buildNarcExpires(day2NarcTemplate, day2Date, true) : []),
+        ]
+        const toCreate = candidates
           .filter((chore) => !existingKeys.has(`${chore.chore_template_id}-${day2Date.getTime()}-${chore.unit_id ?? 'shift'}`))
           .map((chore) => ({ ...chore, operations_log_id: existing.id }))
         if (toCreate.length > 0) await prisma.chore.createMany({ data: toCreate })
@@ -191,11 +216,14 @@ export async function POST(req: NextRequest) {
     && t.name !== 'Additional Chore'
     && shouldGenerateScheduledChore(t.name, serviceDate)
   )
+  const day1NarcTemplate = scheduledPersistentTemplates.find(t => t.name === 'NARC Expires')
+  const day1NonNarcTemplates = scheduledPersistentTemplates.filter(t => t.name !== 'NARC Expires')
 
   const choresToCreate = [
     ...day1TruckChecks,
     ...(stationTemplate ? [{ chore_template_id: stationTemplate.id, status: 'pending', due_at: templateDueAt(stationTemplate), chore_date: serviceDate }] : []),
-    ...buildScheduledUnitChores(scheduledPersistentTemplates, serviceDate),
+    ...buildScheduledUnitChores(day1NonNarcTemplates, serviceDate),
+    ...(day1NarcTemplate ? buildNarcExpires(day1NarcTemplate, serviceDate) : []),
   ]
 
   // Day 2 chores for 48h shifts — created immediately so they're visible from the start
@@ -212,11 +240,14 @@ export async function POST(req: NextRequest) {
       && t.name !== 'Additional Chore'
       && shouldGenerateScheduledChore(t.name, day2Date)
     )
+    const day2NarcTemplate = scheduledDay2Templates.find(t => t.name === 'NARC Expires')
+    const day2NonNarcTemplates = scheduledDay2Templates.filter(t => t.name !== 'NARC Expires')
 
     choresToCreate.push(
       ...day2TruckChecks,
       ...(day2StationTemplate ? [{ chore_template_id: day2StationTemplate.id, status: 'pending', due_at: templateDueAt(day2StationTemplate, true), chore_date: day2Date }] : []),
-      ...buildScheduledUnitChores(scheduledDay2Templates, day2Date, true),
+      ...buildScheduledUnitChores(day2NonNarcTemplates, day2Date, true),
+      ...(day2NarcTemplate ? buildNarcExpires(day2NarcTemplate, day2Date, true) : []),
     )
   }
 
