@@ -28,7 +28,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email_username: username, emt_number: emtNumber }),
       })
       if (res.ok) {
-        router.push('/setup')
+        router.push('/my-chores')
       } else {
         const data = await res.json().catch(() => null)
         setError(data?.error ?? 'Login failed')
