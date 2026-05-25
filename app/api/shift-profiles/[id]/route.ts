@@ -30,11 +30,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params
   const body = await req.json()
-  const { default_start_time, default_unit_id, bays } = body
+  const { station_id, default_start_time, default_unit_id, bays } = body
 
   const updated = await prisma.shiftProfile.update({
     where: { id: Number(id) },
     data: {
+      ...(station_id !== undefined && { station_id: Number(station_id) }),
       default_start_time,
       default_unit_id: default_unit_id || null,
       bays: {

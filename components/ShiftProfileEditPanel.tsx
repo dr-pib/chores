@@ -5,6 +5,7 @@ import { BAY_OPTIONS } from '@/lib/bays'
 import { formatUnit } from '@/lib/units'
 
 interface Unit { id: number; unit_number: number; unit_type: string; unit_name: string | null }
+interface Station { id: number; name: string }
 interface ShiftProfile {
   id: number
   name: string
@@ -21,7 +22,9 @@ const labelClass = 'block text-sm text-zinc-300 mb-1.5'
 
 export default function ShiftProfileEditPanel({ postId }: { postId: number }) {
   const [post, setPost] = useState<ShiftProfile | null>(null)
+  const [stations, setStations] = useState<Station[]>([])
   const [units, setUnits] = useState<Unit[]>([])
+  const [stationId, setStationId] = useState<number | ''>('')
   const [startTime, setStartTime] = useState('')
   const [defaultUnitId, setDefaultUnitId] = useState<number | ''>('')
   const [bays, setBays] = useState<BayRow[]>([])
@@ -36,11 +39,14 @@ export default function ShiftProfileEditPanel({ postId }: { postId: number }) {
     setSuccess(false)
     Promise.all([
       fetch(`/api/shift-profiles/${postId}`).then(r => r.json()),
+      fetch('/api/stations').then(r => r.json()),
       fetch('/api/units').then(r => r.json()),
-    ]).then(([postData, unitsData]) => {
+    ]).then(([postData, stationsData, unitsData]) => {
       if (postData.error) return
       setPost(postData)
+      setStations(Array.isArray(stationsData) ? stationsData : [])
       setUnits(Array.isArray(unitsData) ? unitsData : [])
+      setStationId(postData.station.id)
       setStartTime(postData.default_start_time)
       setDefaultUnitId(postData.default_unit_id ?? '')
       setBays(
@@ -61,11 +67,21 @@ export default function ShiftProfileEditPanel({ postId }: { postId: number }) {
   }
 
   function removeBay(index: number) {
+    const removedUnitId = bays[index]?.unit_id ?? null
     setBays(prev => prev.filter((_, i) => i !== index).map((b, i) => ({ ...b, sort_order: i + 1 })))
+    if (removedUnitId === defaultUnitId) setDefaultUnitId('')
   }
 
   function updateBay(index: number, field: 'bay_label' | 'unit_id', value: string | number | null) {
+    const currentUnitId = bays[index]?.unit_id ?? null
     setBays(prev => prev.map((b, i) => i === index ? { ...b, [field]: value } : b))
+    if (field === 'unit_id' && (value === null || value !== defaultUnitId) && currentUnitId === defaultUnitId) {
+      setDefaultUnitId('')
+    }
+  }
+
+  function setPrimaryUnit(unitId: number | null) {
+    setDefaultUnitId(defaultUnitId === unitId || unitId == null ? '' : unitId)
   }
 
   const usedLabels = (currentIndex: number) =>
@@ -73,6 +89,7 @@ export default function ShiftProfileEditPanel({ postId }: { postId: number }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!stationId) { setError('Station is required'); return }
     if (!startTime) { setError('Start time is required'); return }
     const emptyBay = bays.find(b => !b.bay_label)
     if (emptyBay) { setError('Select a bay label for each row, or remove empty rows'); return }
@@ -84,9 +101,16 @@ export default function ShiftProfileEditPanel({ postId }: { postId: number }) {
       const res = await fetch(`/api/shift-profiles/${postId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ default_start_time: startTime, default_unit_id: defaultUnitId || null, bays }),
+        body: JSON.stringify({
+          station_id: stationId,
+          default_start_time: startTime,
+          default_unit_id: defaultUnitId || null,
+          bays,
+        }),
       })
       if (res.ok) {
+        const updated = await res.json()
+        setPost(updated)
         setSuccess(true)
       } else {
         const data = await res.json()
@@ -110,29 +134,29 @@ export default function ShiftProfileEditPanel({ postId }: { postId: number }) {
       </div>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
-          <h2 className="text-base font-semibold text-zinc-100 mb-1">Schedule defaults</h2>
-          <p className="text-sm text-zinc-500 mb-4">Pre-filled on Shift Setup when this shift profile is selected.</p>
-          <div>
-            <label htmlFor="cp-start-time" className={labelClass}>Default start time</label>
-            <input id="cp-start-time" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className={inputClass} />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
-          <h2 className="text-base font-semibold text-zinc-100 mb-1">Primary truck</h2>
-          <p className="text-sm text-zinc-500 mb-4">The unit most commonly associated with this shift profile (used for display).</p>
-          <select value={defaultUnitId} onChange={e => setDefaultUnitId(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
-            <option value="">No primary truck</option>
-            {units.map(u => <option key={u.id} value={u.id}>{formatUnit(u)}</option>)}
-          </select>
-        </div>
-
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/20">
-          <div className="mb-4 flex items-start justify-between gap-3">
+          <h2 className="text-base font-semibold text-zinc-100 mb-4">Default Start Time, Trucks and Bays</h2>
+          <div className="grid grid-cols-2 gap-3 mb-5">
             <div>
-              <h2 className="text-base font-semibold text-zinc-100">Typical bays</h2>
-              <p className="mt-1 text-sm text-zinc-500">Set the bay and the usual truck parked there. Leave the truck blank if it varies.</p>
+              <label htmlFor="cp-station" className={labelClass}>Station</label>
+              <select
+                id="cp-station"
+                value={stationId}
+                onChange={e => setStationId(e.target.value ? Number(e.target.value) : '')}
+                className={inputClass}
+              >
+                <option value="">Select station</option>
+                {stations.map(station => (
+                  <option key={station.id} value={station.id}>{station.name}</option>
+                ))}
+              </select>
             </div>
+            <div>
+              <label htmlFor="cp-start-time" className={labelClass}>Default start time</label>
+              <input id="cp-start-time" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className={inputClass} />
+            </div>
+          </div>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-zinc-100">Default trucks and bays</h3>
             <button
               type="button"
               onClick={addBay}
@@ -149,17 +173,19 @@ export default function ShiftProfileEditPanel({ postId }: { postId: number }) {
           )}
 
           {bays.length > 0 && (
-            <div className="hidden sm:grid sm:grid-cols-[7rem_minmax(0,1fr)_1.5rem] gap-2 pb-1">
+            <div className="hidden sm:grid sm:grid-cols-[7rem_minmax(0,1fr)_5rem_1.5rem] gap-2 pb-1">
               <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">Bay</span>
               <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">Default truck</span>
+              <span className="text-xs font-medium uppercase tracking-wider text-zinc-500 text-center">Primary</span>
             </div>
           )}
 
           <div className="space-y-2">
             {bays.map((bay, i) => {
               const isDup = usedLabels(i).includes(bay.bay_label) && bay.bay_label !== ''
+              const isPrimary = bay.unit_id != null && bay.unit_id === defaultUnitId
               return (
-                <div key={i} className="grid gap-2 sm:grid-cols-[7rem_minmax(0,1fr)_1.5rem] sm:items-center rounded-lg border border-zinc-800 bg-zinc-950/40 p-3 sm:border-0 sm:bg-transparent sm:p-0">
+                <div key={i} className="grid gap-2 sm:grid-cols-[7rem_minmax(0,1fr)_5rem_1.5rem] sm:items-center rounded-lg border border-zinc-800 bg-zinc-950/40 p-3 sm:border-0 sm:bg-transparent sm:p-0">
                   <div>
                     <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">Bay</label>
                     <select
@@ -184,6 +210,17 @@ export default function ShiftProfileEditPanel({ postId }: { postId: number }) {
                       {units.map(u => <option key={u.id} value={u.id}>{formatUnit(u)}</option>)}
                     </select>
                   </div>
+                  <label className="flex items-center justify-between gap-2 sm:justify-center">
+                    <span className="text-xs font-medium uppercase tracking-wider text-zinc-500 sm:hidden">Primary</span>
+                    <input
+                      type="checkbox"
+                      checked={isPrimary}
+                      disabled={bay.unit_id == null}
+                      onChange={() => setPrimaryUnit(bay.unit_id)}
+                      className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500 disabled:opacity-40"
+                      aria-label={`Primary truck for bay ${bay.bay_label || i + 1}`}
+                    />
+                  </label>
                   <button
                     type="button"
                     onClick={() => removeBay(i)}
