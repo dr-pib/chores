@@ -223,7 +223,22 @@ export default function SetupPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="shift-start" className="block text-sm text-zinc-300 mb-1.5">Start</label>
-                  <input id="shift-start" type="datetime-local" value={startDt} onChange={e => setStartDt(e.target.value)} className={`w-full ${inputClass}`} />
+                  <input
+                    id="shift-start"
+                    type="datetime-local"
+                    value={startDt}
+                    onChange={e => {
+                      const newStart = e.target.value
+                      const oldStartMs = new Date(startDt).getTime()
+                      const oldEndMs = new Date(endDt).getTime()
+                      const duration = oldEndMs - oldStartMs
+                      if (!isNaN(new Date(newStart).getTime()) && duration > 0) {
+                        setEndDt(formatLocalDatetime(new Date(new Date(newStart).getTime() + duration)))
+                      }
+                      setStartDt(newStart)
+                    }}
+                    className={`w-full ${inputClass}`}
+                  />
                 </div>
                 <div>
                   <label htmlFor="shift-end" className="block text-sm text-zinc-300 mb-1.5">End</label>
