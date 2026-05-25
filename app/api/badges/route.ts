@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 
 type BadgeColor = 'blue' | 'amber' | 'red' | null
+type ActiveBadgeColor = Exclude<BadgeColor, null>
 
 function getChicagoServiceDate() {
   const today = new Date()
@@ -19,8 +20,7 @@ export async function GET() {
   const session = await getSession()
   if (!session.isLoggedIn) {
     return NextResponse.json({
-      myChores: { count: 0, color: null as BadgeColor },
-      everyoneChores: { count: 0, color: null as BadgeColor },
+      chores: [],
     })
   }
 
@@ -52,8 +52,8 @@ export async function GET() {
     orderBy: { created_at: 'desc' },
   })
 
-  let myCount = 0
-  let myColor: BadgeColor = null
+  let myOverdueCount = 0
+  let myCurrentCount = 0
 
   if (myLog) {
     const currentUnitIds = myLog.bays
@@ -72,7 +72,7 @@ export async function GET() {
       && (!chore.chore_date || chore.chore_date.getTime() <= serviceDate.getTime())
     ).length
 
-    const previousPersistentCount = await prisma.chore.count({
+    myOverdueCount = await prisma.chore.count({
       where: {
         status: 'pending',
         chore_template: { lifecycle_type: 'persistent_until_complete' },
@@ -89,21 +89,17 @@ export async function GET() {
       },
     })
 
-    myCount = previousPersistentCount + currentPersistentCount + dayOneDailyCount
-    myColor = previousPersistentCount > 0
-      ? 'red'
-      : currentPersistentCount > 0
-        ? 'amber'
-        : dayOneDailyCount > 0
-          ? 'blue'
-          : null
+    myCurrentCount = currentPersistentCount + dayOneDailyCount
   }
 
+  const choreBadgeCandidates: { count: number; color: ActiveBadgeColor }[] = [
+    { count: myOverdueCount, color: 'red' },
+    { count: myCurrentCount, color: 'blue' },
+    { count: everyonePersistentCount, color: 'amber' },
+  ]
+  const choreBadges = choreBadgeCandidates.filter(badge => badge.count > 0)
+
   return NextResponse.json({
-    myChores: { count: myCount, color: myColor },
-    everyoneChores: {
-      count: everyonePersistentCount,
-      color: everyonePersistentCount > 0 ? 'red' as BadgeColor : null,
-    },
+    chores: choreBadges,
   })
 }

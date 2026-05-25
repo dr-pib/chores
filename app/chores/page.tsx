@@ -7,6 +7,7 @@ import ChoreItem from '@/components/ChoreItem'
 import { sortChores } from '@/lib/chore-rotation'
 import { nextServiceDate } from '@/lib/dates'
 import { formatEmployeeTitle } from '@/lib/employees'
+import SegmentedNav from '@/components/SegmentedNav'
 
 const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
 
@@ -168,6 +169,12 @@ export default async function ChoresPage() {
             <h1 className="text-xl font-bold text-zinc-100">Everyone&apos;s Chores</h1>
             <p className="text-zinc-400 text-sm mt-0.5">{formatDate(serviceDate)} — {doneToday}/{totalToday} complete</p>
           </div>
+          <SegmentedNav
+            segments={[
+              { href: '/my-chores', label: 'My Chores', active: false },
+              { href: '/chores', label: "Everyone's Chores", active: true },
+            ]}
+          />
         </div>
 
         {/* Progress bar */}

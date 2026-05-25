@@ -6,6 +6,7 @@ import NavBar from '@/components/NavBar'
 import { formatUnit } from '@/lib/units'
 import { nextServiceDate } from '@/lib/dates'
 import { formatEmployeeTitle } from '@/lib/employees'
+import SegmentedNav from '@/components/SegmentedNav'
 
 const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
 
@@ -115,8 +116,14 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
       <NavBar userName={session.name} userRole={session.role} />
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-5">
+        <div className="mb-5 flex items-center justify-between gap-4">
           <h1 className="text-xl font-bold text-zinc-100">Today&apos;s Roster</h1>
+          <SegmentedNav
+            segments={[
+              { href: '/log', label: 'Today', active: true },
+              { href: '/history', label: 'History', active: false },
+            ]}
+          />
         </div>
 
         {/* Date navigation */}

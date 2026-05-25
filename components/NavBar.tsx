@@ -11,10 +11,8 @@ interface NavBarProps {
 
 const BASE_LINKS = [
   { href: '/setup', label: 'Shift Setup' },
-  { href: '/my-chores', label: 'My Chores' },
-  { href: '/log', label: "Today's Roster" },
-  { href: '/history', label: 'History' },
-  { href: '/chores', label: "Everyone's Chores" },
+  { href: '/my-chores', label: 'Chores' },
+  { href: '/log', label: 'Roster' },
 ]
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
@@ -25,8 +23,7 @@ const BADGE_COLORS: Record<string, string> = {
 }
 
 interface BadgeState {
-  myChores: { count: number; color: keyof typeof BADGE_COLORS | null }
-  everyoneChores: { count: number; color: keyof typeof BADGE_COLORS | null }
+  chores: { count: number; color: keyof typeof BADGE_COLORS }[]
 }
 
 function NavBadge({ count, color }: { count: number; color: keyof typeof BADGE_COLORS | null }) {
@@ -46,12 +43,12 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
   const [badges, setBadges] = useState<BadgeState | null>(null)
 
   const links = SUPERVISOR_ROLES.includes(userRole)
-    ? [...BASE_LINKS, { href: '/shift-profiles', label: 'Shift Profiles' }, { href: '/employees', label: 'Employees' }, { href: '/chore-templates', label: 'Chores' }, { href: '/change-log', label: 'Change Log' }]
+    ? [...BASE_LINKS, { href: '/shift-profiles', label: 'Shift Profiles' }, { href: '/employees', label: 'Employees' }, { href: '/chore-templates', label: 'Chore Templates' }, { href: '/change-log', label: 'Change Log' }]
     : BASE_LINKS
 
   function isActive(href: string) {
-    if (href === '/log') return pathname === '/log'
-    if (href === '/my-chores') return pathname === '/my-chores' || pathname.startsWith('/log/')
+    if (href === '/log') return pathname === '/log' || pathname === '/history'
+    if (href === '/my-chores') return pathname === '/my-chores' || pathname === '/chores' || pathname.startsWith('/log/')
     return pathname.startsWith(href)
   }
 
@@ -80,18 +77,19 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
     }
   }, [pathname])
 
-  function badgeFor(href: string) {
-    if (href === '/my-chores') return badges?.myChores ?? null
-    if (href === '/chores') return badges?.everyoneChores ?? null
-    return null
+  function badgesFor(href: string) {
+    if (href === '/my-chores') return badges?.chores ?? []
+    return []
   }
 
   function renderLinkLabel(link: { href: string; label: string }) {
-    const badge = badgeFor(link.href)
+    const linkBadges = badgesFor(link.href)
     return (
       <span className="inline-flex items-center gap-2 whitespace-nowrap">
         {link.label}
-        <NavBadge count={badge?.count ?? 0} color={badge?.color ?? null} />
+        {linkBadges.map(badge => (
+          <NavBadge key={badge.color} count={badge.count} color={badge.color} />
+        ))}
       </span>
     )
   }

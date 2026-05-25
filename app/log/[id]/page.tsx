@@ -10,6 +10,7 @@ import { isPastShift, todayChicago } from '@/lib/dates'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
 import LiveClock from '@/components/LiveClock'
 import { formatEmployeeTitle } from '@/lib/employees'
+import SegmentedNav from '@/components/SegmentedNav'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
@@ -196,11 +197,21 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </p>
             )}
           </div>
-          {log.supervisor_confirmed_at ? (
-            <span className="px-2.5 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">Confirmed</span>
-          ) : (
-            <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">Submitted</span>
-          )}
+          <div className="flex flex-col items-end gap-2">
+            {isMyLog && (
+              <SegmentedNav
+                segments={[
+                  { href: '/my-chores', label: 'My Chores', active: true },
+                  { href: '/chores', label: "Everyone's Chores", active: false },
+                ]}
+              />
+            )}
+            {log.supervisor_confirmed_at ? (
+              <span className="px-2.5 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">Confirmed</span>
+            ) : (
+              <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">Submitted</span>
+            )}
+          </div>
         </div>
 
         {isBirthday && (

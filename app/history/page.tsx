@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import { formatEmployeeTitle } from '@/lib/employees'
+import SegmentedNav from '@/components/SegmentedNav'
 
 const SUPERVISOR_ROLES = ['Dom', 'Admin', 'Supervisor']
 const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
@@ -114,11 +115,19 @@ export default async function HistoryPage() {
     <div className="min-h-screen bg-zinc-950">
       <NavBar userName={session.name} userRole={session.role} />
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-zinc-100">History</h1>
-          <p className="text-zinc-500 text-sm mt-0.5">
-            {isSupervisor ? 'Previous shifts across the service.' : 'Previous shifts you were part of.'}
-          </p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-zinc-100">History</h1>
+            <p className="text-zinc-500 text-sm mt-0.5">
+              {isSupervisor ? 'Previous shifts across the service.' : 'Previous shifts you were part of.'}
+            </p>
+          </div>
+          <SegmentedNav
+            segments={[
+              { href: '/log', label: 'Today', active: false },
+              { href: '/history', label: 'History', active: true },
+            ]}
+          />
         </div>
 
         {sortedLogs.length === 0 ? (
