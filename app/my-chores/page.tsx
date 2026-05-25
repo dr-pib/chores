@@ -9,7 +9,6 @@ export default async function MyChoresPage() {
   const now = new Date()
   const myLog = await prisma.operationsLog.findFirst({
     where: {
-      actual_start: { lte: now },
       actual_end: { gt: now },
       OR: [
         { primary_employee_id: session.userId },

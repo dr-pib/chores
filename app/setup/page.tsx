@@ -53,6 +53,7 @@ export default function SetupPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [units, setUnits] = useState<Unit[]>([])
 
+  const [hasExistingShift, setHasExistingShift] = useState(false)
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null)
   const [startDt, setStartDt] = useState('')
   const [endDt, setEndDt] = useState('')
@@ -65,21 +66,37 @@ export default function SetupPage() {
       fetch('/api/shift-profiles').then(r => r.json()),
       fetch('/api/employees').then(r => r.json()),
       fetch('/api/units').then(r => r.json()),
-    ]).then(([meData, postsData, empsData, unitsData]) => {
+      fetch('/api/operations-logs/current').then(r => r.json()),
+    ]).then(([meData, postsData, empsData, unitsData, currentData]) => {
       if (!meData.user) { router.push('/login'); return }
       setUser(meData.user)
       setShiftProfiles(postsData)
       setEmployees(empsData)
       setUnits(unitsData)
 
-      const defaultPostId = meData.user.default_shift_profile_id ?? postsData[0]?.id
-      if (defaultPostId) {
-        setSelectedPostId(defaultPostId)
-        const post = postsData.find((p: ShiftProfile) => p.id === defaultPostId)
-        if (post) initPostDefaults(post, meData.user.default_shift_length_hours ?? 24)
+      const currentLog = currentData?.log
+      if (currentLog) {
+        setHasExistingShift(true)
+        setSelectedPostId(currentLog.shift_profile_id)
+        setStartDt(formatLocalDatetime(new Date(currentLog.actual_start)))
+        setEndDt(formatLocalDatetime(new Date(currentLog.actual_end)))
+        setPartnerId(currentLog.partner_employee_id ?? '')
+        setBays(currentLog.bays.map((b: { bay_label: string; unit_id: number | null; unit_status: string; sort_order: number }) => ({
+          bay_label: normalizeBayLabel(b.bay_label),
+          unit_id: b.unit_id,
+          unit_status: b.unit_status as BayState['unit_status'],
+          sort_order: b.sort_order,
+        })))
+      } else {
+        setHasExistingShift(false)
+        const defaultPostId = meData.user.default_shift_profile_id ?? postsData[0]?.id
+        if (defaultPostId) {
+          setSelectedPostId(defaultPostId)
+          const post = postsData.find((p: ShiftProfile) => p.id === defaultPostId)
+          if (post) initPostDefaults(post, meData.user.default_shift_length_hours ?? 24)
+        }
+        if (meData.user.default_partner_id) setPartnerId(meData.user.default_partner_id)
       }
-
-      if (meData.user.default_partner_id) setPartnerId(meData.user.default_partner_id)
     })
   }, [router])
 
@@ -185,7 +202,9 @@ export default function SetupPage() {
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-medium text-blue-300">Welcome, {user.name}</p>
-            <h1 className="mt-1 text-2xl font-bold text-zinc-100">Set up your shift</h1>
+            <h1 className="mt-1 text-2xl font-bold text-zinc-100">
+              {hasExistingShift ? 'Edit your current shift' : 'Set up your shift'}
+            </h1>
           </div>
           {selectedPost && (
             <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
@@ -391,7 +410,7 @@ export default function SetupPage() {
             disabled={isPending || !selectedPostId}
             className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold rounded-xl transition-colors text-sm"
           >
-            {isPending ? 'Setting shift…' : 'Set Shift'}
+            {isPending ? (hasExistingShift ? 'Saving…' : 'Setting shift…') : (hasExistingShift ? 'Save Changes' : 'Set Shift')}
           </button>
         </form>
       </div>
