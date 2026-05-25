@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import NavBar from '@/components/NavBar'
 import { compareEmployeesByLastName, formatEmployeeDropdown } from '@/lib/employees'
+import { PerformanceStats, trendArrow, formatRate } from '@/lib/performance'
 
 interface UserProfile {
   id: number
@@ -47,6 +48,7 @@ export default function ProfilePage() {
   const [employees, setEmployees] = useState<EmployeeOption[]>([])
   const [loading, setLoading] = useState(true)
   const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [perfStats, setPerfStats] = useState<PerformanceStats | null>(null)
 
   const [postId, setPostId] = useState<number | ''>('')
   const [partnerId, setPartnerId] = useState<number | ''>('')
@@ -62,7 +64,8 @@ export default function ProfilePage() {
       fetch('/api/me').then(r => r.json()),
       fetch('/api/shift-profiles').then(r => r.json()),
       fetch('/api/employees').then(r => r.json()),
-    ]).then(([meData, postsData, empsData]) => {
+      fetch('/api/performance').then(r => r.json()),
+    ]).then(([meData, postsData, empsData, perfData]) => {
       if (!meData.user) { router.push('/login'); return }
       const u: UserProfile = meData.user
       setUser(u)
@@ -76,6 +79,7 @@ export default function ProfilePage() {
       setPersonalCell(u.personal_cell ?? '')
       setNotificationPref(u.notification_preference ?? 'none')
       setReminderHours(u.reminder_hours_before_shift_end ?? '')
+      if (perfData?.windows) setPerfStats(perfData.windows)
       setLoading(false)
     })
   }, [router])
@@ -277,6 +281,38 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+          {/* Performance */}
+          {perfStats && (perfStats.d60.total > 0 || perfStats.d30.total > 0 || perfStats.last_shift !== null) && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+              <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">Performance</h2>
+              <div className="grid grid-cols-3 gap-4 mb-3">
+                <div>
+                  <p className="text-xs text-zinc-500 mb-0.5">Last 60 days</p>
+                  <p className="text-xl font-semibold text-zinc-100">{formatRate(perfStats.d60.rate)}</p>
+                  <p className="text-xs text-zinc-600 mt-0.5">{perfStats.d60.shifts} shift{perfStats.d60.shifts !== 1 ? 's' : ''}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500 mb-0.5">Last 30 days</p>
+                  <p className="text-xl font-semibold text-zinc-100">{formatRate(perfStats.d30.rate)}</p>
+                  <p className="text-xs text-zinc-600 mt-0.5">{perfStats.d30.shifts} shift{perfStats.d30.shifts !== 1 ? 's' : ''}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500 mb-0.5">Last shift</p>
+                  <div className="flex items-baseline gap-1.5">
+                    <p className="text-xl font-semibold text-zinc-100">{formatRate(perfStats.last_shift?.rate ?? null)}</p>
+                    <span className={`text-sm font-medium ${
+                      trendArrow(perfStats.d60.rate, perfStats.d30.rate) === '↑' ? 'text-green-400' :
+                      trendArrow(perfStats.d60.rate, perfStats.d30.rate) === '↓' ? 'text-red-400' :
+                      'text-zinc-600'
+                    }`}>{trendArrow(perfStats.d60.rate, perfStats.d30.rate)}</span>
+                  </div>
+                  <p className="text-xs text-zinc-600 mt-0.5">
+                    {perfStats.last_shift ? `${perfStats.last_shift.done}/${perfStats.last_shift.total} chores` : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

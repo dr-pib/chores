@@ -7,6 +7,7 @@ import ChoreItem from '@/components/ChoreItem'
 import { formatUnit } from '@/lib/units'
 import { sortChores, getStationChoreForPost } from '@/lib/chore-rotation'
 import { isPastShift, todayChicago } from '@/lib/dates'
+import { computePerformanceStats, trendArrow, formatRate } from '@/lib/performance'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
 import LiveClock from '@/components/LiveClock'
 import { formatEmployeeTitle } from '@/lib/employees'
@@ -154,16 +155,42 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   const isMyLog = log.primary_employee_id === session.userId || log.partner_employee_id === session.userId
   const pastShift = isPastShift(log.service_date, log.actual_end)
 
-  // Birthday check — only relevant on "My Chores" view
+  // Birthday check + performance stats — only relevant on "My Chores" view
   let isBirthday = false
+  let perfStats = null
   if (isMyLog) {
-    const me = await prisma.employee.findUnique({
-      where: { id: session.userId },
-      select: { birthday_month: true, birthday_day: true },
-    })
+    const [me, perfLogs] = await Promise.all([
+      prisma.employee.findUnique({
+        where: { id: session.userId },
+        select: { birthday_month: true, birthday_day: true, licensure_level: true },
+      }),
+      prisma.operationsLog.findMany({
+        where: {
+          service_date: { gte: new Date(Date.now() - 60 * 24 * 3600 * 1000) },
+          OR: [
+            { primary_employee_id: session.userId },
+            { partner_employee_id: session.userId },
+          ],
+        },
+        select: {
+          id: true,
+          service_date: true,
+          actual_end: true,
+          chores: {
+            select: {
+              status: true,
+              chore_template: { select: { name: true } },
+            },
+          },
+        },
+      }),
+    ])
     if (me?.birthday_month != null && me?.birthday_day != null) {
       const today = todayChicago()
       isBirthday = me.birthday_month === today.getUTCMonth() + 1 && me.birthday_day === today.getUTCDate()
+    }
+    if (me) {
+      perfStats = computePerformanceStats(me.licensure_level === 'NRP', perfLogs)
     }
   }
   const myChoresForProgress = isMyLog
@@ -217,6 +244,19 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         {isBirthday && (
           <div className="mb-4 px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 text-sm text-center">
             Happy Birthday, {session.name}!
+          </div>
+        )}
+
+        {perfStats && (perfStats.d60.total > 0 || perfStats.d30.total > 0 || perfStats.last_shift !== null) && (
+          <div className="mb-4 flex items-center gap-5 text-xs">
+            <span className="text-zinc-500">60d <span className="text-zinc-200 font-medium">{formatRate(perfStats.d60.rate)}</span></span>
+            <span className="text-zinc-500">30d <span className="text-zinc-200 font-medium">{formatRate(perfStats.d30.rate)}</span></span>
+            <span className="text-zinc-500">Last <span className="text-zinc-200 font-medium">{formatRate(perfStats.last_shift?.rate ?? null)}</span></span>
+            <span className={
+              trendArrow(perfStats.d60.rate, perfStats.d30.rate) === '↑' ? 'text-green-400' :
+              trendArrow(perfStats.d60.rate, perfStats.d30.rate) === '↓' ? 'text-red-400' :
+              'text-zinc-600'
+            }>{trendArrow(perfStats.d60.rate, perfStats.d30.rate)}</span>
           </div>
         )}
 
