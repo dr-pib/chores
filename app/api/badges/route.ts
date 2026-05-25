@@ -21,6 +21,7 @@ export async function GET() {
   if (!session.isLoggedIn) {
     return NextResponse.json({
       chores: [],
+      hasActiveShift: false,
     })
   }
 
@@ -101,5 +102,6 @@ export async function GET() {
 
   return NextResponse.json({
     chores: choreBadges,
+    hasActiveShift: Boolean(myLog),
   })
 }

@@ -10,7 +10,6 @@ interface NavBarProps {
 }
 
 const BASE_LINKS = [
-  { href: '/setup', label: 'Shift Setup' },
   { href: '/my-chores', label: 'Chores' },
   { href: '/log', label: 'Roster' },
 ]
@@ -24,6 +23,7 @@ const BADGE_COLORS: Record<string, string> = {
 
 interface BadgeState {
   chores: { count: number; color: keyof typeof BADGE_COLORS }[]
+  hasActiveShift: boolean
 }
 
 function NavBadge({ count, color }: { count: number; color: keyof typeof BADGE_COLORS | null }) {
@@ -42,9 +42,13 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [badges, setBadges] = useState<BadgeState | null>(null)
 
+  const setupLink = {
+    href: '/setup',
+    label: badges?.hasActiveShift ? 'Edit Current Shift' : 'Shift Setup',
+  }
   const links = SUPERVISOR_ROLES.includes(userRole)
-    ? [...BASE_LINKS, { href: '/shift-profiles', label: 'Shift Profiles' }, { href: '/employees', label: 'Employees' }, { href: '/chore-templates', label: 'Chore Templates' }, { href: '/change-log', label: 'Change Log' }, { href: '/report', label: 'Report' }]
-    : BASE_LINKS
+    ? [setupLink, ...BASE_LINKS, { href: '/shift-profiles', label: 'Shift Profiles' }, { href: '/employees', label: 'Employees' }, { href: '/chore-templates', label: 'Chore Templates' }, { href: '/change-log', label: 'Change Log' }, { href: '/report', label: 'Report' }]
+    : [setupLink, ...BASE_LINKS]
 
   function isActive(href: string) {
     if (href === '/log') return pathname === '/log' || pathname === '/history'
