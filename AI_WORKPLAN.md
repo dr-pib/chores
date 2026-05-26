@@ -1574,24 +1574,29 @@ lifecycle      String   @default("forfeitable")
 // Axis 3: Does unassigned or overdue work escalate to supervisor/OpChief dashboards?
 is_critical    Boolean  @default(false)
 
+// Axis 4: Does this chore generate a ScheduledWork record independent of shift creation?
+// Stored explicitly — not derived. Dom/Admin can set this directly in Chore Admin.
+// Expected correlation: asset_scope IN ('truck', 'narc_box') AND is_critical = true.
+// Stored as explicit field because: (a) Chore Admin toggle is a direct, understandable question,
+// (b) future templates may diverge from the expected correlation without requiring a code change.
+generates_independently Boolean @default(false)
+
 // Station scope — which stations this template applies to
 station_scope  String?
 // null = all, "Harrison", "remote", or future custom group
 ```
 
-`generates_independently` is **derived, not stored**: true when `asset_scope IN ('truck', 'narc_box') AND is_critical = true`. All critical asset work generates independently of shifts; all crew/station work does not. No override needed for current templates — remove the explicit field.
-
 **Classification matrix for existing templates:**
 
-| Template | asset_scope | lifecycle | is_critical |
-|---|---|---|---|
-| Daily Truck Check | `truck` | `forfeitable` | `true` |
-| Monthly Expires | `truck` | `persistent` | `true` |
-| Quarterly Expires | `truck` | `persistent` | `true` |
-| NARC Expires | `narc_box` | `persistent` | `true` |
-| Future NARC Box Check | `narc_box` | `forfeitable` | `true` |
-| Bathroom/Garage/Kitchen/Quarters | `crew` | `forfeitable` | `false` |
-| Additional Chore | `crew` | `forfeitable` | `false` |
+| Template | asset_scope | lifecycle | is_critical | generates_independently |
+|---|---|---|---|---|
+| Daily Truck Check | `truck` | `forfeitable` | `true` | `true` |
+| Monthly Expires | `truck` | `persistent` | `true` | `true` |
+| Quarterly Expires | `truck` | `persistent` | `true` | `true` |
+| NARC Expires | `narc_box` | `persistent` | `true` | `true` |
+| Future NARC Box Check | `narc_box` | `forfeitable` | `true` | `true` |
+| Bathroom/Garage/Kitchen/Quarters | `crew` | `forfeitable` | `false` | `false` |
+| Additional Chore | `crew` | `forfeitable` | `false` | `false` |
 
 **`Chore` addition:**
 
@@ -1604,12 +1609,12 @@ scheduled_work    ScheduledWork? @relation(fields: [scheduled_work_id], referenc
 
 Two different supervisor surfaces, not one:
 
-1. **Compliance/Safety Alerts** (`is_critical + generates_independently + lifecycle_type = 'persistent_until_complete'`):
+1. **Compliance/Safety Alerts** (`is_critical + generates_independently + lifecycle = 'persistent'`):
    - Shows unclaimed or claimed-but-pending Expires overdue items
    - Supervisor action: go do the work, mark complete
    - Current overdue ticker extends to cover unclaimed ScheduledWork
 
-2. **Coverage Gap Record** (`is_critical + generates_independently + lifecycle_type = 'forfeitable'`):
+2. **Coverage Gap Record** (`is_critical + generates_independently + lifecycle = 'forfeitable'`):
    - Shows ScheduledWork items where the window closed without completion (`status: 'missed'` or still `pending` past `due_at`)
    - Supervisor action: document reason (`not_applicable` + resolution note) — cannot retroactively complete
    - A separate coverage gap section or report, not mixed into the compliance alert ticker
@@ -1684,27 +1689,17 @@ The two-surface supervisor model is also correct:
 
 Do not use the red urgent expires ticker for missed forfeitable work unless the user later asks for that. Keep missed Truck Checks visible to supervisors/Operations Chief, but conceptually separate from overdue Expires.
 
-### Remaining Codex Caution: `generates_independently`
+## Design Resolved — Ready for Step 1
 
-Claude proposes deriving independent generation instead of storing it:
+All four design axes are settled. `generates_independently` is stored explicitly (path 1).
 
-`asset_scope IN ('truck', 'narc_box') AND is_critical = true`
+**Final ChoreTemplate field additions:**
+- `asset_scope String` — "truck" | "narc_box" | "crew" | "station"
+- `lifecycle String` — "persistent" | "forfeitable"  
+- `is_critical Boolean` — true | false
+- `generates_independently Boolean` — explicit field; Chore Admin toggle; seed defaults match matrix above
+- `station_scope String?` — null = all stations
 
-That works for the current known templates, but Chore Admin may eventually need explicit control. The user described this as a matrix of configurable switches/controls, and "does this generate even when unclaimed?" is operationally meaningful.
+**Rationale for explicit `generates_independently`:** Chore Admin exposes it as a direct toggle ("does this chore generate a ScheduledWork record even when no shift has claimed this asset?"). Future templates may deviate from the expected correlation with `asset_scope + is_critical` without requiring a code change. Both Claude and Codex agree on explicit.
 
-Codex recommendation:
-
-- It is acceptable to derive `generates_independently` in application code for the first implementation if Claude wants fewer schema fields.
-- But the design should leave room to add an explicit `generates_independently` field later, or include it now as an advanced/admin toggle with seed defaults matching the derived rule.
-- Do not hard-code the derived rule so deeply that future non-critical asset work or unusual station/asset rules become hard to configure.
-
-If the goal is "make it right before launch," Codex slightly prefers keeping `generates_independently Boolean @default(false)` as an explicit ChoreTemplate metadata field, seeded true for critical truck/NARC asset work and false for crew/station work. This matches the future Chore Admin UI better.
-
-### Step 1 Approval With One Choice
-
-Claude can begin Step 1 after choosing one of these:
-
-1. **Explicit field path**: add `asset_scope`, `lifecycle`, `is_critical`, `generates_independently`, `station_scope`.
-2. **Derived field path**: add `asset_scope`, `lifecycle`, `is_critical`, `station_scope`, and clearly document the derived rule in code/docs.
-
-Codex prefers path 1 for configurability, but path 2 is acceptable if the team wants the smallest schema now.
+**Step 1 is unblocked.** Schema-only commit: add these five fields to `ChoreTemplate`, seed existing templates per the classification matrix, run build, commit.
