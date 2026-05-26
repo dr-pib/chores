@@ -138,9 +138,9 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - primary ALS trucks carry NARC boxes, but boxes can also sit in the safe when fewer ALS trucks are staffed
   - Harrison Supervisors are responsible for NARC expires on boxes not assigned to active trucks that day
   - NARC Expires likely need to generate for every active NARC box on the 25th, independent of shift creation
-  - when a NARC box is selected in Shift Setup, the shift/crew can take ownership of that box's open NARC Expires chore for that date
-  - NARC boxes should probably have their own database table/model before adding the Shift Setup dropdown
-  - future Shift Setup may need a NARC box letter field; do not implement until the data model/workflow is designed
+  - NARC boxes now have their own database table/model and Shift Setup can save one shift-level NARC box selection
+  - when a NARC box is selected in Shift Setup, the shift/crew should eventually take ownership of that box's open NARC Expires chore for that date
+  - NARC Expires displays should mention NARC box letter and unit number together when both are known, e.g. `NARC Expires Box C Unit 4`
 - Performance reporting — **built**: `lib/performance.ts`, `/api/performance`, `/api/performance/all`, `/report`, `/report/[id]`, stat strip on My Chores detail, performance card on profile. Supervisor nav shows "Report" link.
   - Still to do: on-time rate (completed before `due_at`), export/CSV, peer comparison
 - Deeper route cleanup for Chores/Roster after the current UX shape proves stable.

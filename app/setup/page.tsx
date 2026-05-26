@@ -25,7 +25,7 @@ interface BayState {
 }
 
 const inputClass = 'h-10 px-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50'
-const labelClass = 'block text-sm text-zinc-300 mb-1.5'
+const labelClass = 'block text-sm font-semibold text-zinc-100 mb-1.5'
 
 function formatLocalDatetime(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')

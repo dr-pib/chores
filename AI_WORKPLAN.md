@@ -25,7 +25,7 @@ Centralize backend chore generation, chore targeting, shift-window logic, roles,
 - When should the crew/post app-level rename happen as a separate project?
 - How should supervisors track unit-specific Monthly/Quarterly chores for trucks that are not on an active shift because no shift was created or the truck is out of service?
 - Should future scheduled persistent chores be generated independently by calendar date first, then assigned/claimed by a crew when a truck or asset is added to a shift?
-- How should NARC boxes be modeled: as separate assets labeled A-I, related to but not identical to trucks/units?
+- How should NARC box chores be generated for boxes A-L when some boxes are not assigned to active shifts?
 
 ## Claude Notes
 
@@ -98,10 +98,16 @@ For generation cleanup:
 - Supervisor overdue-expires ticker added by Codex.
 - `PROJECT_CONTEXT.md` updated with NARC/Monthly/Quarterly distinction.
 - `lib/roles.ts` extracted (commit f576598): `SUPERVISOR_ROLES`, `DOM_ROLE`, `isSupervisorRole()`, `isDom()`, `canAccessAdmin()`. Replaced 30+ inline copies across 34 files. Build clean.
+- `NarcBox` model/table added and boxes A-L seeded.
+- Shift Setup/Edit Current Shift now has one shift-level NARC Box dropdown.
+- NARC boxes already assigned to another active shift are disabled/greyed out in Shift Setup.
+- `/api/operations-logs` validates that the same NARC box cannot be assigned to two active shifts.
+- NARC Expires display includes the shift's NARC box letter with the unit number, e.g. `NARC Expires Box C Unit 4`.
+- Bay/truck/NARC responsibility model clarified in `PROJECT_CONTEXT.md`: bays are responsibility details, not owning entities; NARC box responsibility follows medic/shift responsibility, not the bay row.
 
 ## Overall To Do
 
-- Clarify bay/truck/NARC responsibility model in implementation:
+- Keep bay/truck/NARC responsibility model intact in future implementation:
   - bays are shift-specific responsibility details, not owning entities
   - bays help determine Daily Truck Checks, Monthly Expires, and Quarterly Expires responsibility
   - Harrison crews commonly have two bay responsibilities, but actual truck/bay responsibility can change per shift due to backup trucks, shop status, verbal trades, or unusual circumstances
@@ -126,19 +132,18 @@ For generation cleanup:
   - only about six ALS trucks are staffed per day, so some NARC boxes may be in the safe and still require NARC expires
   - Harrison Supervisors are responsible for NARC expires on boxes not assigned to active trucks that day
   - on the 25th, NARC Expires likely need to be generated for all NARC boxes A-L, not only boxes attached to active shifts
-  - when a NARC box is selected during Shift Setup, the shift/crew can take ownership of that box's open NARC Expires chore for that date
-  - NARC boxes should probably have their own database table/model before adding the Shift Setup dropdown, because they are tracked assets like trucks but are not the same as trucks
-  - future Shift Setup may need a NARC box letter field; do not implement until the data model/workflow is designed
+  - NARC boxes now have their own database table and shifts can select a NARC box
+  - next unresolved step: when a NARC box is selected during Shift Setup, the shift/crew should eventually take ownership of that box's open NARC Expires chore for that date
 
-## Proposed Next Project: NARC Box Asset Model
+## Proposed Next Project: Scheduled Work Ownership Model
 
-Best next step is design-first, not UI-first:
+Best next step is design-first, not UI-first. The NARC box foundation/dropdown is working; the remaining issue is scheduled work that exists even when no shift owns it yet.
 
 1. Inspect the current Prisma schema and chore generation flow.
-2. Propose a `NarcBox` model/table for boxes `A-L`.
-3. Propose how NARC Expires should be generated on the 25th for every active NARC box, independent of shift creation.
-4. Propose how an active shift claims/owns a NARC box chore when the user selects that box in Shift Setup.
-5. Propose how unassigned box chores appear to Harrison Supervisors.
+2. Propose how NARC Expires should be generated on the 25th for every active NARC box, independent of shift creation.
+3. Propose how Monthly/Quarterly Expires should be generated for tracked trucks/units when no shift is created for the truck.
+4. Propose how an active shift claims/owns scheduled work when the relevant truck or NARC box is selected in Shift Setup.
+5. Propose how unassigned scheduled work appears to Harrison Supervisors / Operations Chief.
 6. Do not implement schema, migration, or UI until the proposal is reviewed.
 
 ## Codex Design Pass: NARC Box Asset Model
@@ -714,16 +719,14 @@ This makes the NARC distinction hard to accidentally collapse later.
 
 Yes: update references from `buildNarcExpires` to `resolvePrimaryUnitTarget` after the route integration lands.
 
-Approved next step from Codex:
+Approved next step from Codex at that time:
 
 - Integrate helpers into `app/api/operations-logs/route.ts`.
 - Do not make NARC box-letter/schema/UI changes in this commit.
 - Run `npm run build`.
 - Commit only the route integration and context wording update.
 
-Separate near-future note:
-
-The user would like NARC box letter capture in Shift Setup sooner rather than later. Treat that as a separate feature/design task after the helper refactor. It likely needs a schema/data-model decision because NARC boxes are assets labeled A-I and are not identical to trucks/units.
+Later update: NARC box model/foundation and Shift Setup selection have since shipped. Remaining work is scheduled-work ownership for unassigned NARC boxes/trucks.
 
 ## Claude Notes on operations-logs/route.ts integration (post-implementation)
 
@@ -745,8 +748,8 @@ The three local inner functions that duplicated the NARC/targeting logic are gon
 
 Backend cleanup phase is complete. Remaining roadmap items:
 
-1. Supervisor/Admin/Dom truck coverage view (see Overall To Do)
-2. Future scheduled-work model / NARC box-letter design (see Overall To Do)
+1. Future scheduled-work ownership model (see Overall To Do)
+2. Supervisor/Admin/Dom truck coverage / command dashboard (see Overall To Do)
 3. Crew/post app-level rename — separate dedicated project when ready
 
 Codex: flag any loose ends or follow-up cleanup you want to propose.
@@ -774,7 +777,7 @@ Follow-up cleanup I would still keep on the roadmap:
 
 1. Add focused unit tests for `lib/chore-targeting.ts` and `lib/chore-generation.ts`, especially NARC primary-only behavior and empty target behavior.
 2. Before rollout, add targeted Prisma indexes based on actual query patterns.
-3. Design the future scheduled-work / NARC box-letter model separately before changing schema or Shift Setup.
+3. Design future scheduled-work ownership separately before changing chore ownership/schema again.
 4. Treat crew/post app-level naming cleanup as its own all-or-nothing project.
 
 ## Claude Closing Note — Backend Cleanup Phase Complete
@@ -795,7 +798,40 @@ Codex's review is clean. No outstanding blockers. The backend cleanup phase is c
 
 - Unit tests for `lib/chore-targeting.ts` and `lib/chore-generation.ts`
 - Prisma index review before scaling
-- Scheduled-work / NARC box-letter model design (separate feature)
+- Scheduled-work ownership model design (separate feature)
 - Crew/post naming cleanup (separate dedicated project)
 
 This workplan can be archived or left as a reference. New feature work should open a new planning section or a separate planning document.
+
+## Current Next Project: Scheduled Work Ownership
+
+Status: ready for design pass. Do not implement until the design is reviewed.
+
+Problem to solve:
+
+- NARC Expires should eventually generate for all active NARC boxes A-L on the 25th, including boxes sitting in the safe and not assigned to a shift.
+- Monthly/Quarterly Expires should eventually be trackable for all relevant truck/unit assets, including units not assigned to an active shift because no shift was created, the truck is offsite, or the truck is at the shop.
+- Today, `Chore.operations_log_id` is required, so chores must belong to a shift. That blocks unassigned scheduled work.
+- Shift-created chores are working and should not be broken while designing this.
+
+Design prompt for Claude/Codex:
+
+```text
+Read PROJECT_CONTEXT.md and AI_WORKPLAN.md, especially “Current Next Project: Scheduled Work Ownership.”
+
+Do not make code changes yet.
+
+Please inspect the Prisma schema, current Chore model, chore generation helpers, Everyone's Chores, My Chores, overdue ticker, performance reporting, and completion/audit routes.
+
+Propose the safest design for scheduled work that can exist before it is owned by a shift:
+
+1. Should we make Chore.operations_log_id optional, or create a separate ScheduledWork/ScheduledAssetChore table?
+2. How should NARC Expires generate for every active NarcBox A-L on the 25th?
+3. How should Monthly/Quarterly Expires generate for tracked units even when no shift is created for a unit?
+4. How should a shift claim scheduled work when the crew selects a NARC box or truck?
+5. How should unassigned scheduled work appear to Harrison Supervisors / Operations Chief?
+6. How do completion, audit log, overdue ticker, badges, Everyone's Chores, My Chores, and performance reporting need to adapt?
+7. What is the smallest safe first implementation slice?
+
+Please return a design proposal with risks and recommended sequence only. No edits yet.
+```

@@ -192,3 +192,107 @@ const chores = await prisma.chore.findMany({
 ---
 
 **Review Status:** Pending code audit of API routes and database query patterns.
+
+---
+
+## Codex Feedback - May 25, 2026
+
+Reviewed against the current local codebase. This review is directionally useful, but much of it is generic pre-production scaling advice rather than evidence of current breakage.
+
+### Most Valid Near-Term Concern
+
+**Missing database indexes is the strongest actionable finding.**
+
+The current Prisma schema has unique constraints but very few explicit `@@index` entries. The app now frequently queries active shifts, historical shifts, overdue chores, badge counts, and change logs. Before real production rollout, add indexes for the actual query patterns.
+
+Recommended first-pass indexes:
+
+```prisma
+model OperationsLog {
+  @@index([actual_end])
+  @@index([service_date])
+  @@index([primary_employee_id])
+  @@index([partner_employee_id])
+  @@index([shift_profile_id])
+}
+
+model OperationsLogBay {
+  @@index([unit_id])
+  @@index([operations_log_id])
+}
+
+model Chore {
+  @@index([operations_log_id])
+  @@index([chore_template_id])
+  @@index([unit_id])
+  @@index([status])
+  @@index([due_at])
+  @@index([chore_date])
+}
+
+model ChoreTask {
+  @@index([chore_id])
+  @@index([chore_template_task_id])
+}
+
+model ChangeLog {
+  @@index([created_at])
+  @@index([changed_by_employee_id])
+  @@index([target_employee_id])
+}
+```
+
+Composite indexes may be even better after query review, especially:
+
+```prisma
+@@index([actual_end, actual_start])
+@@index([status, due_at])
+@@index([operations_log_id, chore_template_id, chore_date, unit_id])
+```
+
+But do not add every possible index blindly. Match indexes to the real query patterns.
+
+### Partly Valid, But Not A Launch Blocker
+
+**Unbounded queries:** Some routes already have practical limits:
+
+- History uses `take: 300`.
+- Change Log uses `take: 500`.
+- Everyone's Chores overdue persistent section uses `take: 20`.
+
+Other admin/reference lists remain unbounded, but expected data size is small for initial rollout. Pagination is good later; not urgent before a small internal launch.
+
+**N+1 query risk:** The main pages mostly use explicit Prisma `include` trees rather than classic lazy relation access. The bigger current risk is large payloads from deep includes, not obvious N+1 behavior. Query logging can confirm this later.
+
+**Deep relationship traversal:** Valid as a future performance watch item. Not worth adding Redis/cache or denormalized summary tables yet.
+
+**Change log accumulation:** Valid long-term. Current list is capped at 500, so the immediate issue is indexing and eventual archive policy, not UI failure.
+
+### Lower Priority Right Now
+
+Do not let this review derail the current backend cleanup sequence:
+
+1. Role helper extraction.
+2. Chore targeting helper.
+3. Chore generation helper.
+4. Route integration one route at a time.
+5. Index review before rollout.
+
+The helper cleanup addresses correctness and maintainability bugs we are already seeing. The index work should happen before production rollout, but after the core domain logic is stable enough that we know the final query shapes.
+
+### Suggested Addition To AI Workplan
+
+Add a backend maintenance item:
+
+```text
+Before rollout, perform an index review based on actual Prisma query patterns. Prioritize active shift queries, history queries, chore status/due queries, unit conflict checks, and change log ordering.
+```
+
+### Bottom Line
+
+Valid review, but severity should be adjusted:
+
+- **Indexes:** real and near-term.
+- **Pagination/caching/denormalization:** later scaling work.
+- **N+1:** worth checking with query logging, but not proven from current code.
+- **Current priority:** finish helper-based backend cleanup, then add targeted indexes before rollout.
