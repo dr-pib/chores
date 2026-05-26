@@ -153,11 +153,16 @@ model OperationsLogBay {
 }
 
 model ChoreTemplate {
-  id                Int     @id @default(autoincrement())
-  name              String  @unique
-  lifecycle_type    String
-  due_offset_hours  Float?
-  lock_offset_hours Float?
+  id                      Int      @id @default(autoincrement())
+  name                    String   @unique
+  lifecycle_type          String
+  due_offset_hours        Float?
+  lock_offset_hours       Float?
+  asset_scope             String   @default("crew")
+  lifecycle               String   @default("forfeitable")
+  is_critical             Boolean  @default(false)
+  generates_independently Boolean  @default(false)
+  station_scope           String?
 
   chores Chore[]
   tasks  ChoreTemplateTask[]

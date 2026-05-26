@@ -154,22 +154,67 @@ async function main() {
 
   // Chore Templates
   const choreDefs = [
-    { name: 'Truck Check', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31 },
-    { name: 'Bathroom', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31 },
-    { name: 'Kitchen', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31 },
-    { name: 'Garage', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31 },
-    { name: 'Quarters', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31 },
-    { name: 'Monthly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31 },
-    { name: 'NARC Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31 },
-    { name: 'Quarterly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31 },
-    { name: 'Additional Chore', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31 },
+    {
+      name: 'Truck Check', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31,
+      asset_scope: 'truck', lifecycle: 'forfeitable', is_critical: true, generates_independently: true, station_scope: null,
+    },
+    {
+      name: 'Bathroom', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31,
+      asset_scope: 'crew', lifecycle: 'forfeitable', is_critical: false, generates_independently: false, station_scope: 'Harrison',
+    },
+    {
+      name: 'Kitchen', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31,
+      asset_scope: 'crew', lifecycle: 'forfeitable', is_critical: false, generates_independently: false, station_scope: 'Harrison',
+    },
+    {
+      name: 'Garage', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31,
+      asset_scope: 'crew', lifecycle: 'forfeitable', is_critical: false, generates_independently: false, station_scope: 'Harrison',
+    },
+    {
+      name: 'Quarters', lifecycle_type: 'daily_reset', due_offset_hours: 1, lock_offset_hours: 31,
+      asset_scope: 'crew', lifecycle: 'forfeitable', is_critical: false, generates_independently: false, station_scope: 'Harrison',
+    },
+    {
+      name: 'Monthly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31,
+      asset_scope: 'truck', lifecycle: 'persistent', is_critical: true, generates_independently: true, station_scope: null,
+    },
+    {
+      name: 'NARC Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31,
+      asset_scope: 'narc_box', lifecycle: 'persistent', is_critical: true, generates_independently: true, station_scope: null,
+    },
+    {
+      name: 'Quarterly Expires', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31,
+      asset_scope: 'truck', lifecycle: 'persistent', is_critical: true, generates_independently: true, station_scope: null,
+    },
+    {
+      name: 'Additional Chore', lifecycle_type: 'persistent_until_complete', due_offset_hours: 1, lock_offset_hours: 31,
+      asset_scope: 'crew', lifecycle: 'forfeitable', is_critical: false, generates_independently: false, station_scope: null,
+    },
   ]
   const choreTemplates: Record<string, { id: number }> = {}
   for (const c of choreDefs) {
     choreTemplates[c.name] = await prisma.choreTemplate.upsert({
       where: { name: c.name },
-      update: { due_offset_hours: c.due_offset_hours, lock_offset_hours: c.lock_offset_hours },
-      create: { name: c.name, lifecycle_type: c.lifecycle_type, due_offset_hours: c.due_offset_hours, lock_offset_hours: c.lock_offset_hours },
+      update: {
+        due_offset_hours: c.due_offset_hours,
+        lock_offset_hours: c.lock_offset_hours,
+        asset_scope: c.asset_scope,
+        lifecycle: c.lifecycle,
+        is_critical: c.is_critical,
+        generates_independently: c.generates_independently,
+        station_scope: c.station_scope,
+      },
+      create: {
+        name: c.name,
+        lifecycle_type: c.lifecycle_type,
+        due_offset_hours: c.due_offset_hours,
+        lock_offset_hours: c.lock_offset_hours,
+        asset_scope: c.asset_scope,
+        lifecycle: c.lifecycle,
+        is_critical: c.is_critical,
+        generates_independently: c.generates_independently,
+        station_scope: c.station_scope,
+      },
     })
   }
 
