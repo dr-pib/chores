@@ -835,3 +835,121 @@ Propose the safest design for scheduled work that can exist before it is owned b
 
 Please return a design proposal with risks and recommended sequence only. No edits yet.
 ```
+
+## Claude Design Pass: Scheduled Work Ownership
+
+### What the codebase currently assumes
+
+Every `Chore` has a non-nullable `operations_log_id`. That assumption is embedded in:
+
+- **complete/uncomplete routes** — access `chore.operations_log.service_date` and `.actual_end` for past-shift enforcement, daily lockout, and audit log writes
+- **badges route** — `myOverdueCount` and `everyonePersistentCount` both filter through `operations_log: { actual_end: { lt: now } }`
+- **overdue-expires ticker** — reads `chore.operations_log.bays` and `.primary_unit` to display which unit is overdue
+- **backfill route** — adds `operations_log_id` after calling `buildChoreRows`
+- **performance.ts** — entirely driven by `log.chores`; unowned chores would never appear
+
+None of the generation helpers (`chore-generation.ts`, `chore-targeting.ts`) care about `operations_log_id` — they already produce `ChoreCreateData` without it. The plumbing is ready. The schema and the routes are not.
+
+### Question 1: Optional field vs separate table
+
+**Recommendation: Option A — make `Chore.operations_log_id` optional (`Int?`).**
+
+Option B (a separate `ScheduledWork` table) is conceptually cleaner but introduces a second completion path, a second display surface, and a claiming bridge that converts rows from one table to the other. Every route that currently reads `Chore` would need to also read `ScheduledWork`, or claiming would have to eagerly create a `Chore` at claim time and the `ScheduledWork` row becomes a tracking artifact only.
+
+Option A's breakage is well-contained. The routes that break are known, the fixes are small guards, and existing shift-chore behavior stays entirely unchanged. TypeScript will surface every `.operations_log.` access that needs a null guard the moment the Prisma type changes.
+
+**Risk:** any route or query that does `chore.operations_log.*` without a null guard will crash at runtime on unowned chores. This is a real risk — it requires auditing every place before flipping the column. That audit is made safe by compiling first: TypeScript surfaces all `.operations_log.` accesses once the Prisma type changes to `operations_log: OperationsLog | null`.
+
+### Question 2: NARC Expires generation for all boxes
+
+On the 25th, current generation only runs when a shift is created or backfilled. Boxes in the safe get nothing.
+
+**Proposed generation rule (admin-triggered initially):**
+
+A new admin endpoint (e.g., `/api/admin/generate-scheduled-expires`) runs on or after the 25th and:
+
+1. Fetches all active `NarcBox` records A-L
+2. For each box: checks if any active `OperationsLog` has `narc_box_id = box.id` and already has a pending NARC Expires chore for today's date
+3. If yes → skip (the shift's normal generation already owns it)
+4. If no → create a `Chore` with `operations_log_id: null`, `narc_box_id: box.id`, `unit_id: null`, `chore_date: today`
+
+This requires adding `narc_box_id Int?` to `Chore` (originally proposed in the Codex Design Pass above).
+
+**Dedup key concern:** `targetKey` currently uses `unit_id ?? 'shift'`. For an unowned NARC chore with `unit_id: null` and `narc_box_id` set, that key collides with the crew-scope sentinel. The key function needs a third case: when `narc_box_id` is present, use `narc:${narc_box_id}`. This is a small backward-compatible change — all existing callers never pass `narc_box_id`.
+
+### Question 3: Monthly/Quarterly for unowned trucks
+
+Same pattern. On the 3rd Tuesday (Monthly) or qualifying Thursday (Quarterly), the generation endpoint:
+
+1. Fetches all tracked `Unit` records of relevant type
+2. For each unit: checks if any active `OperationsLog` already has that unit in a present bay with the relevant chore for that date
+3. If yes → skip
+4. If no → create a `Chore` with `operations_log_id: null`, `unit_id: unit.id`
+
+The existing `unit_id`-based dedup key works correctly here.
+
+### Question 4: Claiming when a shift is set up
+
+When a shift is created with a NARC box selected, `operations-logs/route.ts` should:
+
+1. Look for an existing unowned NARC Expires chore for that box on that service date (`operations_log_id: null`, `narc_box_id: box.id`, `chore_date: serviceDate`)
+2. If found → **claim it** by setting `operations_log_id = log.id` (no new row, no duplicate)
+3. If not found → create the NARC Expires chore as today (existing behavior: `unit_id = primary_unit_id`)
+
+For Monthly/Quarterly: same pattern when a truck is added to a bay.
+
+**Claiming = `prisma.chore.update({ where: { id }, data: { operations_log_id: log.id } })`** — one write.
+
+**Unclaiming on edit** (defer): if a shift changes its NARC box or removes a truck, the previously claimed chore should revert to `operations_log_id: null`. This requires the edit path to detect removed boxes/trucks and release their claimed chores. Defer until the generation + initial claiming is stable.
+
+### Question 5: Supervisor visibility of unassigned work
+
+**Overdue expires ticker:** already queries by `due_at < now`. Adding `OR: [{ operations_log_id: null, due_at: { lt: now } }]` includes unowned chores. For display, unowned NARC reads `chore.narc_box.letter`; unowned unit chores read `chore.unit.unit_number` directly. The unit-fallback logic already exists in that route.
+
+**Everyone's Chores:** add an "Unassigned Scheduled Work" section for supervisors showing pending unowned chores grouped by box or unit. New UI section — no change to the existing shifts list.
+
+**Operations Chief dashboard:** future work; builds on the same query.
+
+### Question 6: Route-by-route adaptation
+
+| Surface | Change needed | Risk |
+|---|---|---|
+| `complete/route.ts` | Guard `operations_log` null: skip past-shift check and lockout; require supervisor; audit with `operations_log_id: null` | Low — TypeScript surfaces it |
+| `uncomplete/route.ts` | Same null guard | Low |
+| `badges/route.ts` `everyonePersistentCount` | Add `OR` for `operations_log_id: null` with `due_at: { lt: now }` | Low — additive filter |
+| `badges/route.ts` `myOverdueCount` | No change — crew red badge is for their own shift, not unassigned supervisor work | None |
+| `overdue-expires/route.ts` | Add null guard on `chore.operations_log`; use `chore.narc_box` / `chore.unit` for unowned display | Medium — logic branch |
+| `backfill-chores/route.ts` | No change — operates on existing active logs only | None |
+| `performance.ts` | No change — unowned chores don't belong to any log; naturally excluded until claimed | None |
+| `chore-generation.ts` | No change to existing functions; new generation caller passes `narc_box_id` | Low |
+| `targetKey` in `chore-targeting.ts` | Add third case for `narc_box_id` to avoid collision with shift-scope key | Low |
+| `Everyone's Chores` | Add unowned section for supervisors | Medium — new UI section |
+| `My Chores` | No change — crew only sees their shift's chores | None |
+
+### Question 7: Recommended implementation sequence
+
+One commit per step. Do not combine steps.
+
+1. **Schema only** — add `narc_box_id Int?` to `Chore`; make `operations_log_id Int?`. Additive + nullable migration. Build first — TypeScript will immediately surface every `.operations_log.` access that needs a null guard. No logic changes yet.
+
+2. **Guard complete/uncomplete routes** — handle `operations_log_id: null`. Unowned chores: supervisor-only to complete; no daily lockout; audit with null `operations_log_id`. Build and verify.
+
+3. **Update overdue-expires ticker** — add the null `operations_log_id` branch; use `chore.narc_box.letter` and `chore.unit.unit_number` for unowned chore display.
+
+4. **Admin generation endpoint** — `/api/admin/generate-scheduled-expires`: creates unowned NARC Expires for uncovered boxes on the 25th. Admin-only, additive, idempotent. No claiming yet.
+
+5. **Claiming in shift creation** — in `operations-logs/route.ts` POST path: when a NARC box is selected, check for an unowned NARC Expires chore for that box on the service date and claim it instead of creating a new one.
+
+6. **Monthly/Quarterly generation + claiming** — same pattern for unit-based expires.
+
+7. **Supervisor unassigned UI section** — surface unowned pending chores in Everyone's Chores for supervisors.
+
+**Explicitly defer:**
+- Unclaiming on shift edit (releasing a claimed chore when a box/truck is swapped out)
+- Performance denominator changes for unowned chores
+- Operations Chief dashboard
+- Crew/post naming rename
+
+Codex: please review this sequence and flag any conflicts, especially around the claiming step interacting with the existing shift-creation chore generation path.
+
+## Codex Review of Scheduled Work Ownership Design
