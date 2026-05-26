@@ -40,6 +40,7 @@ const LOG_INCLUDE = {
   primary_employee: true,
   partner_employee: true,
   primary_unit: true,
+  narc_box: true,
   supervisor_confirmed_by: true,
   bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } as const },
   chores: {
@@ -137,6 +138,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           shift_profile: true,
           primary_employee: { select: { name: true, licensure_level: true } },
           partner_employee: { select: { name: true, licensure_level: true } },
+          narc_box: true,
         },
       },
     },
@@ -374,7 +376,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </h2>
               <div className="space-y-2">
                 {day1Chores.map(chore => (
-                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} completedElsewhere={completedElsewhereIds.has(chore.id)} />
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} completedElsewhere={completedElsewhereIds.has(chore.id)} narcBoxLetter={log.narc_box?.letter ?? null} />
                 ))}
               </div>
             </div>
@@ -387,7 +389,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </h2>
               <div className="space-y-2">
                 {day2Chores.map(chore => (
-                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} completedElsewhere={completedElsewhereIds.has(chore.id)} />
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} completedElsewhere={completedElsewhereIds.has(chore.id)} narcBoxLetter={log.narc_box?.letter ?? null} />
                 ))}
               </div>
             </div>
@@ -409,7 +411,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                   )
                   return (
                     <div key={chore.id}>
-                      <ChoreItem chore={chore} userRole={session.role} isPastShift={true} />
+                      <ChoreItem chore={chore} userRole={session.role} isPastShift={true} narcBoxLetter={chore.operations_log.narc_box?.letter ?? null} />
                       <div className="ml-8 text-xs text-zinc-500">
                         From {chore.operations_log.shift_profile.name} · {formatDate(chore.operations_log.service_date)}
                         {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(formatEmployeeTitle).join(' & ')}</span>}
@@ -428,7 +430,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </h2>
               <div className="space-y-2">
                 {persistentChores.map(chore => (
-                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} />
+                  <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} narcBoxLetter={log.narc_box?.letter ?? null} />
                 ))}
               </div>
             </div>

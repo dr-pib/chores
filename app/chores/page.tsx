@@ -46,6 +46,7 @@ interface LogWithChores {
   shift_profile: { name: string; station: { name: string } }
   primary_employee: Employee
   partner_employee: Employee | null
+  narc_box: { letter: string } | null
   actual_start: Date | string
   actual_end: Date | string
   chores: Chore[]
@@ -75,7 +76,7 @@ function LogBox({ log, highlight, userRole }: { log: LogWithChores; highlight?: 
       </div>
       <div className="space-y-1">
         {sorted.map(chore => (
-          <ChoreItem key={chore.id} chore={chore} userRole={userRole} />
+          <ChoreItem key={chore.id} chore={chore} userRole={userRole} narcBoxLetter={log.narc_box?.letter ?? null} />
         ))}
       </div>
     </div>
@@ -101,6 +102,7 @@ export default async function ChoresPage() {
       shift_profile: { include: { station: true } },
       primary_employee: true,
       partner_employee: true,
+      narc_box: true,
       chores: {
         include: {
           chore_template: true,
@@ -131,7 +133,7 @@ export default async function ChoresPage() {
         include: { chore_template_task: true, completed_by: true },
         orderBy: { chore_template_task: { sort_order: 'asc' } } as const,
       },
-      operations_log: { include: { shift_profile: true } },
+      operations_log: { include: { shift_profile: true, narc_box: true } },
     },
     orderBy: { due_at: 'asc' },
     take: 20,
@@ -183,7 +185,7 @@ export default async function ChoresPage() {
             <div className="space-y-2">
               {openPersistent.map(chore => (
                 <div key={chore.id} className="flex items-center gap-3">
-                  <ChoreItem chore={chore} userRole={session.role} />
+                  <ChoreItem chore={chore} userRole={session.role} narcBoxLetter={chore.operations_log.narc_box?.letter ?? null} />
                   <Link href={`/log/${chore.operations_log_id}`} className="text-xs text-zinc-500 hover:text-zinc-300 shrink-0">
                     {chore.operations_log.shift_profile.name}
                   </Link>

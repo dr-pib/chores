@@ -49,7 +49,19 @@ function formatDue(d: Date | string | null) {
   return `Due ${get('weekday')}, ${get('month')}/${get('day')} ${hour}${get('minute')}`
 }
 
-export default function ChoreItem({ chore, userRole, isPastShift = false, completedElsewhere = false }: { chore: Chore; userRole: string; isPastShift?: boolean; completedElsewhere?: boolean }) {
+export default function ChoreItem({
+  chore,
+  userRole,
+  isPastShift = false,
+  completedElsewhere = false,
+  narcBoxLetter = null,
+}: {
+  chore: Chore
+  userRole: string
+  isPastShift?: boolean
+  completedElsewhere?: boolean
+  narcBoxLetter?: string | null
+}) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [localStatus, setLocalStatus] = useState(chore.status)
@@ -63,6 +75,7 @@ export default function ChoreItem({ chore, userRole, isPastShift = false, comple
   const isDone = localStatus === 'completed'
   const isEffectivelyDone = isDone || completedElsewhere
   const isTruckCheck = chore.chore_template.name === 'Truck Check'
+  const isNarcExpires = chore.chore_template.name === 'NARC Expires'
   const isExpireChore = ['Monthly Expires', 'Quarterly Expires', 'NARC Expires'].includes(chore.chore_template.name)
   const isOverdue = !isEffectivelyDone && chore.due_at != null && new Date(chore.due_at).getTime() < Date.now()
   const choreTitleClass = isEffectivelyDone
@@ -187,6 +200,9 @@ export default function ChoreItem({ chore, userRole, isPastShift = false, comple
             <span className={`text-sm font-medium ${choreTitleClass}`}>
               {chore.chore_template.name}
             </span>
+            {isNarcExpires && narcBoxLetter && (
+              <span className="text-xs text-blue-400">Box {narcBoxLetter}</span>
+            )}
             {isTruckCheck && chore.unit && (
               <span className="text-sm font-semibold text-blue-300">{formatUnit(chore.unit, false)}</span>
             )}
