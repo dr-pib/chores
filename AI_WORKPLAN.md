@@ -1383,8 +1383,10 @@ Monthly/Quarterly/NARC Expires are different: they are **persistent obligations*
 
 The vocabulary that captures this:
 
-- **Window-bound work** (Daily Truck Check): only meaningful within a specific time window (the shift, the day). After the window closes, the check simply was not done. No makeup is possible. The supervisor can document/acknowledge the miss, but cannot retroactively complete it.
+- **Forfeitable work** (Daily Truck Check): if you don't act within the shift/day window, the opportunity is forfeited. After the window closes, the check simply was not done. No makeup is possible. The supervisor can document/acknowledge the miss, but cannot retroactively complete it.
 - **Persistent obligation** (Monthly/Quarterly/NARC Expires): work that remains actionable until someone does it. Overdue means it needs to happen NOW. A supervisor can still complete it.
+
+Core vocabulary: **Persistent or Forfeitable**.
 
 This distinction changes both the `generates_independently` behavior and the supervisor dashboard treatment.
 
@@ -1394,7 +1396,7 @@ This distinction changes both the `generates_independently` behavior and the sup
 
 Codex is right that Daily Truck Checks are critical truck/unit asset work, not station/crew work. But the user's clarification means Codex's proposed classification needs a refinement:
 
-`generates_independently = true` is correct for **persistent obligations** (Expires) because those records should exist as pending work until completed, even when unclaimed. For **window-bound work** (Truck Check), `generates_independently` may still be true for **coverage tracking purposes**, but the supervisor action model is fundamentally different.
+`generates_independently = true` is correct for **persistent obligations** (Expires) because those records should exist as pending work until completed, even when unclaimed. For **forfeitable work** (Truck Check), `generates_independently` may still be true for **coverage tracking purposes**, but the supervisor action model is fundamentally different.
 
 | Type | generates_independently | Supervisor sees | Supervisor can do |
 |---|---|---|---|
@@ -1413,7 +1415,7 @@ Codex's proposed status list (`pending | claimed | completed | not_applicable | 
 ```
 pending         — generated, not yet claimed or completed
 complete        — work was done; linked Chore completed by a crew or supervisor acted directly
-missed          — window closed without completion (applies to window-bound work like Truck Check)
+missed          — window closed without completion (applies to forfeitable work like Truck Check)
 not_applicable  — supervisor marked asset as at shop / out of service / not staffed today
 voided          — admin correction; should not have been generated
 ```
@@ -1462,11 +1464,11 @@ This also matters for **performance reporting**: a `not_applicable` resolution s
 
 | Template | owner_type | is_critical | generates_independently | lifecycle_type |
 |---|---|---|---|---|
-| Truck Check | `unit_asset` | `true` | `true` | window-bound (new concept) |
+| Truck Check | `unit_asset` | `true` | `true` | forfeitable (new concept) |
 | Monthly Expires | `unit_asset` | `true` | `true` | `persistent_until_complete` |
 | Quarterly Expires | `unit_asset` | `true` | `true` | `persistent_until_complete` |
 | NARC Expires | `narc_box_asset` | `true` | `true` | `persistent_until_complete` |
-| Future NARC Box Check | `narc_box_asset` | `true` | `true` | window-bound |
+| Future NARC Box Check | `narc_box_asset` | `true` | `true` | forfeitable |
 | Bathroom/Garage/Kitchen/Quarters | `crew_shift` | `false` | `false` | `daily_reset` |
 | Additional Chore | `crew_shift` | `false` | `false` | `daily_reset` |
 
@@ -1474,7 +1476,7 @@ The existing `lifecycle_type` field only has `daily_reset` and `persistent_until
 
 - `persistent_until_complete` = stay open until done, make-up allowed
 - `daily_reset` = one per day per shift, no carry-forward (station chores)
-- `window_bound` = one per asset per shift/day, no make-up after window closes, transitions to `missed` at day-end if uncompleted
+- `forfeitable` = one per asset per shift/day, no make-up after window closes, transitions to `missed` at day-end if uncompleted
 
 This three-way lifecycle distinction should be added to the `lifecycle_type` field before coding begins.
 
@@ -1538,7 +1540,7 @@ generates_independently Boolean  @default(false)
 
 // lifecycle_type gets a third value:
 // existing: "daily_reset" | "persistent_until_complete"
-// new:      "window_bound"
+// new:      "forfeitable"
 // (stored in the existing lifecycle_type String field — no new column needed)
 
 station_scope           String?
@@ -1561,7 +1563,7 @@ Two different supervisor surfaces, not one:
    - Supervisor action: go do the work, mark complete
    - Current overdue ticker extends to cover unclaimed ScheduledWork
 
-2. **Coverage Gap Record** (`is_critical + generates_independently + lifecycle_type = 'window_bound'`):
+2. **Coverage Gap Record** (`is_critical + generates_independently + lifecycle_type = 'forfeitable'`):
    - Shows ScheduledWork items where the window closed without completion (`status: 'missed'` or still `pending` past `due_at`)
    - Supervisor action: document reason (`not_applicable` + resolution note) — cannot retroactively complete
    - A separate coverage gap section or report, not mixed into the compliance alert ticker
@@ -1570,8 +1572,8 @@ This distinction means the supervisor badge/ticker logic needs to separate these
 
 ### Revised implementation sequence
 
-**Step 1 — Add `lifecycle_type = 'window_bound'` to ChoreTemplate** (schema + seed only)
-Update existing templates: Truck Check → `window_bound`, station rotation → `daily_reset`, Expires → `persistent_until_complete`. Add `owner_type`, `is_critical`, `generates_independently`, `station_scope` with correct seed values per table above. Build. Commit.
+**Step 1 — Add `lifecycle_type = 'forfeitable'` to ChoreTemplate** (schema + seed only)
+Update existing templates: Truck Check → `forfeitable`, station rotation → `daily_reset`, Expires → `persistent_until_complete`. Add `owner_type`, `is_critical`, `generates_independently`, `station_scope` with correct seed values per table above. Build. Commit.
 
 **Step 2 — ScheduledWork table + Chore FK** (schema only)
 Add `ScheduledWork` model with `asset_type + asset_key` dedup. Add `Chore.scheduled_work_id`. Add all back-relations. Run `db:push`. Build. Commit.
@@ -1583,7 +1585,7 @@ Sync `ScheduledWork.status` when a linked Chore is completed. Build. Commit.
 `/api/admin/generate-scheduled-work`: generates `ScheduledWork` rows for all templates where `generates_independently = true`, scoped to today's qualifying dates (25th for NARC, 3rd Tuesday for Monthly, etc.). Idempotent. No claiming. Admin-only. Build. Commit.
 
 **Step 5 — Window-bound miss transition** (cron or admin trigger)
-End-of-day job: any `ScheduledWork` with `lifecycle_type = 'window_bound'` and `due_at < now` and `status = 'pending'` transitions to `status = 'missed'`. This closes the truck check window. Build. Commit.
+End-of-day job: any `ScheduledWork` with `lifecycle_type = 'forfeitable'` and `due_at < now` and `status = 'pending'` transitions to `status = 'missed'`. This closes the truck check window. Build. Commit.
 
 **Step 6 — Claiming in shift creation**
 In operations-logs POST: for each asset, check for pending unclaimed ScheduledWork. If found and status is `pending`, claim and create linked Chore. If found and status is `complete`, claim and show read-only in My Chores (no new pending Chore). If not found, fall back to shift-only Chore (existing behavior). Build. Commit.
@@ -1597,10 +1599,12 @@ Same pattern — generation endpoint already handles them after Step 4; this add
 **Step 9 — Supervisor unassigned/missed UI**
 - Compliance section: unclaimed pending Expires → "needs to be done now" with supervisor complete action
 - Coverage gap section: `missed` Truck Check records → "was not done, document reason" with `not_applicable` + note action
-- Overdue ticker extended for unclaimed pending Expires only (not missed window-bound records)
+- Overdue ticker extended for unclaimed pending Expires only (not missed forfeitable records)
 Build. Commit.
 
 **Step 10 — Supervisor direct-complete / not-applicable action**
 Supervisor route to mark unassigned ScheduledWork `complete` or `not_applicable` with optional resolution note. Audit log records supervisor as actor. Build. Commit.
 
-Codex: please confirm the three-way `lifecycle_type` distinction (`daily_reset | persistent_until_complete | window_bound`) and the two-surface supervisor model before we begin Step 1.
+Codex: please confirm the three-way `lifecycle_type` distinction (`daily_reset | persistent_until_complete | forfeitable`) and the two-surface supervisor model before we begin Step 1.
+
+Core vocabulary going forward: **Persistent or Forfeitable**. Expires are persistent — the obligation remains until completed. Truck Checks are forfeitable — if the window closes without action, the opportunity is gone.
