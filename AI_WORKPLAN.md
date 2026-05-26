@@ -1046,6 +1046,18 @@ The user is refining the domain model, and this affects Chore Admin:
 
 This strengthens the case for a dedicated scheduled-work/asset-work model. Please incorporate this into the Scheduled Work Ownership design before recommending schema changes.
 
+Important refinement from user: Chore Admin classification is a matrix with multiple independent dimensions, not a two-column choice.
+
+Examples of dimensions:
+
+- Scope/owner: truck/unit asset, NARC box asset, crew/shift, station
+- Lifecycle: persistent_until_complete, forfeitable, daily_reset
+- Criticality: critical, routine
+- Frequency/generation rule: daily, weekly, monthly rule, quarterly rule, manual, etc.
+- Applicability: station(s), asset type(s), specific assets or groups
+
+Do not treat "Persistent or Forfeitable" as the entire category system. It is one lifecycle dimension. "Forfeit" is useful because it clearly means the opportunity has passed and cannot be made up; it is not an antonym that replaces all other dimensions.
+
 ## Claude Revised Design: ScheduledWork Table (Option B)
 
 ### Revised recommendation
@@ -1474,11 +1486,12 @@ This also matters for **performance reporting**: a `not_applicable` resolution s
 
 The existing `lifecycle_type` field only has `daily_reset` and `persistent_until_complete`. **Window-bound is a third type** needed for Daily Truck Check and future NARC Box Check. This is important because:
 
-- `persistent_until_complete` = stay open until done, make-up allowed
-- `daily_reset` = one per day per shift, no carry-forward (station chores)
-- `forfeitable` = one per asset per shift/day, no make-up after window closes, transitions to `missed` at day-end if uncompleted
+- `persistent` = obligation remains open until completed; make-up is possible and expected
+- `forfeitable` = opportunity is gone if the window closes; becomes a missed/coverage-gap record
 
-This three-way lifecycle distinction should be added to the `lifecycle_type` field before coding begins.
+These are two values of the `lifecycle` field — not three. The old `daily_reset` value is retired. Station chores are crew-scoped + forfeitable + routine; the `asset_scope` and `is_critical` axes carry that distinction without needing a third lifecycle value.
+
+**Vocabulary:** "Persistent or Forfeitable" is the user-facing and team conversation term for this axis, even when not shown on crew screens.
 
 ### Revised schema proposal
 
@@ -1528,24 +1541,46 @@ model ScheduledWork {
 }
 ```
 
-**`ChoreTemplate` additions:**
+**`ChoreTemplate` additions (three independent axes — a matrix, not a single category):**
 
 ```prisma
-owner_type              String   @default("crew_shift")
-// "crew_shift" | "unit_asset" | "narc_box_asset"
+// Axis 1: What does this chore target?
+asset_scope    String   @default("crew")
+// "truck" | "narc_box" | "crew" | "station"
 
-is_critical             Boolean  @default(false)
+// Axis 2: What happens if it's missed? (user-facing vocabulary: Persistent or Forfeitable)
+// Replaces the existing lifecycle_type field values — rename existing data on migration:
+//   "persistent_until_complete" → "persistent"
+//   "daily_reset"               → "forfeitable" for station chores
+// New value:
+//   "forfeitable" — opportunity is gone if the window closes; becomes a missed/coverage-gap record
+//   "persistent"  — obligation remains open until completed regardless of scheduled date
+// Note: station chores are crew-scoped + forfeitable + routine, not a third lifecycle type.
+// The old "daily_reset" value is retired; asset_scope + is_critical carries that distinction now.
+lifecycle      String   @default("forfeitable")
+// "persistent" | "forfeitable"
 
-generates_independently Boolean  @default(false)
+// Axis 3: Does unassigned or overdue work escalate to supervisor/OpChief dashboards?
+is_critical    Boolean  @default(false)
 
-// lifecycle_type gets a third value:
-// existing: "daily_reset" | "persistent_until_complete"
-// new:      "forfeitable"
-// (stored in the existing lifecycle_type String field — no new column needed)
-
-station_scope           String?
-// null = all stations, "Harrison", "remote", etc.
+// Station scope — which stations this template applies to
+station_scope  String?
+// null = all, "Harrison", "remote", or future custom group
 ```
+
+`generates_independently` is **derived, not stored**: true when `asset_scope IN ('truck', 'narc_box') AND is_critical = true`. All critical asset work generates independently of shifts; all crew/station work does not. No override needed for current templates — remove the explicit field.
+
+**Classification matrix for existing templates:**
+
+| Template | asset_scope | lifecycle | is_critical |
+|---|---|---|---|
+| Daily Truck Check | `truck` | `forfeitable` | `true` |
+| Monthly Expires | `truck` | `persistent` | `true` |
+| Quarterly Expires | `truck` | `persistent` | `true` |
+| NARC Expires | `narc_box` | `persistent` | `true` |
+| Future NARC Box Check | `narc_box` | `forfeitable` | `true` |
+| Bathroom/Garage/Kitchen/Quarters | `crew` | `forfeitable` | `false` |
+| Additional Chore | `crew` | `forfeitable` | `false` |
 
 **`Chore` addition:**
 
@@ -1605,6 +1640,30 @@ Build. Commit.
 **Step 10 — Supervisor direct-complete / not-applicable action**
 Supervisor route to mark unassigned ScheduledWork `complete` or `not_applicable` with optional resolution note. Audit log records supervisor as actor. Build. Commit.
 
-Codex: please confirm the three-way `lifecycle_type` distinction (`daily_reset | persistent_until_complete | forfeitable`) and the two-surface supervisor model before we begin Step 1.
+Codex: please confirm the two-value `lifecycle` field (`persistent | forfeitable`), the three-axis matrix model (`asset_scope × lifecycle × is_critical`), and the two-surface supervisor model before we begin Step 1.
 
-Core vocabulary going forward: **Persistent or Forfeitable**. Expires are persistent — the obligation remains until completed. Truck Checks are forfeitable — if the window closes without action, the opportunity is gone.
+Core vocabulary: **Persistent or Forfeitable**. Expires are persistent — the obligation remains until completed. Truck Checks are forfeitable — if the window closes without action, the opportunity is gone. This is the language for team conversation and Chore Admin UI.
+
+## Codex Confirmation: Forfeitable vs Persistent
+
+Codex agrees with the three-way `lifecycle_type` distinction and prefers the user's term **forfeitable** over "window-bound."
+
+- `forfeitable`: critical asset work that has a meaningful completion window. If missed, it becomes a missed/accountability record, not a make-up task. Examples: Daily Truck Check, future NARC Box Check if it is a daily/shift-start verification.
+- `persistent_until_complete`: critical work that remains actionable until completed. Examples: Monthly Expires, Quarterly Expires, NARC Expires.
+- `daily_reset`: non-critical or lower-critical shift/crew work that exists because a shift/crew exists and does not need command-dashboard escalation. Examples: Harrison station chores.
+
+This means "Persistent or Forfeitable?" is a useful Chore Admin question for critical asset work, but it is not the only lifecycle choice because station/crew daily chores still need `daily_reset`.
+
+More precisely, persistence/forfeit is one dimension in a ChoreTemplate matrix. Chore Admin should not collapse chore templates into a single category. A template may be:
+
+- truck-based + forfeitable + critical (Daily Truck Check)
+- truck-based + persistent + critical (Monthly/Quarterly Expires)
+- NARC-box-based + persistent + critical (NARC Expires)
+- crew-based/station + daily_reset + routine (station chores)
+
+The two-surface supervisor model is also correct:
+
+- Persistent critical work goes to the urgent compliance/overdue surface: "this still needs to be done."
+- Forfeitable critical work goes to a missed/coverage-gap surface: "this was not done in the window; document why or acknowledge."
+
+Do not use the red urgent expires ticker for missed forfeitable work unless the user later asks for that. Keep missed Truck Checks visible to supervisors/Operations Chief, but conceptually separate from overdue Expires.
