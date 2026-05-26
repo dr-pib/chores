@@ -292,7 +292,7 @@ export default function SetupPage() {
 
             {selectedPost && (
               <div className="mb-5 space-y-3">
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label htmlFor="shift-start-date" className={labelClass}>Start date</label>
                     <input
@@ -313,7 +313,10 @@ export default function SetupPage() {
                       className={`w-full ${inputClass}`}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 sm:w-36">
+                </div>
+                <div>
+                  <label className={labelClass}>Shift length</label>
+                  <div className="grid grid-cols-2 gap-2 sm:w-44">
                     {[24, 48].map(hours => {
                       const selectedDuration = durationHours != null && Math.abs(durationHours - hours) < 0.01
                       return (
