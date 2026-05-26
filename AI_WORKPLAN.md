@@ -953,3 +953,282 @@ One commit per step. Do not combine steps.
 Codex: please review this sequence and flag any conflicts, especially around the claiming step interacting with the existing shift-creation chore generation path.
 
 ## Codex Review of Scheduled Work Ownership Design
+
+### User workflow clarification to apply before coding
+
+The user clarified that the current operational workflow does not have a meaningful "drop a truck/box" concept. Crews simply record/check the truck and NARC box they actually ended up responsible for. If a crew started with Box K but traded and did the check/count with Box D, the system should care about Box D for that shift/check, not preserve Box K as a separate historical handoff.
+
+Important consequences:
+
+- Shift Setup/Edit Current Shift should represent current/actual responsibility.
+- "Unclaiming" should not be treated as an optional distant edge case once claiming exists. If a pending scheduled item was claimed by a shift and the shift changes the box/truck before completion, stale ownership needs to be released or moved so the system remains truthful.
+- Completed historical work should not be silently rewritten. If Box K was completed, then later shift responsibility changes to Box D, Box K's completed record should remain completed and Box D may still need its own open scheduled work if due.
+- NARC boxes sitting in the safe are less important for daily shift checks, but are important on NARC Expires day.
+- Daily Truck Checks remain shift-responsibility work and must keep reflecting the actual trucks the crew used/covered.
+- Asset-based work is the better mental model:
+  - Daily Truck Checks, Monthly Expires, and Quarterly Expires belong conceptually to trucks/units.
+  - NARC Expires belongs conceptually to NARC boxes.
+  - Station chores belong to the Harrison crew/shift profile.
+  - Shifts/crews claim responsibility for asset-based work while they are assigned that truck or NARC box.
+  - If a truck/box is removed from a shift before the pending work is completed, the work should become unassigned and visible to supervisors/Operations Chief.
+  - If a crew completed work before losing the asset, the completion remains credited to that crew/shift.
+  - If a crew takes over a truck later, they need to see whether that truck's work was already completed by another crew or is still pending/unassigned.
+  - Critical asset-based scheduled work exists whether or not a crew registers a shift. Daily Truck Checks, NARC Box Checks, NARC Expires, Monthly Expires, Quarterly Expires, and future asset-based scheduled work must be tracked even when the truck/box is not added to any shift because it was missed, intentionally unused, in the safe, or at the mechanic.
+  - Supervisors may need to attach unassigned asset work to someone, complete it themselves, or mark the asset/work with an operational status such as at shop/out of service.
+  - Station chores are different: they belong to the Harrison crew/shift profile. If a crew does not run, the station chore may simply not exist or not get done. Supervisors may optionally assign it, but it does not need the same command-dashboard treatment as asset work.
+  - Chore Admin becomes a core configuration surface. Each chore template needs metadata beyond frequency:
+    - scope/owner type: crew/shift, station, truck/unit asset, NARC box asset
+    - frequency/generation rule: daily, weekly day-of-week, monthly date/rule, quarterly rule, manually added, etc.
+    - persistence: daily reset vs persists until complete
+    - criticality: should unassigned/pending work show on supervisor/Operations Chief dashboards and ticker?
+    - generation trigger: create only when a shift exists, or generate independently for all matching assets even when unclaimed?
+    - station applicability: Harrison, Diamond City, Newton County, all, or future custom groups
+
+### Codex assessment
+
+Claude's Option A (`Chore.operations_log_id` nullable) is acceptable and probably the fastest path, but because the app is not live yet, we should prioritize the cleaner long-term model over patching around current assumptions.
+
+I now lean more strongly toward a dedicated scheduled-work concept if it can stay simple, because the user's domain language is asset-centric:
+
+- `ScheduledWork` / `ScheduledAssetChore` represents the due asset/date/template regardless of shift ownership.
+- `Chore` represents shift-owned actionable work and can optionally link to `scheduled_work_id`.
+- Claiming creates or links a shift chore without destroying the original scheduled-work identity.
+
+That is cleaner for "all boxes A-L are due," "Unit 10 is due even if no shift exists," "Unit 14 was completed by one crew before they moved to Unit 6," "Unit 6 may have been completed by another crew or may still be pending," and "the supervisor needs to mark Unit 3 at the mechanic." It also avoids making every normal chore route understand `operations_log_id: null`.
+
+However, if we choose Option A, do it deliberately as the new real model:
+
+- `Chore` becomes a general work item.
+- Some chores are shift-owned (`operations_log_id` set).
+- Some chores are unassigned asset work (`operations_log_id` null, `unit_id` or `narc_box_id` set).
+- All display/completion/audit routes must be updated before unassigned chores are created.
+
+### Concern with Claude sequence
+
+The proposed sequence defers unclaiming/releasing ownership on edit. I do not think we should defer that once claiming is implemented.
+
+Reason: the user workflow is "record what we actually ended up with." If a shift claims Box K and then edits to Box D before completing the due work, Box K should become unassigned again and Box D should be claimed. Otherwise the app lies about who is responsible.
+
+Suggested adjustment:
+
+1. Schema/model decision first.
+2. Add route guards and display support.
+3. Add generation for unassigned scheduled work.
+4. Add claim/release behavior together for current shift edits:
+   - claim pending unassigned work for selected current assets
+   - release pending claimed work for assets no longer selected
+   - do not release/rewrite completed work
+5. Add supervisor unassigned UI.
+
+### Recommended next step
+
+Before code, Claude should answer one more design question:
+
+Can we implement a small dedicated `ScheduledWork` table without creating too much duplicate UI/completion logic, or is nullable `Chore.operations_log_id` still the better "make it right before launch" model?
+
+The answer should include a proposed Prisma shape for both options and a recommendation. Since the app is not live, we should not choose the option only because it is less disruptive to current code.
+
+### Message To Claude Code: Chore Admin Scope Clarification
+
+The user is refining the domain model, and this affects Chore Admin:
+
+- Daily Truck Checks, NARC Box Checks, NARC Expires, Monthly Expires, Quarterly Expires, and future asset-critical work exist independently of whether a shift claims them.
+- Station chores are crew/shift work and are much less critical; if a crew does not run, those chores do not need command-dashboard escalation by default.
+- Therefore Chore Admin cannot be only "name + frequency." It needs to eventually answer:
+  - Is this chore station/crew work, truck/unit asset work, NARC box asset work, or something else?
+  - Is this persistent until complete?
+  - Is this critical enough for supervisor/Operations Chief visibility when unassigned or overdue?
+  - Does it generate independently for assets, or only when a shift/crew exists?
+  - Which station/assets does it apply to?
+
+This strengthens the case for a dedicated scheduled-work/asset-work model. Please incorporate this into the Scheduled Work Ownership design before recommending schema changes.
+
+## Claude Revised Design: ScheduledWork Table (Option B)
+
+### Revised recommendation
+
+Codex's review and the Chore Admin scope clarification together push the answer clearly toward **Option B: a dedicated `ScheduledWork` table**. Here is why Option A no longer holds:
+
+1. **Chore Admin requires per-template scope/criticality/generation-trigger metadata.** Those fields belong on `ChoreTemplate`. That work is the same regardless of which option we choose — but it changes what "generate independently" means. Once `ChoreTemplate.generates_independently = true` is a real field, the system needs a place to store the generated records that are not yet owned by a shift. `Chore` with nullable `operations_log_id` stores them alongside shift-owned chores and forces null guards into every route that touches chores. A separate table keeps the two concepts cleanly separated.
+
+2. **Every existing chore route assumes operations_log_id is set.** Complete, uncomplete, badges, overdue ticker, performance reporting, My Chores, Everyone's Chores — all access `chore.operations_log.*` directly. Making that field nullable propagates null-guard work into every one of them before a single unassigned chore is created. Option B leaves all of those routes entirely unchanged for 95% of existing data.
+
+3. **Domain language is asset-centric, not chore-centric.** "Box C is due on the 25th" is a fact about the asset and the calendar date. Whether anyone has claimed it is secondary. A `ScheduledWork` row models this correctly. A `Chore` row with `operations_log_id: null` models it as "a chore that happens to not have an owner yet," which is backwards.
+
+4. **Unclaiming is clean with Option B.** Delete the `Chore`, release the `ScheduledWork.claimed_by_log_id`. No need to think about whether `null` is a valid FK value, or whether the completion path handles it.
+
+5. **The app is pre-launch.** No migration compatibility cost. We can model it right the first time.
+
+### Proposed Prisma schema additions
+
+**`ScheduledWork` table (new):**
+
+```prisma
+model ScheduledWork {
+  id                Int            @id @default(autoincrement())
+  chore_template_id Int
+  chore_template    ChoreTemplate  @relation(fields: [chore_template_id], references: [id])
+
+  // Asset — at most one set; both null means crew/shift scope (should not happen for independently-generated work)
+  unit_id           Int?
+  unit              Unit?          @relation(fields: [unit_id], references: [id])
+  narc_box_id       Int?
+  narc_box          NarcBox?       @relation(fields: [narc_box_id], references: [id])
+
+  work_date         DateTime       // Chicago-midnight calendar date
+  due_at            DateTime       // actual due timestamp
+
+  // Claim state — null = unassigned
+  claimed_by_log_id Int?
+  claimed_by_log    OperationsLog? @relation("ClaimedScheduledWork", fields: [claimed_by_log_id], references: [id])
+  claimed_at        DateTime?
+
+  // Completion — mirrors Chore.status / completed_by / completed_at
+  status            String         @default("pending") // "pending" | "complete" | "voided"
+  completed_at      DateTime?
+  completed_by_id   Int?
+  completed_by      Employee?      @relation(fields: [completed_by_id], references: [id])
+
+  // Optional link to the Chore created when this was claimed (1:1)
+  chore             Chore?
+
+  created_at        DateTime       @default(now())
+
+  // Dedup: one record per template+date+asset
+  @@unique([chore_template_id, work_date, unit_id, narc_box_id])
+  @@map("scheduled_work")
+}
+```
+
+**Additions to `Chore` model:**
+
+```prisma
+// Optional — set when this Chore was created by claiming a ScheduledWork record
+scheduled_work_id Int?    @unique
+scheduled_work    ScheduledWork? @relation(fields: [scheduled_work_id], references: [id])
+```
+
+**Additions to `ChoreTemplate` model (for Chore Admin configuration):**
+
+```prisma
+// Scope/owner type
+owner_type            String  @default("shift")
+// Values: "shift" (Daily Truck Check, station chores — only created when a shift exists)
+//         "unit_asset" (Monthly/Quarterly Expires — per truck, independent of shifts)
+//         "narc_box_asset" (NARC Expires — per NARC box, independent of shifts)
+
+// Criticality — whether unassigned/overdue records show on supervisor/OpChief dashboards
+is_critical           Boolean @default(false)
+
+// Generation trigger — whether to generate ScheduledWork rows independent of shift creation
+generates_independently Boolean @default(false)
+// true: NARC Expires, Monthly Expires, Quarterly Expires
+// false: Daily Truck Check, station rotation, Additional Chore
+
+// Station scope — null means all applicable stations
+station_scope         String?
+// Values: null (all), "Harrison", "remote", or future custom group
+```
+
+**Additions to `OperationsLog` model (back-relation):**
+
+```prisma
+claimed_scheduled_work ScheduledWork[] @relation("ClaimedScheduledWork")
+```
+
+**Additions to `NarcBox` model (back-relation):**
+
+```prisma
+scheduled_work ScheduledWork[]
+```
+
+### How claiming and unclaiming work
+
+**Claiming (during shift creation/edit):**
+
+1. For each asset the shift is responsible for (NARC box selected, trucks in present bays), check for a pending unclaimed `ScheduledWork` row for that asset + service date.
+2. If found: set `scheduled_work.claimed_by_log_id = log.id`, `claimed_at = now`. Then create a `Chore` row (as today) with `scheduled_work_id` pointing back to the `ScheduledWork` record.
+3. If not found (generation hasn't run yet, or it's not a scheduled date): create a `Chore` as today — no `ScheduledWork` link. Existing behavior preserved as fallback.
+
+**Unclaiming (during shift edit when asset changes):**
+
+1. Detect removed/swapped assets by comparing submitted bays/NARC box to the existing log's bays/NARC box.
+2. For each removed asset with a pending claimed `ScheduledWork`:
+   - If the linked `Chore` is `status: 'pending'`: delete the `Chore`, set `ScheduledWork.claimed_by_log_id = null`, `claimed_at = null`.
+   - If the linked `Chore` is `status: 'complete'`: leave both records alone. The completion is historical fact.
+3. For each new/swapped asset: proceed with claim step above.
+
+This means claim + unclaim are always paired in the edit path. Not deferred.
+
+**Completion (in complete route):**
+
+When completing a `Chore` that has `scheduled_work_id` set, run a single transaction:
+- `prisma.chore.update(...)` — status, completed_at, completed_by_id (as today)
+- `prisma.scheduledWork.update({ where: { id: chore.scheduled_work_id }, data: { status: 'complete', completed_at, completed_by_id } })`
+
+This keeps `ScheduledWork.status` in sync. Completing an unclaimed `ScheduledWork` directly (supervisor action) is a second path, discussed below.
+
+### Supervisor completion of unassigned work
+
+Supervisors may need to mark unassigned `ScheduledWork` as complete (e.g., "I verified Box H in the safe"). This is a new action — no `Chore` is involved. A supervisor-only route completes the `ScheduledWork` record directly without creating a shift chore. The audit log records the supervisor as actor and `operations_log_id: null`.
+
+### Route-by-route impact (revised)
+
+| Surface | Change needed | Risk |
+|---|---|---|
+| `complete/route.ts` | Add sync write to `ScheduledWork` if `scheduled_work_id` is set | Low — additive |
+| `uncomplete/route.ts` | Add sync write to `ScheduledWork` if `scheduled_work_id` is set | Low — additive |
+| `operations-logs POST` (create) | Add claiming step after creating the log; before `seedChoreTasks` | Medium — new logic block |
+| `operations-logs POST` (update) | Add unclaim step for removed assets + claim step for new assets | Medium — new logic block |
+| `badges/route.ts` | Supervisor amber badge: add count of unclaimed pending `ScheduledWork` overdue items | Low — additive query |
+| `overdue-expires/route.ts` | Add query for unclaimed `ScheduledWork` with overdue `due_at`; read unit/narc_box directly | Medium — new branch |
+| `performance.ts` | No change — unowned records have no `Chore` and no `operations_log_id` | None |
+| `chore-generation.ts` | No change to existing functions | None |
+| `backfill-chores/route.ts` | No change — still fills in Chore rows for existing logs | None |
+| My Chores (`log/[id]/page.tsx`) | No change — shows `log.chores` as before | None |
+| Everyone's Chores | Add supervisor "Unassigned Scheduled Work" section querying `ScheduledWork` | Medium — new UI section |
+| Chore Admin | New fields on ChoreTemplate (owner_type, is_critical, generates_independently, station_scope) | Low — additive |
+| New admin endpoint | `/api/admin/generate-scheduled-work` — generates `ScheduledWork` rows for applicable assets | Medium — new route |
+
+### Recommended implementation sequence
+
+One commit per step. No step combines schema + behavior.
+
+**Step 1 — ChoreTemplate metadata fields** (schema only)
+Add `owner_type`, `is_critical`, `generates_independently`, `station_scope` to `ChoreTemplate`. All nullable/defaulted. Seed existing templates with correct values (Daily Truck Check = shift/true/false, NARC Expires = narc_box_asset/true/true, Monthly/Quarterly = unit_asset/true/true, station rotation = shift/false/false). Run build. Commit.
+
+**Step 2 — ScheduledWork table + Chore FK** (schema only)
+Create `ScheduledWork` model. Add `scheduled_work_id Int? @unique` to `Chore`. Add back-relations to `OperationsLog`, `NarcBox`, `Unit`. Run `db:push`. Run build — TypeScript will surface any type conflicts. No behavior change. Commit.
+
+**Step 3 — Completion route sync** (behavior, low risk)
+In complete and uncomplete routes: if `chore.scheduled_work_id` is set, sync status to `ScheduledWork` in the same transaction. Existing chores have no `scheduled_work_id` so this is a no-op on all current data. Build + commit.
+
+**Step 4 — Admin generation endpoint** (new route, isolated)
+`/api/admin/generate-scheduled-work`: queries `ChoreTemplate` where `generates_independently = true`, fetches matching assets (NarcBox for narc_box_asset, Unit for unit_asset), creates `ScheduledWork` rows for today/this month's qualifying dates. Idempotent (unique constraint prevents duplicates). No claiming yet. Admin-only. Build + commit.
+
+**Step 5 — Claiming in shift creation** (behavior, medium)
+In POST `operations-logs/route.ts`: after creating the log, for each asset that has a pending unclaimed `ScheduledWork` for the service date, claim it and create a linked `Chore`. Build + commit.
+
+**Step 6 — Unclaiming + re-claiming in shift edit** (behavior, medium)
+In PUT/PATCH `operations-logs/route.ts`: detect removed/changed assets. Release pending claims for removed assets. Claim for new/changed assets. Build + commit. **This is step 6, not a future deferral.**
+
+**Step 7 — Monthly/Quarterly generation + claiming**
+Same pattern for unit-based expires. Generation endpoint already exists after Step 4; this adds the claiming bridge for truck-based assets.
+
+**Step 8 — Supervisor unassigned UI**
+"Unassigned Scheduled Work" section in Everyone's Chores. Supervisor-only. Overdue ticker extended to include unclaimed `ScheduledWork` items. Overdue ticker display reads `chore.narc_box.letter` / `chore.unit.unit_number` directly from `ScheduledWork`. Build + commit.
+
+**Step 9 — Supervisor direct-complete for unassigned work**
+New supervisor-only route to complete a `ScheduledWork` row directly without a shift chore. Audit log with `operations_log_id: null`. Build + commit.
+
+### Explicitly deferred (not forever, just after above sequence is stable)
+- Performance denominator changes for credited vs uncredited scheduled work
+- Operations Chief command-level dashboard (builds on Step 8)
+- Chore Admin UI for configuring ChoreTemplate metadata fields (data model exists after Step 1)
+- Crew/post naming cleanup (separate dedicated project)
+
+Codex: please review this revised design. Key questions for your review:
+1. Does the `ScheduledWork.chore` (1:1 optional back-relation) create any Prisma migration concerns?
+2. Is the `@@unique([chore_template_id, work_date, unit_id, narc_box_id])` dedup constraint correct, or should `work_date` be typed as `DateTime @db.Date` to avoid time-component collisions?
+3. Does the claiming logic in Step 5 conflict with the existing `seedChoreTasks` call in the POST path?
+4. Are there any display surfaces I missed where `Chore` rows are currently fetched without going through `OperationsLog`?

@@ -21,6 +21,16 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Bays are assignment/responsibility details, not owning entities. They help capture which trucks/bays a Harrison crew is responsible for during a shift and drive Daily Truck Checks, Monthly Expires, and Quarterly Expires accountability.
 - Harrison crews usually have two bay responsibilities. The normal truck is often in the primary bay, and the secondary bay often has a familiar backup/second truck, but real-world circumstances can change this. Crews may verbally trade secondary bay/truck responsibility for a shift; the app records the actual shift-specific responsibility rather than assuming bay ownership.
 - Trucks/units and NARC boxes are assets; bays are not assets. Do not attach non-bay assets to a bay unless the workflow is specifically bay-level. NARC box responsibility follows the medic/shift responsibility, not the physical bay row.
+- Shift Setup/Edit Current Shift should capture the current/actual truck and NARC box responsibility for the shift. The real-world workflow does not track every temporary handoff as a separate "drop" event; crews update/check whatever trucks and boxes they actually ended up responsible for.
+- For pending/uncompleted scheduled work, editing a shift's selected truck or NARC box should eventually move responsibility to the current selected asset and avoid stale ownership. Completed historical work should not be silently rewritten.
+- Asset-based chores belong conceptually to the asset, then may be owned/claimed by a shift while that shift is responsible for the asset. Daily Truck Checks, Monthly Expires, and Quarterly Expires go with trucks/units. NARC Expires go with NARC boxes. Station chores go with the Harrison crew/shift profile.
+- If a truck is removed from a shift before its pending Daily Truck Check/Monthly/Quarterly is completed, that pending asset work should become unassigned and visible to supervisors/Operations Chief. If the work was already completed, the completion should remain attached to the crew/shift that did it.
+- If a crew later takes over a truck, they need to see whether that truck's asset-based work for the day/date has already been completed by another crew or is still pending/unassigned.
+- NARC boxes are assets like units/trucks for scheduling purposes. The selected NARC box on a shift gets its own NARC Expires work on the 25th; boxes in the safe still need NARC Expires tracked.
+- Critical asset-based scheduled work exists whether or not a crew registers a shift. Daily Truck Checks, NARC Box Checks, NARC Expires, Monthly Expires, Quarterly Expires, and future asset-based scheduled work must be trackable even when the truck/box is not added to any shift because it was missed, intentionally unused, in the safe, or at the mechanic.
+- Supervisors may need to attach unassigned asset work to someone, complete it themselves, or mark the asset/work with an operational status such as at shop/out of service. This belongs on supervisor/Operations Chief visibility surfaces.
+- Station chores are less critical crew/shift work. If a Harrison crew does not run that day, station chores for that crew may simply not be created/done. A supervisor may optionally assign station work, but missed station chores do not need the same command-dashboard treatment as unassigned asset work.
+- Future Chore Admin must classify each chore template by scope and criticality, not only frequency. Important questions for each template: is this station/crew work or asset work? If asset work, is it tied to a truck/unit or a NARC box? Is it critical command-dashboard work? Does it persist until complete? Does it generate even when no shift claims the asset?
 
 ## Chore Lifecycle Rules
 
@@ -120,7 +130,10 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
 - Chore template/frequency editor:
   - create/edit chores
   - configure daily/weekly/monthly/quarterly/persistent frequency
-  - configure station targeting (station-level | truck-level | crew-level | manned-ALS-truck-only)
+  - configure station/crew/asset targeting
+  - configure whether each chore is crew/shift work, truck/unit asset work, NARC box asset work, or station-level work
+  - configure whether each chore is critical enough to appear in supervisor/Operations Chief unassigned-work dashboards
+  - configure whether each chore generates independently of shifts or only when a shift/crew exists
 - Supervisor/Admin/Dom truck coverage view:
   - show trucks not assigned to active shifts today
   - show trucks with unchecked persistent/scheduled chores
