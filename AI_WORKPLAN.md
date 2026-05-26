@@ -1054,9 +1054,20 @@ Examples of dimensions:
 - Lifecycle: persistent_until_complete, forfeitable, daily_reset
 - Criticality: critical, routine
 - Frequency/generation rule: daily, weekly, monthly rule, quarterly rule, manual, etc.
-- Applicability: station(s), asset type(s), specific assets or groups
+- Applicability: station(s), license/credential level(s), asset type(s), specific assets or groups
 
 Do not treat "Persistent or Forfeitable" as the entire category system. It is one lifecycle dimension. "Forfeit" is useful because it clearly means the opportunity has passed and cannot be made up; it is not an antonym that replaces all other dimensions.
+
+Future Chore Admin UI should expose these as separate controls, not a single category picker:
+
+- Scope/owner: select or segmented control
+- Lifecycle: select or segmented control
+- Criticality: toggle/checkbox
+- Generates independently: toggle/checkbox
+- License/credential applicability: checkboxes or multi-select (for example NRP-only)
+- Station applicability: checkboxes or multi-select
+- Repeating pattern: structured controls for daily, weekly days, monthly date/rule, quarterly rule, manual/ad hoc
+- Asset applicability: truck/unit group selector, NARC box group selector, or all matching assets
 
 ## Claude Revised Design: ScheduledWork Table (Option B)
 
@@ -1646,20 +1657,25 @@ Core vocabulary: **Persistent or Forfeitable**. Expires are persistent — the o
 
 ## Codex Confirmation: Forfeitable vs Persistent
 
-Codex agrees with the three-way `lifecycle_type` distinction and prefers the user's term **forfeitable** over "window-bound."
+Updated after Claude's matrix revision: Codex agrees with the **two-value lifecycle axis** and the three-axis matrix model.
 
 - `forfeitable`: critical asset work that has a meaningful completion window. If missed, it becomes a missed/accountability record, not a make-up task. Examples: Daily Truck Check, future NARC Box Check if it is a daily/shift-start verification.
-- `persistent_until_complete`: critical work that remains actionable until completed. Examples: Monthly Expires, Quarterly Expires, NARC Expires.
-- `daily_reset`: non-critical or lower-critical shift/crew work that exists because a shift/crew exists and does not need command-dashboard escalation. Examples: Harrison station chores.
+- `persistent`: critical work that remains actionable until completed. Examples: Monthly Expires, Quarterly Expires, NARC Expires.
 
-This means "Persistent or Forfeitable?" is a useful Chore Admin question for critical asset work, but it is not the only lifecycle choice because station/crew daily chores still need `daily_reset`.
+Retiring `daily_reset` as a lifecycle value is acceptable if station chores are represented by the other matrix dimensions:
+
+- `asset_scope = crew` or `station`
+- `lifecycle = forfeitable`
+- `is_critical = false`
+
+That correctly means: the station chore exists because the crew/shift exists, it does not carry forward, and it does not escalate like critical asset work.
 
 More precisely, persistence/forfeit is one dimension in a ChoreTemplate matrix. Chore Admin should not collapse chore templates into a single category. A template may be:
 
 - truck-based + forfeitable + critical (Daily Truck Check)
 - truck-based + persistent + critical (Monthly/Quarterly Expires)
 - NARC-box-based + persistent + critical (NARC Expires)
-- crew-based/station + daily_reset + routine (station chores)
+- crew-based/station + forfeitable + routine (station chores)
 
 The two-surface supervisor model is also correct:
 
@@ -1667,3 +1683,28 @@ The two-surface supervisor model is also correct:
 - Forfeitable critical work goes to a missed/coverage-gap surface: "this was not done in the window; document why or acknowledge."
 
 Do not use the red urgent expires ticker for missed forfeitable work unless the user later asks for that. Keep missed Truck Checks visible to supervisors/Operations Chief, but conceptually separate from overdue Expires.
+
+### Remaining Codex Caution: `generates_independently`
+
+Claude proposes deriving independent generation instead of storing it:
+
+`asset_scope IN ('truck', 'narc_box') AND is_critical = true`
+
+That works for the current known templates, but Chore Admin may eventually need explicit control. The user described this as a matrix of configurable switches/controls, and "does this generate even when unclaimed?" is operationally meaningful.
+
+Codex recommendation:
+
+- It is acceptable to derive `generates_independently` in application code for the first implementation if Claude wants fewer schema fields.
+- But the design should leave room to add an explicit `generates_independently` field later, or include it now as an advanced/admin toggle with seed defaults matching the derived rule.
+- Do not hard-code the derived rule so deeply that future non-critical asset work or unusual station/asset rules become hard to configure.
+
+If the goal is "make it right before launch," Codex slightly prefers keeping `generates_independently Boolean @default(false)` as an explicit ChoreTemplate metadata field, seeded true for critical truck/NARC asset work and false for crew/station work. This matches the future Chore Admin UI better.
+
+### Step 1 Approval With One Choice
+
+Claude can begin Step 1 after choosing one of these:
+
+1. **Explicit field path**: add `asset_scope`, `lifecycle`, `is_critical`, `generates_independently`, `station_scope`.
+2. **Derived field path**: add `asset_scope`, `lifecycle`, `is_critical`, `station_scope`, and clearly document the derived rule in code/docs.
+
+Codex prefers path 1 for configurability, but path 2 is acceptable if the team wants the smallest schema now.

@@ -28,9 +28,11 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - If a crew later takes over a truck, they need to see whether that truck's asset-based work for the day/date has already been completed by another crew or is still pending/unassigned.
 - NARC boxes are assets like units/trucks for scheduling purposes. The selected NARC box on a shift gets its own NARC Expires work on the 25th; boxes in the safe still need NARC Expires tracked.
 - Critical asset-based scheduled work exists whether or not a crew registers a shift. Daily Truck Checks, NARC Box Checks, NARC Expires, Monthly Expires, Quarterly Expires, and future asset-based scheduled work must be trackable even when the truck/box is not added to any shift because it was missed, intentionally unused, in the safe, or at the mechanic.
+- Criticality and persistence are separate concepts. Daily Truck Checks are critical asset work, but they are not make-up/persistent work: if missed for that shift/day, they should be recorded as missed/overdue for accountability, not regenerated later as something to complete twice. Use `forfeitable` for this lifecycle: once the meaningful work window closes, the task becomes a missed accountability record rather than still-actionable work. Expires are critical and persistent because the work remains needed until completed and will not recur for 30/90 days.
 - Supervisors may need to attach unassigned asset work to someone, complete it themselves, or mark the asset/work with an operational status such as at shop/out of service. This belongs on supervisor/Operations Chief visibility surfaces.
 - Station chores are less critical crew/shift work. If a Harrison crew does not run that day, station chores for that crew may simply not be created/done. A supervisor may optionally assign station work, but missed station chores do not need the same command-dashboard treatment as unassigned asset work.
 - Future Chore Admin must classify each chore template by scope and criticality, not only frequency. Important questions for each template: is this station/crew work or asset work? If asset work, is it tied to a truck/unit or a NARC box? Is it critical command-dashboard work? Does it persist until complete? Does it generate even when no shift claims the asset?
+- Chore template classification is a matrix of independent dimensions, not one binary category. Key dimensions include scope/owner (`truck/unit asset`, `NARC box asset`, `crew/shift`, `station`), lifecycle (`persistent`, `forfeitable`), criticality (`critical`, `routine`), frequency/generation rule, license/credential applicability, station applicability, and specific asset/group applicability. Team vocabulary: **Persistent or Forfeitable** for the lifecycle dimension.
 
 ## Chore Lifecycle Rules
 
@@ -134,6 +136,9 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - configure whether each chore is crew/shift work, truck/unit asset work, NARC box asset work, or station-level work
   - configure whether each chore is critical enough to appear in supervisor/Operations Chief unassigned-work dashboards
   - configure whether each chore generates independently of shifts or only when a shift/crew exists
+  - configure license/credential-based applicability when needed (for example NRP-only work)
+  - configure repeating patterns such as day-of-week, third Tuesday, 25th of month, quarterly rules, or manual/ad hoc
+  - UI should use appropriate controls for these independent dimensions: segmented controls/selects for scope/lifecycle/frequency, checkboxes/toggles for critical/generates independently/license restrictions, station/asset selectors for applicability
 - Supervisor/Admin/Dom truck coverage view:
   - show trucks not assigned to active shifts today
   - show trucks with unchecked persistent/scheduled chores
