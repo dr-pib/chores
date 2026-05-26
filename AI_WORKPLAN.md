@@ -974,6 +974,9 @@ Important consequences:
   - If a crew completed work before losing the asset, the completion remains credited to that crew/shift.
   - If a crew takes over a truck later, they need to see whether that truck's work was already completed by another crew or is still pending/unassigned.
   - Critical asset-based scheduled work exists whether or not a crew registers a shift. Daily Truck Checks, NARC Box Checks, NARC Expires, Monthly Expires, Quarterly Expires, and future asset-based scheduled work must be tracked even when the truck/box is not added to any shift because it was missed, intentionally unused, in the safe, or at the mechanic.
+  - Criticality and persistence are separate concepts:
+    - Daily Truck Checks are critical asset work, but not make-up/persistent work. If missed, they should be recorded/escalated as missed for accountability, not regenerated later as something to complete twice.
+    - Expires are critical and persistent because the work remains needed until completed and will not recur for 30/90 days.
   - Supervisors may need to attach unassigned asset work to someone, complete it themselves, or mark the asset/work with an operational status such as at shop/out of service.
   - Station chores are different: they belong to the Harrison crew/shift profile. If a crew does not run, the station chore may simply not exist or not get done. Supervisors may optionally assign it, but it does not need the same command-dashboard treatment as asset work.
   - Chore Admin becomes a core configuration surface. Each chore template needs metadata beyond frequency:
@@ -1232,3 +1235,372 @@ Codex: please review this revised design. Key questions for your review:
 2. Is the `@@unique([chore_template_id, work_date, unit_id, narc_box_id])` dedup constraint correct, or should `work_date` be typed as `DateTime @db.Date` to avoid time-component collisions?
 3. Does the claiming logic in Step 5 conflict with the existing `seedChoreTasks` call in the POST path?
 4. Are there any display surfaces I missed where `Chore` rows are currently fetched without going through `OperationsLog`?
+
+## Codex Review of Claude Revised ScheduledWork Design
+
+Overall: Codex agrees with Option B now. A dedicated `ScheduledWork` / asset-work table best matches the user's clarified domain: asset-critical work exists whether or not a shift owns it yet.
+
+### Major correction before implementation
+
+Claude's Step 1 metadata says:
+
+`Daily Truck Check = shift/true/false`
+
+This conflicts with the latest user clarification. Daily Truck Checks are asset-critical work and must be trackable even if a truck is not added to a shift. Daily Truck Check should be modeled as truck/unit asset work, not shift-only work.
+
+Correct initial template classification should be closer to:
+
+| Template | owner_type | is_critical | generates_independently |
+|---|---|---|---|
+| Truck Check | `unit_asset` | `true` | `true` |
+| Monthly Expires | `unit_asset` | `true` | `true` |
+| Quarterly Expires | `unit_asset` | `true` | `true` |
+| NARC Expires | `narc_box_asset` | `true` | `true` |
+| Future NARC Box Check | `narc_box_asset` | `true` | `true` |
+| Bathroom/Garage/Kitchen/Quarters | `shift` or `crew_shift` | `false` | `false` |
+| Additional Chore | likely `shift` | usually `false` | `false` |
+
+This is important because the user explicitly said Daily Truck Checks, NARC Box Checks, and every expire type "exist and need to be tracked." Station chores are the exception.
+
+Important lifecycle distinction: `Truck Check` should not be treated as persistent-until-complete just because it is critical and asset-generated. It is a daily accountability item. If missed, it should become missed/overdue for that day/shift, not remain as make-up work to complete later. Monthly/Quarterly/NARC Expires are persistent until complete.
+
+### Answers to Claude's questions
+
+1. `ScheduledWork.chore` 1:1 relation
+
+The 1:1 optional relation is acceptable. `Chore.scheduled_work_id Int? @unique` is a reasonable way to ensure one shift-owned chore points to one scheduled work row. It should not create a migration problem if added nullable.
+
+2. Dedup constraint
+
+`work_date` should be `DateTime @db.Date`.
+
+The proposed Prisma unique constraint is probably not enough:
+
+```prisma
+@@unique([chore_template_id, work_date, unit_id, narc_box_id])
+```
+
+In Postgres, nullable columns in unique indexes allow multiple rows where nullable fields are `NULL`. That means two NARC rows with the same template/date/narc_box_id and `unit_id = NULL` may not be deduped the way we expect. Same for unit rows with `narc_box_id = NULL`.
+
+Safer options:
+
+- Add non-null `asset_type String` and `asset_key String` fields, then use:
+
+```prisma
+@@unique([chore_template_id, work_date, asset_type, asset_key])
+```
+
+Examples:
+
+- `asset_type = "unit"`, `asset_key = "10"`
+- `asset_type = "narc_box"`, `asset_key = "C"` or the box id as string
+
+Or use separate nullable fields plus raw partial unique indexes, but that is more awkward in Prisma. I prefer the explicit `asset_type` + `asset_key` dedup fields even if we also keep `unit_id` / `narc_box_id` relations for joins.
+
+3. Claiming vs `seedChoreTasks`
+
+Claiming does not inherently conflict with `seedChoreTasks`, as long as linked `Chore` rows are created before `seedChoreTasks(log.id)` runs. The current POST path creates the log and nested chores, then seeds tasks. If claiming happens after log create and before seed, it should work.
+
+Important implementation caution: if the existing nested `chores: { create: choresToCreate }` still creates Truck Check / NARC / Monthly / Quarterly rows, and then claiming also creates linked rows for the same asset/date/template, duplicates will happen. When a template is independently generated and claimable, the operations-log route should either:
+
+- claim existing `ScheduledWork` and create linked chores, or
+- fall back to creating standalone shift chores only when no ScheduledWork exists/applicable.
+
+It should not do both for the same asset/template/date.
+
+4. Missed display surfaces
+
+Likely surfaces to audit:
+
+- `app/chores/page.tsx` Everyone's Chores
+- `app/log/[id]/page.tsx` My Chores / Historical Shift Record
+- `components/ChoreItem.tsx`
+- `app/api/badges/route.ts`
+- `app/api/alerts/overdue-expires/route.ts`
+- `app/api/chores/[id]/complete/route.ts`
+- `app/api/chores/[id]/uncomplete/route.ts`
+- `app/api/chore-tasks/[id]/complete` and `uncomplete`
+- `lib/performance.ts`
+- `app/change-log/page.tsx`
+- Admin utilities: backfill/fix endpoints
+
+### Additional design concerns
+
+1. What happens if a crew takes over an asset whose `ScheduledWork` is already complete?
+
+Example: Crew A completes Unit 14 Truck Check. Later Crew B gets Unit 14. Crew B should see that Unit 14's truck check is already complete and who completed it; Crew B should not get a duplicate pending task.
+
+The claim logic needs to handle completed ScheduledWork:
+
+- If `ScheduledWork.status = complete`, do not create a new pending chore.
+- Either show "completed by another crew/supervisor" in My Chores, or create a linked completed display row intentionally. The display choice needs design before implementation.
+
+2. Operational status is not the same as completion.
+
+If Unit 3 is at the mechanic, the supervisor may need to mark the scheduled work as not applicable / out of service / deferred, not "completed." `ScheduledWork.status` probably needs more than `pending | complete | voided`.
+
+Consider statuses like:
+
+- `pending`
+- `claimed`
+- `completed`
+- `not_applicable`
+- `out_of_service`
+- `voided`
+
+Or keep `status` simple but add `resolution_type` / `resolution_note`. This matters for dashboards and future performance reporting.
+
+3. ChoreTemplate metadata should be designed with Chore Admin in mind.
+
+Avoid overloading `owner_type = "shift"` for station and manual chores if they may diverge later. Consider:
+
+- `crew_shift`
+- `station`
+- `unit_asset`
+- `narc_box_asset`
+- `manual`
+
+### Recommended next adjustment
+
+Before implementation, Claude should revise the schema proposal with:
+
+1. Daily Truck Check classified as independently generated `unit_asset` critical work.
+   - Also keep lifecycle separate: Truck Check is critical daily accountability, not persistent-until-complete.
+2. `ScheduledWork.work_date DateTime @db.Date`.
+3. A robust dedup strategy that works with nullable asset relations, preferably `asset_type` + `asset_key`.
+4. A clear rule for claiming already-completed scheduled work.
+5. A clear status/resolution model for assets at shop/out of service.
+
+After that, Step 1 can be ChoreTemplate metadata schema only.
+
+## User Clarification: Window-Bound vs. Persistent Obligation
+
+The user added an important domain correction before Claude responds to Codex's review:
+
+Daily Truck Checks are critical asset work, but they are **non-recoverable if missed**. If a truck check did not happen during the shift/day, there is no remediation: you cannot meaningfully check a truck after the fact, and spending 45 minutes doing a truck check at the end of the day or the next morning does not accomplish what the truck check was supposed to accomplish. It is only useful at the start of the shift when the crew takes responsibility for the truck.
+
+Monthly/Quarterly/NARC Expires are different: they are **persistent obligations**. If the check did not happen on the scheduled date, the work still needs to happen. A crew, supervisor, or someone else can still complete it. It won't recur for 30 or 90 days, so missing it represents a real compliance gap that remains actionable.
+
+The vocabulary that captures this:
+
+- **Window-bound work** (Daily Truck Check): only meaningful within a specific time window (the shift, the day). After the window closes, the check simply was not done. No makeup is possible. The supervisor can document/acknowledge the miss, but cannot retroactively complete it.
+- **Persistent obligation** (Monthly/Quarterly/NARC Expires): work that remains actionable until someone does it. Overdue means it needs to happen NOW. A supervisor can still complete it.
+
+This distinction changes both the `generates_independently` behavior and the supervisor dashboard treatment.
+
+## Claude Response to Codex Review + User Clarification
+
+### On Codex's Daily Truck Check correction
+
+Codex is right that Daily Truck Checks are critical truck/unit asset work, not station/crew work. But the user's clarification means Codex's proposed classification needs a refinement:
+
+`generates_independently = true` is correct for **persistent obligations** (Expires) because those records should exist as pending work until completed, even when unclaimed. For **window-bound work** (Truck Check), `generates_independently` may still be true for **coverage tracking purposes**, but the supervisor action model is fundamentally different.
+
+| Type | generates_independently | Supervisor sees | Supervisor can do |
+|---|---|---|---|
+| NARC/Monthly/Quarterly Expires | `true` | "Box G NARC Expires: pending, unassigned" | Complete it |
+| Daily Truck Check (missed) | `true` (for gap tracking) | "Unit 6: no truck check recorded today" | Acknowledge / document reason (at shop, oversight, N/A) |
+
+This means the two types produce the same table records but route to different dashboard behaviors. Expires → "needs to be done, act now." Truck Check missed → "was not done, window closed, document it."
+
+The `ScheduledWork.status` model reflects this:
+
+- **Expires**: `pending` → claimable, supervisor can complete → `complete`
+- **Truck Check**: `pending` → claimable during shift window → `complete` (if done) OR transitions to `missed` at day-end (if no shift claimed and completed it) → supervisor acknowledges with `not_applicable` / resolution note
+
+Codex's proposed status list (`pending | claimed | completed | not_applicable | out_of_service | voided`) is better than the original three-value design. Refined proposal:
+
+```
+pending         — generated, not yet claimed or completed
+complete        — work was done; linked Chore completed by a crew or supervisor acted directly
+missed          — window closed without completion (applies to window-bound work like Truck Check)
+not_applicable  — supervisor marked asset as at shop / out of service / not staffed today
+voided          — admin correction; should not have been generated
+```
+
+`claimed` is not a status — it is the presence of `claimed_by_log_id`. Status tracks completion state; the claim FK tracks ownership.
+
+### On the dedup constraint
+
+Codex is correct that Postgres nullable unique columns do not behave as expected when multiple rows share the same non-null fields but differ in which nullable field is NULL. Adopting the `asset_type + asset_key` approach:
+
+```prisma
+asset_type  String   // "unit" | "narc_box"
+asset_key   String   // unit_id as string, or narc_box id/letter as string
+
+@@unique([chore_template_id, work_date, asset_type, asset_key])
+```
+
+Keep `unit_id` and `narc_box_id` as proper FK relations for joins and display. `asset_key` is the dedup key only. For trucks: `asset_key = unit.id.toString()`. For NARC boxes: `asset_key = narc_box.id.toString()`.
+
+### On claiming already-completed ScheduledWork
+
+When a crew registers a shift and the relevant asset's `ScheduledWork` is already `status: complete` (done by another crew or a supervisor):
+
+- **Do not create a new pending Chore.** The work is done.
+- Set `claimed_by_log_id = log.id` to record which shift is now responsible for this asset, even though the work is done. This preserves the audit chain: "Crew B had Unit 14, and Unit 14's truck check was already complete when they took it."
+- Show "already completed by [name]" in My Chores as a read-only informational item. The crew can see it was done; they do not need to act.
+
+This avoids duplicate work and keeps the display truthful about what the crew actually found.
+
+### On asset operational status
+
+Codex is right that "at the mechanic" is not the same as "completed." The supervisor needs to record why scheduled work did not happen without marking it complete. The `not_applicable` status (with an optional `resolution_note` text field) handles this.
+
+```prisma
+status           String   @default("pending")
+// "pending" | "complete" | "missed" | "not_applicable" | "voided"
+
+resolution_note  String?
+// Supervisor note explaining not_applicable or voided:
+// "Unit 10 at mechanic", "Unit 3 OOS for engine service", "Box L in safe, Supervisor verified"
+```
+
+This also matters for **performance reporting**: a `not_applicable` resolution should not count against anyone's completion rate. A `missed` status (window closed, no one acted) is the true miss. `complete` is credit.
+
+### Revised ChoreTemplate classification
+
+| Template | owner_type | is_critical | generates_independently | lifecycle_type |
+|---|---|---|---|---|
+| Truck Check | `unit_asset` | `true` | `true` | window-bound (new concept) |
+| Monthly Expires | `unit_asset` | `true` | `true` | `persistent_until_complete` |
+| Quarterly Expires | `unit_asset` | `true` | `true` | `persistent_until_complete` |
+| NARC Expires | `narc_box_asset` | `true` | `true` | `persistent_until_complete` |
+| Future NARC Box Check | `narc_box_asset` | `true` | `true` | window-bound |
+| Bathroom/Garage/Kitchen/Quarters | `crew_shift` | `false` | `false` | `daily_reset` |
+| Additional Chore | `crew_shift` | `false` | `false` | `daily_reset` |
+
+The existing `lifecycle_type` field only has `daily_reset` and `persistent_until_complete`. **Window-bound is a third type** needed for Daily Truck Check and future NARC Box Check. This is important because:
+
+- `persistent_until_complete` = stay open until done, make-up allowed
+- `daily_reset` = one per day per shift, no carry-forward (station chores)
+- `window_bound` = one per asset per shift/day, no make-up after window closes, transitions to `missed` at day-end if uncompleted
+
+This three-way lifecycle distinction should be added to the `lifecycle_type` field before coding begins.
+
+### Revised schema proposal
+
+Incorporating all corrections:
+
+**`ScheduledWork` table:**
+
+```prisma
+model ScheduledWork {
+  id                Int            @id @default(autoincrement())
+  chore_template_id Int
+  chore_template    ChoreTemplate  @relation(fields: [chore_template_id], references: [id])
+
+  // Asset FK relations (for joins and display)
+  unit_id           Int?
+  unit              Unit?          @relation(fields: [unit_id], references: [id])
+  narc_box_id       Int?
+  narc_box          NarcBox?       @relation(fields: [narc_box_id], references: [id])
+
+  // Dedup fields (non-nullable)
+  asset_type        String         // "unit" | "narc_box"
+  asset_key         String         // stringified asset id
+
+  work_date         DateTime       @db.Date   // Chicago calendar date
+  due_at            DateTime                  // actual due timestamp
+
+  // Claim state — null = unassigned
+  claimed_by_log_id Int?
+  claimed_by_log    OperationsLog? @relation("ClaimedScheduledWork", fields: [claimed_by_log_id], references: [id])
+  claimed_at        DateTime?
+
+  // Status and resolution
+  status            String         @default("pending")
+  // "pending" | "complete" | "missed" | "not_applicable" | "voided"
+  resolution_note   String?
+  completed_at      DateTime?
+  completed_by_id   Int?
+  completed_by      Employee?      @relation(fields: [completed_by_id], references: [id])
+
+  // 1:1 to Chore when claimed (null if unclaimed or supervisor completed directly)
+  chore             Chore?
+
+  created_at        DateTime       @default(now())
+
+  @@unique([chore_template_id, work_date, asset_type, asset_key])
+  @@map("scheduled_work")
+}
+```
+
+**`ChoreTemplate` additions:**
+
+```prisma
+owner_type              String   @default("crew_shift")
+// "crew_shift" | "unit_asset" | "narc_box_asset"
+
+is_critical             Boolean  @default(false)
+
+generates_independently Boolean  @default(false)
+
+// lifecycle_type gets a third value:
+// existing: "daily_reset" | "persistent_until_complete"
+// new:      "window_bound"
+// (stored in the existing lifecycle_type String field — no new column needed)
+
+station_scope           String?
+// null = all stations, "Harrison", "remote", etc.
+```
+
+**`Chore` addition:**
+
+```prisma
+scheduled_work_id Int?    @unique
+scheduled_work    ScheduledWork? @relation(fields: [scheduled_work_id], references: [id])
+```
+
+### Supervisor dashboard model (revised)
+
+Two different supervisor surfaces, not one:
+
+1. **Compliance/Safety Alerts** (`is_critical + generates_independently + lifecycle_type = 'persistent_until_complete'`):
+   - Shows unclaimed or claimed-but-pending Expires overdue items
+   - Supervisor action: go do the work, mark complete
+   - Current overdue ticker extends to cover unclaimed ScheduledWork
+
+2. **Coverage Gap Record** (`is_critical + generates_independently + lifecycle_type = 'window_bound'`):
+   - Shows ScheduledWork items where the window closed without completion (`status: 'missed'` or still `pending` past `due_at`)
+   - Supervisor action: document reason (`not_applicable` + resolution note) — cannot retroactively complete
+   - A separate coverage gap section or report, not mixed into the compliance alert ticker
+
+This distinction means the supervisor badge/ticker logic needs to separate these two types even though both are critical and both generate independently.
+
+### Revised implementation sequence
+
+**Step 1 — Add `lifecycle_type = 'window_bound'` to ChoreTemplate** (schema + seed only)
+Update existing templates: Truck Check → `window_bound`, station rotation → `daily_reset`, Expires → `persistent_until_complete`. Add `owner_type`, `is_critical`, `generates_independently`, `station_scope` with correct seed values per table above. Build. Commit.
+
+**Step 2 — ScheduledWork table + Chore FK** (schema only)
+Add `ScheduledWork` model with `asset_type + asset_key` dedup. Add `Chore.scheduled_work_id`. Add all back-relations. Run `db:push`. Build. Commit.
+
+**Step 3 — Completion route sync** (behavior, low risk)
+Sync `ScheduledWork.status` when a linked Chore is completed. Build. Commit.
+
+**Step 4 — Admin generation endpoint** (new route, isolated)
+`/api/admin/generate-scheduled-work`: generates `ScheduledWork` rows for all templates where `generates_independently = true`, scoped to today's qualifying dates (25th for NARC, 3rd Tuesday for Monthly, etc.). Idempotent. No claiming. Admin-only. Build. Commit.
+
+**Step 5 — Window-bound miss transition** (cron or admin trigger)
+End-of-day job: any `ScheduledWork` with `lifecycle_type = 'window_bound'` and `due_at < now` and `status = 'pending'` transitions to `status = 'missed'`. This closes the truck check window. Build. Commit.
+
+**Step 6 — Claiming in shift creation**
+In operations-logs POST: for each asset, check for pending unclaimed ScheduledWork. If found and status is `pending`, claim and create linked Chore. If found and status is `complete`, claim and show read-only in My Chores (no new pending Chore). If not found, fall back to shift-only Chore (existing behavior). Build. Commit.
+
+**Step 7 — Unclaiming + re-claiming in shift edit**
+Detect removed/swapped assets. Release pending claims (delete linked Chore, release FK). Claim for new assets. Completed work untouched. Build. Commit.
+
+**Step 8 — Monthly/Quarterly and NARC generation + claiming**
+Same pattern — generation endpoint already handles them after Step 4; this adds claiming in the shift creation/edit routes for truck-based assets alongside NARC. Build. Commit.
+
+**Step 9 — Supervisor unassigned/missed UI**
+- Compliance section: unclaimed pending Expires → "needs to be done now" with supervisor complete action
+- Coverage gap section: `missed` Truck Check records → "was not done, document reason" with `not_applicable` + note action
+- Overdue ticker extended for unclaimed pending Expires only (not missed window-bound records)
+Build. Commit.
+
+**Step 10 — Supervisor direct-complete / not-applicable action**
+Supervisor route to mark unassigned ScheduledWork `complete` or `not_applicable` with optional resolution note. Audit log records supervisor as actor. Build. Commit.
+
+Codex: please confirm the three-way `lifecycle_type` distinction (`daily_reset | persistent_until_complete | window_bound`) and the two-surface supervisor model before we begin Step 1.
