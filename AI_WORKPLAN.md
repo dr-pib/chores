@@ -1965,3 +1965,26 @@ Key design decisions:
 
 Current next step:
 - Proceed with **Step 5 — Window-bound miss transition**: when the forfeiture window closes for a linked `ScheduledWork` row, mark it `missed` rather than leaving it `pending`.
+
+## Step 5 Completion Note — 2026-05-27
+
+Step 5 is complete and pushed (commit `6baaa42`).
+
+Completed:
+- **`app/api/admin/mark-missed-scheduled-work/route.ts`** — new POST endpoint.
+  - Auth: logged-in + supervisor required.
+  - Loads all `pending` ScheduledWork rows with their template's `lifecycle` and `lock_offset_hours`.
+  - Filters to `isForfeitable(template)` — only forfeitable lifecycle rows are eligible. Persistent rows (Monthly/Quarterly/NARC Expires) are never touched.
+  - Lock window: `work_date (midnight UTC) + (lock_offset_hours ?? 31) * 3_600_000` — identical anchor to the Chore complete route.
+  - Batch-updates all expired rows to `status: 'missed'` via `updateMany`.
+  - Returns `{ marked: number }`. Safe to call repeatedly — only hits pending rows.
+- **`app/chore-templates/page.tsx`** — "Mark Missed Forfeitable Work" button added to Admin Utilities panel.
+
+Key design decisions:
+- Lock anchor is `work_date` (midnight UTC, from `@db.Date`), not `due_at`. Same logic as the `lockAfter` check in the Chore complete route. This means a Truck Check for May 27 locks at `2026-05-27T00:00:00Z + 31h = 2026-05-28T07:00:00Z` (02:00 CDT).
+- Overdue ≠ missed: rows where `due_at < now` but `now < lockAfter` remain `pending` (still actionable, just late). Only rows past `lockAfter` become `missed`.
+- No `missed_at` timestamp field exists in the schema — the transition is captured by `status: 'missed'` alone. A future step can add that field if audit/reporting needs it.
+- This endpoint is designed to be safe to call from a cron job once cron infrastructure is added (Step 9/10).
+
+Current next step:
+- Proceed with **Step 6 — Claiming in shift creation**: when a shift is created and a truck or NARC box is assigned, link pending ScheduledWork rows to the shift (`claimed_by_log_id`, `claimed_at`) and update `due_at` to shift start + template offset.
