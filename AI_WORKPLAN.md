@@ -2221,3 +2221,29 @@ Known deferred items:
 - Supervisor direct-complete/not-applicable route is later Step 10.
 - Chore Admin UI for the new classification fields remains future work.
 - ESO schedule import/parser is a future separate project; best current source is the daily `.xls` export.
+- "Someone else completes persistent work after the window" case: original crew keeps the miss; completing employee gets normal credit. Full implementation requires the Step 10 supervisor direct-complete path or a future assign-to-another-crew feature. Current code only handles the original crew completing their own chore late.
+- Overall dashboard "resolved late" view: persistent late completions are currently surfaced only through the `late_sw_60d` counter on the performance endpoints; a dedicated dashboard section is deferred.
+
+## Correction: Late/Missed Behavior — 2026-05-28
+
+**Forfeitable work and persistent work must not share the same late-completion logic.** The previous code set `is_late_completion = true` on any ScheduledWork that was `'missed'` at completion time, regardless of lifecycle type. This is wrong.
+
+### Corrected rules (canonical — also updated in PROJECT_CONTEXT.md)
+
+**Forfeitable work (Truck Check, NARC Box Check, station chores):**
+- No late-completion category.
+- Actionable until the lock window closes.
+- After the lock window closes → missed.
+- Cannot be made up for performance. `is_late_completion` must never be set on forfeitable ScheduledWork.
+
+**Persistent work (Monthly/Quarterly/NARC Expires):**
+- Can be late.
+- After the lock window closes → missed for the originally responsible employee/crew.
+- Original crew completes after window → counts as late for their performance (`is_late_completion = true`).
+- Someone else completes after window → original crew keeps the miss; completing employee gets normal completion credit (adds to both their numerator and denominator, no extra credit). Not yet fully implemented — requires Step 10 supervisor direct-complete path.
+- Overall dashboard should show work completed late / resolved late.
+
+### Code changes applied (same commit as this doc update)
+
+- `app/api/chores/[id]/complete/route.ts`: `is_late_completion` now only set when `isPersistent(chore.chore_template) && sw?.status === 'missed'`. Added `isPersistent` import.
+- `app/api/chores/[id]/uncomplete/route.ts`: reads SW `is_late_completion` inside the transaction before resetting. If `is_late_completion` was true (late completion being undone), restores SW to `'missed'` instead of `'pending'`.

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { isPastShift } from '@/lib/dates'
 import { isSupervisorRole } from '@/lib/roles'
-import { isForfeitable } from '@/lib/lifecycle'
+import { isForfeitable, isPersistent } from '@/lib/lifecycle'
 
 export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id]/complete'>) {
   const session = await getSession()
@@ -112,7 +112,9 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
           status: 'complete',
           completed_at: now,
           completed_by_id: session.userId,
-          is_late_completion: sw?.status === 'missed',
+          // Only persistent work has a late-completion category.
+          // Forfeitable work cannot be made up for performance; never flag it late.
+          is_late_completion: isPersistent(chore.chore_template) && sw?.status === 'missed',
         },
       })
     }

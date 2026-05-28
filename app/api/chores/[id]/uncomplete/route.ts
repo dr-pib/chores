@@ -34,9 +34,20 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
       include: { chore_template: true },
     })
     if (chore.scheduled_work_id) {
+      const sw = await tx.scheduledWork.findUnique({
+        where: { id: chore.scheduled_work_id },
+        select: { is_late_completion: true },
+      })
+      // If this was a late completion (persistent work completed after the lock window),
+      // restore to 'missed' so the miss record is preserved. Otherwise restore to 'pending'.
       await tx.scheduledWork.update({
         where: { id: chore.scheduled_work_id },
-        data: { status: 'pending', completed_at: null, completed_by_id: null, is_late_completion: false },
+        data: {
+          status: sw?.is_late_completion ? 'missed' : 'pending',
+          completed_at: null,
+          completed_by_id: null,
+          is_late_completion: false,
+        },
       })
     }
     return updatedChore
