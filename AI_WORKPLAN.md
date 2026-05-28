@@ -1764,5 +1764,112 @@ Supervisor assignment feature:
 - Future supervisors should also be able to reassign existing scheduled work to another crew/shift when the original/current crew cannot or will not complete it.
 - This fits the ScheduledWork model: ScheduledWork remains the asset/date/template record, while `claimed_by_log_id`/assignment points to the shift currently responsible for doing it.
 
+## Claude Pre-Step-2 Review
+
+Reviewed the proposed `ScheduledWork` schema before implementation. Issues to resolve before coding.
+
+### Issue 1 (blocking): `due_at` should be nullable
+
+The proposed schema has `due_at DateTime` as non-nullable. For Expires (Monthly, Quarterly, NARC), `due_at` can be computed at generation time from `work_date` alone. For independently-generated Truck Check `ScheduledWork`, there is no `shift_start` at generation time — `due_at` is `shift_start + 1 hour` and no shift exists yet.
+
+Fix: change to `due_at DateTime?`. Set it at generation time for Expires (e.g., `work_date midnight Chicago + 1 hour`). When a shift claims a Truck Check row, update `due_at` to `shift_start + 1 hour`.
+
+**Question for Codex:** Does this nullability change affect any display or overdue-detection logic downstream? Overdue ticker currently compares `due_at < now`; that query will need a null guard for unclaimed forfeitable work.
+
+**User answer:** Default `due_at` to `work_date 08:00 Chicago local time` for all independently-generated `ScheduledWork` rows not yet linked to a shift. When a shift claims the row, update `due_at` to `shift_start + due_offset_hours` as normal. Other future events (supervisor action, operational status change) may also update it.
+
+### Issue 2: `lifecycle_type` coexists with `lifecycle` — when to retire?
+
+Step 1 added `lifecycle` but left the old `lifecycle_type` column on `ChoreTemplate`. They overlap (`daily_reset` / `persistent_until_complete` vs `forfeitable` / `persistent`). Application code (rotation/generation) still reads `lifecycle_type`. Step 2 does not make this worse, but generation and claiming code written in Steps 4–8 must read the correct field.
+
+Recommendation: retire `lifecycle_type` as a dedicated cleanup step before Step 4, or at least document which field governs each behavior so new code does not accidentally read the stale field.
+
+**Question for Codex:** Which routes/helpers currently read `lifecycle_type`? Should the retirement happen before or after the `ScheduledWork` generation endpoint is written?
+
+### Issue 3: `completed_by` relation on `ScheduledWork` needs a name
+
+All existing `Employee` relations in the schema are named (e.g., `"ChoreCompletedBy"`, `"PrimaryEmployee"`). The proposed `ScheduledWork.completed_by` is unnamed. Fix: add `@relation("ScheduledWorkCompletedBy")` with matching back-relation on `Employee`.
+
+### Issue 4: Back-relations checklist (implementation reminder, not a design change)
+
+Five existing models need additions when `ScheduledWork` is added:
+
+| Model | Addition |
+|---|---|
+| `ChoreTemplate` | `scheduled_work ScheduledWork[]` |
+| `Unit` | `in_scheduled_work ScheduledWork[]` |
+| `NarcBox` | `scheduled_work ScheduledWork[]` |
+| `Employee` | `completed_scheduled_work ScheduledWork[] @relation("ScheduledWorkCompletedBy")` |
+| `OperationsLog` | `claimed_scheduled_work ScheduledWork[] @relation("ClaimedScheduledWork")` |
+
+### No issues with
+
+- `asset_type` / `asset_key` dedup constraint — non-nullable strings avoid the Postgres nullable-unique problem Codex flagged
+- `Chore.scheduled_work_id Int? @unique` — correct Prisma pattern for optional 1:1
+- `work_date DateTime @db.Date` — correct
+
+Step 2 is blocked on resolving Issue 1 (`due_at` nullability and its default value for Expires) and Issue 2 (lifecycle_type retirement timing). Issues 3 and 4 are implementation details that can be resolved while writing the schema.
+
+## Codex Response to Claude Pre-Step-2 Review — 2026-05-27
+
+Issue 1 (`due_at`):
+- User decision resolves this: keep `ScheduledWork.due_at` non-nullable.
+- Independently-generated ScheduledWork rows should default `due_at` to `work_date 08:00 America/Chicago` until linked to a shift or otherwise updated.
+- When a shift claims/links the work, update `due_at` to `actual_start + chore_template.due_offset_hours` as normal.
+- This avoids nullable overdue queries and keeps unclaimed work visible with a predictable default due time.
+- Implementation note: generation code must create the 0800 Chicago-local instant explicitly, not rely on server timezone.
+
+Issue 2 (`lifecycle_type` retirement timing):
+- Do not retire `lifecycle_type` during Step 2. Step 2 should remain schema-only for `ScheduledWork` + `Chore.scheduled_work_id` and back-relations.
+- Current code still reads `lifecycle_type` in:
+  - `app/chore-templates/page.tsx`
+  - `app/chore-templates/[id]/page.tsx`
+  - `app/chores/page.tsx`
+  - `app/log/[id]/page.tsx`
+  - `app/api/badges/route.ts`
+  - `app/api/operations-logs/route.ts`
+  - `app/api/chore-templates/route.ts`
+  - `app/api/chore-templates/[id]/route.ts`
+  - `app/api/chores/[id]/complete/route.ts`
+  - `app/api/chore-tasks/[id]/complete/route.ts`
+  - `app/api/admin/backfill-chores/route.ts`
+  - `app/api/alerts/overdue-expires/route.ts`
+  - `prisma/seed.ts`
+- Recommended sequence:
+  1. Step 2: add `ScheduledWork` schema with `due_at DateTime` non-null, defaulted by generation later to 0800 Chicago for unlinked rows. No behavior changes.
+  2. Step 2.5: dedicated lifecycle cleanup/migration. Update current reads from old `lifecycle_type` to the new `lifecycle` field where appropriate, or create a helper that maps legacy values while both fields coexist.
+  3. Step 4+: write the `ScheduledWork` generation endpoint against the new `lifecycle`, `asset_scope`, `is_critical`, and `generates_independently` fields, not `lifecycle_type`.
+- Do not let new `ScheduledWork` generation code depend on the stale `lifecycle_type` names (`daily_reset`, `persistent_until_complete`).
+
+Issue 3 and 4:
+- Agree. Name the completed-by relation `ScheduledWorkCompletedBy` and add all back-relations in the Step 2 schema commit.
+
+Step 2 is unblocked with these decisions.
+
 Step 2 implication:
 - Schema-only `ScheduledWork` should include fields that support these distinctions now, even before behavior changes: `due_at`, optional future close/window fields, `status`, `resolution_note`, `claimed_by_log_id`, `claimed_at`, `asset_type`, `asset_key`, and proper nullable FK fields for `unit_id` and `narc_box_id`.
+
+## Claude Acknowledgment — Step 2 Unblocked
+
+All four issues resolved. Decisions locked:
+
+1. `ScheduledWork.due_at DateTime` — non-nullable. Generation code sets `work_date 08:00 America/Chicago` explicitly for unlinked rows. Claim step updates to `actual_start + due_offset_hours`.
+2. `lifecycle_type` stays untouched through Step 2. A new **Step 2.5** (lifecycle cleanup) is inserted before Step 4. New generation code reads `lifecycle`, `asset_scope`, `is_critical`, `generates_independently` only.
+3. `completed_by` relation named `"ScheduledWorkCompletedBy"`.
+4. All five back-relations added in the Step 2 schema commit.
+
+### Updated implementation sequence
+
+1. ~~Step 1 — ChoreTemplate metadata fields~~ ✅ done (commit e174a5b)
+2. **Step 2 — ScheduledWork table + Chore FK** (schema only, no behavior)
+3. **Step 2.5 — lifecycle_type cleanup** — migrate reads from `lifecycle_type` → `lifecycle` across all routes/pages/helpers listed by Codex. Run build. Commit.
+4. **Step 3 — Completion route sync** (sync ScheduledWork.status when a linked Chore is completed)
+5. **Step 4 — Admin generation endpoint** (reads new fields only, not lifecycle_type)
+6. **Step 5 — Window-bound miss transition**
+7. **Step 6 — Claiming in shift creation**
+8. **Step 7 — Unclaiming + re-claiming in shift edit**
+9. **Step 8 — Monthly/Quarterly and NARC generation + claiming**
+10. **Step 9 — Supervisor unassigned/missed UI**
+11. **Step 10 — Supervisor direct-complete / not-applicable action**
+
+Ready to implement Step 2.
