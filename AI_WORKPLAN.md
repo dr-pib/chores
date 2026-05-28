@@ -1872,4 +1872,29 @@ All four issues resolved. Decisions locked:
 10. **Step 9 — Supervisor unassigned/missed UI**
 11. **Step 10 — Supervisor direct-complete / not-applicable action**
 
-Ready to implement Step 2.
+## Step 2 Completion Note — 2026-05-27
+
+Step 2 is complete and deployed.
+
+Completed:
+- `ScheduledWork` table added.
+- `Chore.scheduled_work_id Int? @unique` added.
+- Back-relations added for `ChoreTemplate`, `Unit`, `NarcBox`, `Employee`, and `OperationsLog`.
+- `ScheduledWork.due_at` is non-nullable.
+- `claimed_by_log_id` / `claimed_at` represent shift responsibility.
+- `asset_type + asset_key` dedup constraint is in place.
+- `ScheduledWorkCompletedBy` relation is named.
+- No behavior changes and no UI changes were intended in Step 2.
+
+Deployment note:
+- Railway deploy for Step 2 initially required temporary `prisma db push --accept-data-loss` because Prisma warned on adding the unique constraint to `chores.scheduled_work_id`.
+- The schema applied successfully.
+- The temporary `--accept-data-loss` flag was removed in cleanup commit `309c3ff`.
+- User confirmed the cleanup deploy succeeded.
+
+Current next step:
+- Proceed with **Step 2.5 — lifecycle_type cleanup**.
+- Scope: migrate reads from old `ChoreTemplate.lifecycle_type` toward the new `ChoreTemplate.lifecycle` field or a helper mapping, without changing user-facing behavior.
+- Do not build the ScheduledWork generation endpoint yet.
+- Do not change chore creation/claiming behavior yet.
+- Run build and commit/push only this cleanup.
