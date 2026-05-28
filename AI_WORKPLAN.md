@@ -2019,3 +2019,32 @@ Do not treat due time as the missed time.
 - For unclaimed independently-generated ScheduledWork: `due_at` defaults to 08:00 Chicago (`work_date + offset`). Lock anchor also uses `work_date` until claimed.
 - Once a ScheduledWork is claimed by a shift (Step 6), update `due_at` to `actual_start + due_offset_hours` at claim time. The mark-missed endpoint then correctly uses `actual_start` as the lock anchor for those rows.
 - The Chore complete route already reads `lock_offset_hours` from the template — that pattern is correct. Do not hardcode the lock value in any new code.
+
+## Step 6 Completion Note — 2026-05-27
+
+Step 6 is complete and pushed (commit `ab009a2`).
+
+Completed:
+- **`lib/chore-generation.ts`** — added `scheduled_work_id?: number` to `ChoreCreateData` (backwards-compatible; existing callers omit it).
+- **`app/api/operations-logs/route.ts`** — new-shift creation path updated. Changes happen ONLY in the new-shift branch (not the existing-shift update branch, which is Step 7).
+
+New-shift creation flow (Step 6 additions):
+1. Collects `choreDates` (serviceDate, and day2Date for 48h shifts).
+2. Builds `swAssetConditions` from present truck unit IDs and the shift's `narc_box_id`.
+3. Queries `pending` ScheduledWork rows matching those assets + dates via Prisma `OR` on `(asset_type, asset_key)`.
+4. Builds a `swByKey` lookup map keyed by `${template_id}-unit-${unit_id}-${date_ms}` (truck) or `${template_id}-narc-${narc_box_id}-${date_ms}` (NARC).
+5. Maps `choresToCreate` → `annotatedChores`: for each chore row, looks up the corresponding SW and adds `scheduled_work_id` if found. Tracks matched IDs in `matchedSwIds`.
+6. Creates the log with `annotatedChores` (chores without a matching SW are unaffected — they are created as standalone chores, same as before).
+7. After log creation and `seedChoreTasks`, iterates matched SW rows and updates each: `claimed_by_log_id = log.id`, `claimed_at = now`, `due_at = actual_start + dayOffset + due_offset_hours`.
+   - `dayOffset` is 0 for Day 1, `DAY_2_OFFSET_MS` for Day 2 — matches `buildChoreRows` due_at calculation.
+   - `due_offset_hours` is read from the template, never hardcoded.
+
+Key design decisions:
+- Matching uses `asset_type + asset_key` (the ScheduledWork dedup fields) rather than raw FK columns to stay consistent with the ScheduledWork identity model.
+- NARC-scoped chores carry `unit_id = primary_unit_id` (from `resolvePrimaryUnitTarget`), not `narc_box_id`. The NARC matching key uses the shift's `narc_box_id` from the request body, not the chore's unit_id.
+- ScheduledWork updates happen one-by-one (not `updateMany`) because `due_at` varies per template and per day.
+- If ScheduledWork generation (Step 4) was not run for a given date, no SW rows will be found and the existing standalone chore creation path runs unchanged.
+- The existing-shift update branch (shift edit) is unchanged — that is Step 7.
+
+Current next step:
+- Proceed with **Step 7 — Unclaiming and re-claiming in shift edit**: when a crew edits their shift and changes truck or NARC box assignments, release claim from removed assets and claim newly added assets.
