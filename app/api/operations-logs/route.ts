@@ -224,6 +224,76 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const now = new Date()
+
+  // Find pending ScheduledWork rows for this shift's assets on each chore date.
+  // Truck-scoped SW is keyed by unit DB id; NARC-scoped SW is keyed by narc_box DB id.
+  const choreDates = [serviceDate]
+  if (is48h) choreDates.push(new Date(serviceDate.getTime() + DAY_2_OFFSET_MS))
+
+  const swAssetConditions: { asset_type: string; asset_key: string }[] = [
+    ...truckTargets
+      .filter(t => t.unit_id != null)
+      .map(t => ({ asset_type: 'unit', asset_key: String(t.unit_id!) })),
+    ...(narc_box_id != null
+      ? [{ asset_type: 'narc_box', asset_key: String(narc_box_id) }]
+      : []),
+  ]
+
+  const pendingSw = swAssetConditions.length > 0
+    ? await prisma.scheduledWork.findMany({
+        where: {
+          status: 'pending',
+          work_date: { in: choreDates },
+          OR: swAssetConditions,
+        },
+        select: {
+          id: true,
+          chore_template_id: true,
+          asset_type: true,
+          unit_id: true,
+          narc_box_id: true,
+          work_date: true,
+        },
+      })
+    : []
+
+  // Build a lookup map so annotation is O(1) per chore row.
+  // Key: `${template_id}-unit-${unit_id}-${date_ms}` for truck-scoped rows
+  //      `${template_id}-narc-${narc_box_id}-${date_ms}` for NARC-box rows
+  const swByKey = new Map(
+    pendingSw.map(sw => [
+      sw.asset_type === 'unit'
+        ? `${sw.chore_template_id}-unit-${sw.unit_id}-${sw.work_date.getTime()}`
+        : `${sw.chore_template_id}-narc-${sw.narc_box_id}-${sw.work_date.getTime()}`,
+      sw,
+    ])
+  )
+
+  const templateById = new Map(templates.map(t => [t.id, t]))
+  const matchedSwIds = new Set<number>()
+
+  // Annotate chore rows with scheduled_work_id where a pending SW exists.
+  // For truck-scoped templates, match by unit_id. For NARC-box templates, match by
+  // the shift's narc_box_id (the chore itself carries unit_id, not narc_box_id).
+  const annotatedChores = choresToCreate.map(chore => {
+    const tmpl = templateById.get(chore.chore_template_id)
+    if (!tmpl) return chore
+    const dateMs = chore.chore_date.getTime()
+    let key: string | null = null
+    if (tmpl.asset_scope === 'truck' && chore.unit_id != null) {
+      key = `${chore.chore_template_id}-unit-${chore.unit_id}-${dateMs}`
+    } else if (tmpl.asset_scope === 'narc_box' && narc_box_id != null) {
+      key = `${chore.chore_template_id}-narc-${narc_box_id}-${dateMs}`
+    }
+    const sw = key ? swByKey.get(key) : undefined
+    if (sw) {
+      matchedSwIds.add(sw.id)
+      return { ...chore, scheduled_work_id: sw.id }
+    }
+    return chore
+  })
+
   const log = await prisma.operationsLog.create({
     data: {
       service_date: serviceDate,
@@ -237,7 +307,7 @@ export async function POST(req: NextRequest) {
       actual_end: endDt,
       status: 'confirmed',
       bays: { create: bays.map((b) => ({ bay_label: b.bay_label, unit_id: b.unit_id, unit_status: b.unit_status, sort_order: b.sort_order })) },
-      chores: { create: choresToCreate },
+      chores: { create: annotatedChores },
     },
     include: {
       shift_profile: { include: { station: true } },
@@ -250,6 +320,24 @@ export async function POST(req: NextRequest) {
   })
 
   await seedChoreTasks(log.id)
+
+  // Claim matched ScheduledWork rows: record shift ownership and update due_at.
+  // due_at = actual_start + template.due_offset_hours (per-template, not hardcoded).
+  // For 48h Day 2 rows, add DAY_2_OFFSET_MS to match how buildChoreRows computes due_at.
+  for (const sw of pendingSw) {
+    if (!matchedSwIds.has(sw.id)) continue
+    const tmpl = templateById.get(sw.chore_template_id)!
+    const dueOffsetMs = (tmpl.due_offset_hours ?? 1) * 3_600_000
+    const dayOffsetMs = sw.work_date.getTime() - serviceDate.getTime() // 0 or DAY_2_OFFSET_MS
+    await prisma.scheduledWork.update({
+      where: { id: sw.id },
+      data: {
+        claimed_by_log_id: log.id,
+        claimed_at: now,
+        due_at: new Date(startDt.getTime() + dayOffsetMs + dueOffsetMs),
+      },
+    })
+  }
 
   return NextResponse.json(log, { status: 201 })
 }

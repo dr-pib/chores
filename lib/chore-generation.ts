@@ -17,6 +17,7 @@ export interface ChoreCreateData {
   status: 'pending'
   due_at: Date
   chore_date: Date
+  scheduled_work_id?: number  // set at claim time when a ScheduledWork row is being linked
 }
 
 // The data shape for prisma.chore.createMany() in backfill/admin contexts.
