@@ -5,11 +5,17 @@ import { isSupervisorRole } from '@/lib/roles'
 import { isForfeitable } from '@/lib/lifecycle'
 
 // Transitions forfeitable ScheduledWork rows from 'pending' to 'missed' once their
-// lock window has closed. The lock window is work_date (midnight UTC) + lock_offset_hours.
-// This mirrors the lockAfter check in the Chore complete route.
+// lock window has closed.
+//
+// Lock anchor depends on claim status:
+//   - Claimed (claimed_by_log_id set): anchor = shift's actual_start + lock_offset_hours
+//   - Unclaimed: anchor = work_date (midnight UTC) + lock_offset_hours
+//
+// Both offsets come from the ChoreTemplate — they are admin-configurable per template,
+// not hard-coded global constants. The common defaults are +1h (due) and +31h (lock).
 //
 // Overdue != missed: overdue means due_at has passed but the window is still open.
-// Missed means the window is closed and the work can no longer be meaningfully done.
+// Missed means the lock window has closed and the work can no longer be meaningfully done.
 
 export async function POST() {
   const session = await getSession()
@@ -24,6 +30,7 @@ export async function POST() {
       id: true,
       work_date: true,
       chore_template: { select: { lifecycle: true, lock_offset_hours: true } },
+      claimed_by_log: { select: { actual_start: true } },
     },
   })
 
@@ -31,7 +38,9 @@ export async function POST() {
     .filter(sw => {
       if (!isForfeitable(sw.chore_template)) return false
       const lockHours = sw.chore_template.lock_offset_hours ?? 31
-      const lockAfter = new Date(sw.work_date.getTime() + lockHours * 3_600_000)
+      // Claimed work anchors to shift actual_start; unclaimed anchors to work_date.
+      const anchor = sw.claimed_by_log?.actual_start ?? sw.work_date
+      const lockAfter = new Date(anchor.getTime() + lockHours * 3_600_000)
       return now > lockAfter
     })
     .map(sw => sw.id)
