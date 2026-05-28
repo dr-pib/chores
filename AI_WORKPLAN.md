@@ -2048,3 +2048,59 @@ Key design decisions:
 
 Current next step:
 - Proceed with **Step 7 — Unclaiming and re-claiming in shift edit**: when a crew edits their shift and changes truck or NARC box assignments, release claim from removed assets and claim newly added assets.
+
+## Step 7 Clarification — Stale Ownership vs Completion Credit
+
+User clarified an important ownership/credit rule before Step 7:
+- If a pending ScheduledWork item is assigned/claimed by Crew A, then the shift is edited and the asset moves to Crew B before completion, the responsibility should move so Crew A is no longer shown as responsible for unfinished work they no longer own.
+- If Crew A already completed the work before the asset transfers to Crew B, do not duplicate the task and do not erase Crew A's credit.
+- Crew B should see the asset's work as already complete, with the small completion text still showing who completed it and when.
+- Completion credit/performance attribution stays with the employee/crew who actually completed the work.
+- Current responsibility/visibility can transfer; historical completion attribution must not be rewritten.
+
+Meaning of "avoid stale ownership":
+- Avoid leaving an unfinished asset-based work item claimed by a shift that no longer has that truck/NARC box.
+- Avoid showing the wrong crew as responsible for pending work after the shift's asset assignments changed.
+- Avoid creating a duplicate pending task for the new crew when the asset work was already completed by the previous crew.
+
+## Step 7 Completion Note — 2026-05-28
+
+Step 7 is complete and pushed (commit `28d609d`).
+
+**What was built:** Unclaiming and re-claiming logic in the shift edit path (`app/api/operations-logs/route.ts`, `if (existing)` branch).
+
+**Phase 1 — Release pending claims for removed assets:**
+- Loads all SW rows with `claimed_by_log_id = existing.id` and `status = 'pending'`.
+- Builds `newUnitIdSet` from the incoming bay submission (`truckTargets`).
+- For each claimed pending SW: if the unit was removed from bays (`asset_type='unit'` not in set) or NARC box changed (`asset_type='narc_box'` and `narc_box_id` differs), marks for unclaim.
+- Deletes linked pending Chore rows (`status='pending'`, `scheduled_work_id IN swsToUnclaim`).
+- Unclaims each SW: sets `claimed_by_log_id=null`, `claimed_at=null`, `due_at=chicago0800(sw.work_date)`.
+- Completed SW (`status='complete'`) is never touched — credit stays with original completer.
+
+**Main update (unchanged):** Replace truck checks, update bays and shift metadata.
+
+**Phase 3 — Claim newly available SW + create Day 2 standalone chores:**
+- Queries pending unclaimed (`claimed_by_log_id=null`) SW for all current assets across all chore dates.
+- Skips SW already linked to a chore on this log (`existingSwIds`).
+- Skips template/date/unit combos already in `existingChoreKeys` (post-Phase-1, post-main-update).
+- For each matched SW: creates a Chore row (`unit_id = primary_unit_id` for NARC, `unit_id = sw.unit_id` for truck) with `due_at = actual_start + dayOffset + due_offset_hours` (per-template, not hardcoded).
+- Tracks `handledChoreKeys` so Day 2 standalone loop skips units already covered by SW claim.
+- Day 2 standalone loop: same as before — builds persistent template rows, skips existingChoreKeys and handledChoreKeys, appends remainder to `choresToAdd`.
+- Single `chore.createMany` for all new rows.
+- Loops over matched SW to update `claimed_by_log_id`, `claimed_at`, `due_at`.
+
+**Other changes:**
+- `chicago0800` helper added at module level (same implementation as in the admin routes).
+- `templateById` moved before `if (existing)` so both edit and new-shift branches share it.
+- `ChoreCreateManyData` imported from `lib/chore-generation`.
+- `targetKey` import removed (no longer used).
+
+**Invariants preserved:**
+- Completed SW and its Chore are never modified.
+- No duplicate chores for the same template/date/unit on one log.
+- `due_offset_hours` and `lock_offset_hours` always read from the template — never hardcoded.
+- NARC Expires: chore `unit_id = primary_unit_id`, matched via shift's `narc_box_id` on SW.
+- If no SW exists for an asset/date (admin generation not run), standalone chore creation falls through unchanged.
+
+Current next step:
+- **Step 8 — Monthly/Quarterly and NARC generation + claiming**: confirm scope before starting.
