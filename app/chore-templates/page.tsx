@@ -163,7 +163,7 @@ export default function ChoreTemplatesPage() {
       <div className="lg:flex lg:h-[calc(100vh-3.5rem)] lg:overflow-hidden">
 
         {/* Left: list */}
-        <div className="lg:w-72 lg:flex-shrink-0 lg:border-r lg:border-zinc-800 lg:overflow-y-auto">
+        <div className="lg:w-[36rem] lg:flex-shrink-0 lg:border-r lg:border-zinc-800 lg:overflow-y-auto">
           <div className="px-4 py-6">
             <div className="flex items-center justify-between mb-6">
               <h1 className="text-xl font-bold text-zinc-100">Chore Templates</h1>

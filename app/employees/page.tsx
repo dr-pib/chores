@@ -72,7 +72,7 @@ export default function EmployeesPage() {
       <div className="lg:flex lg:h-[calc(100vh-3.5rem)] lg:overflow-hidden">
 
         {/* Left: list */}
-        <div className="lg:w-80 lg:flex-shrink-0 lg:border-r lg:border-zinc-800 lg:overflow-y-auto">
+        <div className="lg:w-[36rem] lg:flex-shrink-0 lg:border-r lg:border-zinc-800 lg:overflow-y-auto">
           <div className="px-4 py-6">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
