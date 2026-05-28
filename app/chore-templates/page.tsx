@@ -39,6 +39,8 @@ export default function ChoreTemplatesPage() {
   )
   const [generating, setGenerating] = useState(false)
   const [generateResult, setGenerateResult] = useState<string | null>(null)
+  const [markingMissed, setMarkingMissed] = useState(false)
+  const [markMissedResult, setMarkMissedResult] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -81,6 +83,26 @@ export default function ChoreTemplatesPage() {
       setFixNarcResult('Network error.')
     } finally {
       setFixingNarc(false)
+    }
+  }
+
+  async function handleMarkMissed() {
+    setMarkingMissed(true)
+    setMarkMissedResult(null)
+    try {
+      const res = await fetch('/api/admin/mark-missed-scheduled-work', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setMarkMissedResult(data.marked === 0
+          ? 'No forfeitable ScheduledWork past their lock window — nothing to transition.'
+          : `Marked ${data.marked} ScheduledWork row${data.marked === 1 ? '' : 's'} as missed.`)
+      } else {
+        setMarkMissedResult('Error: ' + (data.error ?? 'Unknown error'))
+      }
+    } catch {
+      setMarkMissedResult('Network error.')
+    } finally {
+      setMarkingMissed(false)
     }
   }
 
@@ -272,6 +294,19 @@ export default function ChoreTemplatesPage() {
                   <p className="text-zinc-400 text-xs mt-2 font-medium">{generateResult}</p>
                 )}
               </div>
+              <button
+                onClick={handleMarkMissed}
+                disabled={markingMissed}
+                className="w-full mt-3 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 text-sm rounded-lg font-medium transition-colors text-left"
+              >
+                {markingMissed ? 'Checking…' : 'Mark Missed Forfeitable Work'}
+              </button>
+              <p className="text-zinc-600 text-xs mt-1.5 leading-snug">
+                Transitions forfeitable ScheduledWork rows from pending to missed once their lock window has closed. Overdue (window open) is not the same as missed (window closed).
+              </p>
+              {markMissedResult && (
+                <p className="text-zinc-400 text-xs mt-2 font-medium">{markMissedResult}</p>
+              )}
             </div>
           </div>
         </div>
