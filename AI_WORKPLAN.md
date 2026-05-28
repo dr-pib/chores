@@ -2171,3 +2171,53 @@ Intentionally deferred. Will self-resolve once scheduled generation (Step 8) is 
 
 **Deferred — serviceDate timezone risk:**
 `new Date(startDt.getFullYear(), startDt.getMonth(), startDt.getDate())` uses local server timezone. Works on Railway (UTC). Flagged for future hardening with UTC date extraction.
+
+## Current Next Step — 2026-05-28
+
+All pre-Step-8 integrity fixes and late-completion tracking are complete. Ready for **Step 8**.
+
+Step 8 scope (confirm before coding): Monthly/Quarterly Expires and NARC Expires generation and auto-claiming at shift creation — ensure SW rows exist for the shift's assets/dates at creation time if they don't already, rather than relying on the admin having run generate-scheduled-work first.
+
+Current shipped state:
+- Step 1 through Step 7 are complete and pushed.
+- Step 7 integrity fixes are complete:
+  - retained truck-check ScheduledWork links are preserved through shift edit
+  - new-shift ScheduledWork matching filters to unclaimed rows
+  - race guard falls back to standalone chores on `Chore.scheduled_work_id` unique conflict
+  - `chicago0800` was centralized in `lib/dates.ts`
+- Late completion handling is complete:
+  - `ScheduledWork.is_late_completion` added
+  - completing a SW that was already `missed` sets `is_late_completion = true`
+  - uncomplete resets the late flag
+  - `/api/performance` and `/api/performance/all` return `late_sw_60d`
+
+Important nuance for tomorrow:
+- Current late counter means "completed after SW had already been marked `missed`."
+- It does **not** currently count work completed after `due_at` but before the missed transition runs.
+- User may need to decide whether late reporting should mean:
+  1. late after `due_at`, or
+  2. late only after missed/lock window.
+
+Current local state to check:
+- `PROJECT_CONTEXT.md` has a local uncommitted Codex note about late completion being allowed but tracked/reportable as late.
+- Do not overwrite that note; either commit it, keep it, or merge it with Claude's next docs update.
+- Start tomorrow with `git status --short` and `git log --oneline -10`.
+
+Next planned work:
+- Do **not** start Step 8 until the late-definition nuance is accepted or changed.
+- If accepted, proceed to **Step 8 — Monthly/Quarterly and NARC generation + claiming**.
+- Step 8 scope should be confirmed before coding:
+  - generation endpoint already creates persistent ScheduledWork for eligible dates/assets
+  - next behavior should make shift creation/edit claim the relevant Monthly/Quarterly unit ScheduledWork and NARC-box ScheduledWork without duplicates
+  - keep completed work credit intact
+  - keep pending removed assets unclaimed/visible to supervisors
+  - no Operations Chief dashboard yet
+  - no broad UI work yet unless needed to verify behavior
+
+Known deferred items:
+- Standalone non-SW chores for removed assets may remain during the transition; expected to matter less once scheduled generation is reliable.
+- Server-local `serviceDate` calculation should be hardened later to avoid timezone-dependent SW lookup bugs.
+- Supervisor unassigned/missed UI is later Step 9.
+- Supervisor direct-complete/not-applicable route is later Step 10.
+- Chore Admin UI for the new classification fields remains future work.
+- ESO schedule import/parser is a future separate project; best current source is the daily `.xls` export.
