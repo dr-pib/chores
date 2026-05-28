@@ -4,24 +4,9 @@ import { prisma } from '@/lib/db'
 import { isSupervisorRole } from '@/lib/roles'
 import { isPersistent } from '@/lib/lifecycle'
 import { shouldGenerateScheduledChore } from '@/lib/chore-rotation'
+import { chicago0800 } from '@/lib/dates'
 
 const ELIGIBLE_UNIT_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 20]
-
-// Returns the UTC Date representing 08:00 America/Chicago on the given work_date.
-// workDate is expected to be midnight UTC for the Chicago calendar date.
-function chicago0800(workDate: Date): Date {
-  for (const tzOffsetH of [5, 6]) {
-    const candidateMidnight = new Date(workDate.getTime() + tzOffsetH * 3_600_000)
-    const hhmm = candidateMidnight.toLocaleString('en-US', {
-      hour: '2-digit', minute: '2-digit', hour12: false,
-      timeZone: 'America/Chicago',
-    })
-    if (hhmm.startsWith('00:')) {
-      return new Date(candidateMidnight.getTime() + 8 * 3_600_000)
-    }
-  }
-  return new Date(workDate.getTime() + 13 * 3_600_000) // CDT fallback
-}
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
