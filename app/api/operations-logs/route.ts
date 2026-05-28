@@ -3,8 +3,8 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import type { SetShiftInput } from '@/lib/types'
 import { getStationChoreForPost, shouldGenerateScheduledChore } from '@/lib/chore-rotation'
-import { resolvePresentTruckTargets, resolvePrimaryUnitTarget, resolveCrewTarget, targetKey } from '@/lib/chore-targeting'
-import { buildChoreRows } from '@/lib/chore-generation'
+import { resolvePresentTruckTargets, resolvePrimaryUnitTarget, resolveCrewTarget } from '@/lib/chore-targeting'
+import { buildChoreRows, ChoreCreateManyData } from '@/lib/chore-generation'
 import { isPersistent } from '@/lib/lifecycle'
 
 // Creates ChoreTask rows for any chore on this log that has template tasks but no instance tasks yet
@@ -26,6 +26,18 @@ async function seedChoreTasks(operationsLogId: number) {
     }
   }
   if (toCreate.length > 0) await prisma.choreTask.createMany({ data: toCreate })
+}
+
+function chicago0800(workDate: Date): Date {
+  for (const tzOffsetH of [5, 6]) {
+    const candidateMidnight = new Date(workDate.getTime() + tzOffsetH * 3_600_000)
+    const hhmm = candidateMidnight.toLocaleString('en-US', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: 'America/Chicago',
+    })
+    if (hhmm.startsWith('00:')) return new Date(candidateMidnight.getTime() + 8 * 3_600_000)
+  }
+  return new Date(workDate.getTime() + 13 * 3_600_000)
 }
 
 export async function GET(req: NextRequest) {
@@ -89,6 +101,8 @@ export async function POST(req: NextRequest) {
     orderBy: [{ service_date: 'desc' }, { created_at: 'desc' }],
   })
 
+  const templateById = new Map(templates.map(t => [t.id, t]))
+
   // Validate NARC box uniqueness across active shifts
   if (narc_box_id) {
     const boxConflict = await prisma.operationsLog.findFirst({
@@ -110,8 +124,43 @@ export async function POST(req: NextRequest) {
   }
 
   if (existing) {
-    // Update — replace all truck check chores (day 1 + day 2) to match current bays
+    const now = new Date()
     const day2Date = is48h ? new Date(serviceDate.getTime() + DAY_2_OFFSET_MS) : null
+
+    // Phase 1: Release pending claims for assets no longer on this shift.
+    // Completed SW is never touched — credit stays with the original completer.
+    const currentClaims = await prisma.scheduledWork.findMany({
+      where: { claimed_by_log_id: existing.id, status: 'pending' },
+      select: { id: true, asset_type: true, unit_id: true, narc_box_id: true, work_date: true },
+    })
+
+    const newUnitIdSet = new Set(
+      truckTargets.map(t => t.unit_id).filter((id): id is number => id != null)
+    )
+    const newNarcBoxId = narc_box_id ?? null
+
+    const swsToUnclaim = currentClaims.filter(sw =>
+      (sw.asset_type === 'unit' && !newUnitIdSet.has(sw.unit_id!)) ||
+      (sw.asset_type === 'narc_box' && sw.narc_box_id !== newNarcBoxId)
+    )
+
+    if (swsToUnclaim.length > 0) {
+      await prisma.chore.deleteMany({
+        where: {
+          operations_log_id: existing.id,
+          scheduled_work_id: { in: swsToUnclaim.map(s => s.id) },
+          status: 'pending',
+        },
+      })
+      for (const sw of swsToUnclaim) {
+        await prisma.scheduledWork.update({
+          where: { id: sw.id },
+          data: { claimed_by_log_id: null, claimed_at: null, due_at: chicago0800(sw.work_date) },
+        })
+      }
+    }
+
+    // Main update: replace truck checks and update shift metadata.
     const day1TruckChecks = buildChoreRows([truckCheck], truckTargets, serviceDate, startDt)
     const day2TruckChecks = day2Date
       ? buildChoreRows([truckCheck], truckTargets, day2Date, startDt, DAY_2_OFFSET_MS)
@@ -124,7 +173,7 @@ export async function POST(req: NextRequest) {
         station_id: shiftProfile.station_id,
         partner_employee_id,
         primary_unit_id,
-        narc_box_id: narc_box_id ?? null,
+        narc_box_id: newNarcBoxId,
         actual_start: startDt,
         actual_end: endDt,
         bays: {
@@ -138,37 +187,112 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Also create any Day 2 scheduled persistent chores not yet on this log
+    // Phase 3: Claim pending unclaimed SW for current assets, and create any Day 2
+    // standalone chores that don't yet exist on this log.
+    const choreDatesEdit = [serviceDate]
+    if (day2Date) choreDatesEdit.push(day2Date)
+
+    const swAssetConditionsEdit: { asset_type: string; asset_key: string }[] = [
+      ...truckTargets.filter(t => t.unit_id != null).map(t => ({ asset_type: 'unit', asset_key: String(t.unit_id!) })),
+      ...(newNarcBoxId != null ? [{ asset_type: 'narc_box', asset_key: String(newNarcBoxId) }] : []),
+    ]
+
+    const unclaimedSw = swAssetConditionsEdit.length > 0
+      ? await prisma.scheduledWork.findMany({
+          where: {
+            status: 'pending',
+            claimed_by_log_id: null,
+            work_date: { in: choreDatesEdit },
+            OR: swAssetConditionsEdit,
+          },
+          select: {
+            id: true,
+            chore_template_id: true,
+            asset_type: true,
+            unit_id: true,
+            narc_box_id: true,
+            work_date: true,
+          },
+        })
+      : []
+
+    // Load chores currently on this log for dedup (post-Phase-1 + post-main-update state).
+    const existingChores = await prisma.chore.findMany({
+      where: { operations_log_id: existing.id },
+      select: { chore_template_id: true, chore_date: true, unit_id: true, scheduled_work_id: true },
+    })
+    const existingChoreKeys = new Set(
+      existingChores.map(c => `${c.chore_template_id}-${c.chore_date?.getTime() ?? 0}-${c.unit_id ?? 'shift'}`)
+    )
+    const existingSwIds = new Set(
+      existingChores.filter(c => c.scheduled_work_id != null).map(c => c.scheduled_work_id!)
+    )
+
+    const choresToAdd: ChoreCreateManyData[] = []
+    const handledChoreKeys = new Set<string>()
+    const matchedEditSwIds = new Set<number>()
+
+    for (const sw of unclaimedSw) {
+      if (existingSwIds.has(sw.id)) continue
+      const tmpl = templateById.get(sw.chore_template_id)
+      if (!tmpl) continue
+      const choreUnitId = sw.asset_type === 'narc_box' ? primary_unit_id : sw.unit_id
+      const choreKey = `${sw.chore_template_id}-${sw.work_date.getTime()}-${choreUnitId ?? 'shift'}`
+      if (existingChoreKeys.has(choreKey)) continue
+      const dayOffsetMs = sw.work_date.getTime() - serviceDate.getTime()
+      const bayLabel = sw.asset_type === 'unit'
+        ? (truckTargets.find(t => t.unit_id === sw.unit_id)?.bay_label ?? null)
+        : null
+      choresToAdd.push({
+        operations_log_id: existing.id,
+        chore_template_id: sw.chore_template_id,
+        unit_id: choreUnitId,
+        bay_label: bayLabel,
+        status: 'pending',
+        due_at: new Date(startDt.getTime() + dayOffsetMs + (tmpl.due_offset_hours ?? 1) * 3_600_000),
+        chore_date: sw.work_date,
+        scheduled_work_id: sw.id,
+      })
+      handledChoreKeys.add(choreKey)
+      matchedEditSwIds.add(sw.id)
+    }
+
+    // Day 2 standalone chores for persistent templates not yet covered by a SW claim.
     if (day2Date) {
       const scheduledDay2 = templates.filter((t) =>
         isPersistent(t)
         && t.name !== 'Additional Chore'
         && shouldGenerateScheduledChore(t.name, day2Date)
       )
-      if (scheduledDay2.length > 0) {
-        const day2NarcTemplate = scheduledDay2.find(t => t.name === 'NARC Expires')
-        const day2NonNarcTemplates = scheduledDay2.filter(t => t.name !== 'NARC Expires')
+      const day2NarcTemplate = scheduledDay2.find(t => t.name === 'NARC Expires')
+      const day2NonNarcTemplates = scheduledDay2.filter(t => t.name !== 'NARC Expires')
 
-        const existingInLog = await prisma.chore.findMany({
-          where: {
-            operations_log_id: existing.id,
-            chore_template_id: { in: scheduledDay2.map((t) => t.id) },
-          },
-          select: { chore_template_id: true, chore_date: true, unit_id: true },
-        })
-        const existingKeys = new Set(
-          existingInLog.map((c) => `${c.chore_template_id}-${c.chore_date?.getTime() ?? 0}-${c.unit_id ?? 'shift'}`)
-        )
-
-        const toCreate = [
-          ...buildChoreRows(day2NonNarcTemplates, truckTargets, day2Date, startDt, DAY_2_OFFSET_MS),
-          ...buildChoreRows(day2NarcTemplate ? [day2NarcTemplate] : [], narcTargets, day2Date, startDt, DAY_2_OFFSET_MS),
-        ]
-          .filter(row => !existingKeys.has(targetKey(row.chore_template_id, row.chore_date, row)))
-          .map(row => ({ ...row, operations_log_id: existing.id }))
-
-        if (toCreate.length > 0) await prisma.chore.createMany({ data: toCreate })
+      for (const row of [
+        ...buildChoreRows(day2NonNarcTemplates, truckTargets, day2Date, startDt, DAY_2_OFFSET_MS),
+        ...buildChoreRows(day2NarcTemplate ? [day2NarcTemplate] : [], narcTargets, day2Date, startDt, DAY_2_OFFSET_MS),
+      ]) {
+        const choreKey = `${row.chore_template_id}-${row.chore_date.getTime()}-${row.unit_id ?? 'shift'}`
+        if (existingChoreKeys.has(choreKey) || handledChoreKeys.has(choreKey)) continue
+        choresToAdd.push({ ...row, operations_log_id: existing.id })
       }
+    }
+
+    if (choresToAdd.length > 0) await prisma.chore.createMany({ data: choresToAdd })
+
+    // Claim the matched unclaimed SW rows.
+    for (const sw of unclaimedSw) {
+      if (!matchedEditSwIds.has(sw.id)) continue
+      const tmpl = templateById.get(sw.chore_template_id)!
+      const dueOffsetMs = (tmpl.due_offset_hours ?? 1) * 3_600_000
+      const dayOffsetMs = sw.work_date.getTime() - serviceDate.getTime()
+      await prisma.scheduledWork.update({
+        where: { id: sw.id },
+        data: {
+          claimed_by_log_id: existing.id,
+          claimed_at: now,
+          due_at: new Date(startDt.getTime() + dayOffsetMs + dueOffsetMs),
+        },
+      })
     }
 
     await seedChoreTasks(existing.id)
@@ -270,7 +394,6 @@ export async function POST(req: NextRequest) {
     ])
   )
 
-  const templateById = new Map(templates.map(t => [t.id, t]))
   const matchedSwIds = new Set<number>()
 
   // Annotate chore rows with scheduled_work_id where a pending SW exists.
