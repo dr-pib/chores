@@ -1938,5 +1938,3 @@ Current next step:
 - Proceed with **Step 4 — Admin generation endpoint** (`/api/admin/generate-scheduled-work`).
 - Goal: generate `ScheduledWork` rows for a given date range for all eligible persistent templates, deduplicating via the `chore_template_id + work_date + asset_type + asset_key` unique constraint.
 - Do not change claiming/shift-linking behavior yet (Step 6).
-
-Current next step: **Step 3 — Completion route sync** — when a `Chore` with `scheduled_work_id` set is completed or uncompleted, sync `ScheduledWork.status` in the same transaction.
