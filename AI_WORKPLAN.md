@@ -1938,3 +1938,30 @@ Current next step:
 - Proceed with **Step 4 — Admin generation endpoint** (`/api/admin/generate-scheduled-work`).
 - Goal: generate `ScheduledWork` rows for a given date range for all eligible persistent templates, deduplicating via the `chore_template_id + work_date + asset_type + asset_key` unique constraint.
 - Do not change claiming/shift-linking behavior yet (Step 6).
+
+## Step 4 Completion Note — 2026-05-27
+
+Step 4 is complete and pushed (commit `769551c`).
+
+Completed:
+- **`app/api/admin/generate-scheduled-work/route.ts`** — new POST endpoint.
+  - Auth: logged-in + supervisor required.
+  - Body: `{ start_date?: string, end_date?: string }` (ISO date strings `YYYY-MM-DD`). Defaults to today in Chicago time if omitted.
+  - Loads templates with `generates_independently: true`, then filters to `isPersistent()` — this gives Monthly Expires, NARC Expires, Quarterly Expires (excludes Truck Check which is forfeitable).
+  - Loads eligible units: `unit_number IN [1..11, 14, 20]`. Loads all NARC boxes.
+  - For each date in range, calls `shouldGenerateScheduledChore()` per template, then generates rows by `asset_scope`:
+    - `'truck'` → one row per eligible unit (`asset_type: 'unit'`, `asset_key: String(unit.id)`, `unit_id` set)
+    - `'narc_box'` → one row per NARC box (`asset_type: 'narc_box'`, `asset_key: String(narcBox.id)`, `narc_box_id` set)
+  - `due_at` = 08:00 America/Chicago, computed via DST-aware offset check.
+  - `createMany({ skipDuplicates: true })` — safe to re-run; existing rows silently skipped.
+  - Returns `{ created, skipped, dates }`.
+- **`app/chore-templates/page.tsx`** — added date picker + "Generate Work" button to the existing Admin Utilities panel. Consistent with the Backfill / Fix NARC Expires button pattern.
+
+Key design decisions:
+- `asset_key = String(unit.id)` / `String(narcBox.id)` — uses DB primary key (stable, unique) for the dedup key.
+- No shift claiming/linking in this step; `claimed_by_log_id` remains null on all generated rows.
+- No `Chore` rows created here; this endpoint only creates `ScheduledWork` rows.
+- `due_at` defaults to 08:00 Chicago until a shift claims the work and updates it to shift start + offset.
+
+Current next step:
+- Proceed with **Step 5 — Window-bound miss transition**: when the forfeiture window closes for a linked `ScheduledWork` row, mark it `missed` rather than leaving it `pending`.
