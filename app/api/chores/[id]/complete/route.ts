@@ -93,10 +93,20 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
     }
   }
 
-  const updated = await prisma.chore.update({
-    where: { id: Number(id) },
-    data: { status: 'completed', completed_at: new Date(), completed_by_id: session.userId },
-    include: { chore_template: true, completed_by: true },
+  const now = new Date()
+  const updated = await prisma.$transaction(async (tx) => {
+    const updatedChore = await tx.chore.update({
+      where: { id: Number(id) },
+      data: { status: 'completed', completed_at: now, completed_by_id: session.userId },
+      include: { chore_template: true, completed_by: true },
+    })
+    if (chore.scheduled_work_id) {
+      await tx.scheduledWork.update({
+        where: { id: chore.scheduled_work_id },
+        data: { status: 'complete', completed_at: now, completed_by_id: session.userId },
+      })
+    }
+    return updatedChore
   })
 
   if (pastShift) {
