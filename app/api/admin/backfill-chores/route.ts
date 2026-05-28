@@ -5,6 +5,7 @@ import { shouldGenerateScheduledChore } from '@/lib/chore-rotation'
 import { isSupervisorRole } from '@/lib/roles'
 import { resolvePresentTruckTargets, resolvePrimaryUnitTarget, targetKey } from '@/lib/chore-targeting'
 import { buildChoreRows, type ChoreCreateManyData } from '@/lib/chore-generation'
+import { isPersistent } from '@/lib/lifecycle'
 
 export async function POST() {
   const session = await getSession()
@@ -56,7 +57,7 @@ export async function POST() {
       // Scheduled persistent chores only (NARC, Monthly, Quarterly Expires).
       // Truck Check and station rotation are not backfilled here.
       const applicable = templates.filter(t =>
-        t.lifecycle_type === 'persistent_until_complete'
+        isPersistent(t)
         && t.name !== 'Additional Chore'
         && shouldGenerateScheduledChore(t.name, choreDate)
       )

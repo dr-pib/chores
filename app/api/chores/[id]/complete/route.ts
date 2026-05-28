@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { isPastShift } from '@/lib/dates'
 import { isSupervisorRole } from '@/lib/roles'
+import { isForfeitable } from '@/lib/lifecycle'
 
 export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id]/complete'>) {
   const session = await getSession()
@@ -34,7 +35,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
   }
 
   // Daily chores: enforce both an early-availability and a late-lockout window
-  if (chore.chore_template.lifecycle_type === 'daily_reset' && !isSupervisor) {
+  if (isForfeitable(chore.chore_template) && !isSupervisor) {
     const choreDay = new Date(chore.chore_date ?? chore.operations_log.service_date)
     const now = new Date()
 

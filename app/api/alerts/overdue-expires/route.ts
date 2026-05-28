@@ -28,7 +28,7 @@ export async function GET() {
     where: {
       status: 'pending',
       chore_template: {
-        lifecycle_type: 'persistent_until_complete',
+        lifecycle: 'persistent',
         name: { in: [...EXPIRE_TEMPLATE_NAMES] },
       },
       OR: [

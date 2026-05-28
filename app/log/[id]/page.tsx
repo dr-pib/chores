@@ -13,6 +13,7 @@ import LiveClock from '@/components/LiveClock'
 import { formatEmployeeTitle } from '@/lib/employees'
 import SegmentedNav from '@/components/SegmentedNav'
 import { isSupervisorRole } from '@/lib/roles'
+import { isPersistent, isForfeitable } from '@/lib/lifecycle'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
@@ -71,7 +72,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
     if (new Date() >= day2Date) {
       const hasDay2 = log.chores.some(
         c => c.chore_date && c.chore_date.getTime() === day2Date.getTime()
-          && c.chore_template.lifecycle_type === 'daily_reset'
+          && isForfeitable(c.chore_template)
       )
       if (!hasDay2) {
         const templates = await prisma.choreTemplate.findMany()
@@ -117,7 +118,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   const previousPersistentChores = await prisma.chore.findMany({
     where: {
       status: 'pending',
-      chore_template: { lifecycle_type: 'persistent_until_complete' },
+      chore_template: { lifecycle: 'persistent' },
       operations_log: { service_date: { lt: log.service_date } },
       OR: [
         ...(currentUnitIds.length > 0
@@ -146,8 +147,8 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
   })
 
   const sorted = sortChores(log.chores)
-  const allDailyChores = sorted.filter(c => c.chore_template.lifecycle_type === 'daily_reset')
-  const persistentChores = sorted.filter(c => c.chore_template.lifecycle_type === 'persistent_until_complete')
+  const allDailyChores = sorted.filter(c => isForfeitable(c.chore_template))
+  const persistentChores = sorted.filter(c => isPersistent(c.chore_template))
 
   // Split daily chores into Day 1 / Day 2 by chore_date
   const day2Date = new Date(log.service_date.getTime() + 24 * 3600 * 1000)

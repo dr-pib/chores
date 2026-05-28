@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
+import { isPersistent, isForfeitable } from '@/lib/lifecycle'
 
 type BadgeColor = 'blue' | 'amber' | 'red' | null
 type ActiveBadgeColor = Exclude<BadgeColor, null>
@@ -27,7 +28,7 @@ export async function GET() {
   const everyonePersistentCount = await prisma.chore.count({
     where: {
       status: 'pending',
-      chore_template: { lifecycle_type: 'persistent_until_complete' },
+      chore_template: { lifecycle: 'persistent' },
       operations_log: { actual_end: { lt: now } },
     },
   })
@@ -57,13 +58,13 @@ export async function GET() {
 
     const currentPersistentCount = myLog.chores.filter(chore =>
       chore.status === 'pending'
-      && chore.chore_template.lifecycle_type === 'persistent_until_complete'
+      && isPersistent(chore.chore_template)
     ).length
 
     // Daily chores that are actionable right now: date has passed and not yet locked
     const pendingDailyChores = myLog.chores.filter(chore => {
       if (chore.status !== 'pending') return false
-      if (chore.chore_template.lifecycle_type !== 'daily_reset') return false
+      if (!isForfeitable(chore.chore_template)) return false
       if (chore.chore_date && chore.chore_date.getTime() > serviceDate.getTime()) return false
       if (chore.chore_date) {
         const lockHours = chore.chore_template.lock_offset_hours ?? 31
@@ -102,7 +103,7 @@ export async function GET() {
     myOverdueCount = await prisma.chore.count({
       where: {
         status: 'pending',
-        chore_template: { lifecycle_type: 'persistent_until_complete' },
+        chore_template: { lifecycle: 'persistent' },
         operations_log: { actual_end: { lt: now } },
         OR: currentUnitIds.length > 0
           ? [

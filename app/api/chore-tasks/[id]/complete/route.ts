@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
+import { isForfeitable } from '@/lib/lifecycle'
 
 function chicagoMidnight(d: Date): Date {
   for (const h of [5, 6]) {
@@ -34,7 +35,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (!choreTask) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Daily chores: enforce the same availability window as the parent chore route
-  if (choreTask.chore.chore_template.lifecycle_type === 'daily_reset') {
+  if (isForfeitable(choreTask.chore.chore_template)) {
     const choreDay = new Date(choreTask.chore.chore_date ?? choreTask.chore.operations_log.service_date)
     const now = new Date()
     if (now < chicagoMidnight(choreDay)) {

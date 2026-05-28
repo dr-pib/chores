@@ -5,6 +5,7 @@ import type { SetShiftInput } from '@/lib/types'
 import { getStationChoreForPost, shouldGenerateScheduledChore } from '@/lib/chore-rotation'
 import { resolvePresentTruckTargets, resolvePrimaryUnitTarget, resolveCrewTarget, targetKey } from '@/lib/chore-targeting'
 import { buildChoreRows } from '@/lib/chore-generation'
+import { isPersistent } from '@/lib/lifecycle'
 
 // Creates ChoreTask rows for any chore on this log that has template tasks but no instance tasks yet
 async function seedChoreTasks(operationsLogId: number) {
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
     // Also create any Day 2 scheduled persistent chores not yet on this log
     if (day2Date) {
       const scheduledDay2 = templates.filter((t) =>
-        t.lifecycle_type === 'persistent_until_complete'
+        isPersistent(t)
         && t.name !== 'Additional Chore'
         && shouldGenerateScheduledChore(t.name, day2Date)
       )
@@ -186,7 +187,7 @@ export async function POST(req: NextRequest) {
 
   // All scheduled persistent chores are per-shift — each crew checks their own truck/narcs
   const scheduledPersistentTemplates = templates.filter((t) =>
-    t.lifecycle_type === 'persistent_until_complete'
+    isPersistent(t)
     && t.name !== 'Additional Chore'
     && shouldGenerateScheduledChore(t.name, serviceDate)
   )
@@ -208,7 +209,7 @@ export async function POST(req: NextRequest) {
     const day2StationTemplate = day2StationChoreName ? templates.find((t) => t.name === day2StationChoreName) ?? null : null
 
     const scheduledDay2Templates = templates.filter((t) =>
-      t.lifecycle_type === 'persistent_until_complete'
+      isPersistent(t)
       && t.name !== 'Additional Chore'
       && shouldGenerateScheduledChore(t.name, day2Date)
     )

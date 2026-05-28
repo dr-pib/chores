@@ -11,14 +11,14 @@ import { isSupervisorRole } from '@/lib/roles'
 interface ChoreTemplate {
   id: number
   name: string
-  lifecycle_type: string
+  lifecycle: string
   due_offset_hours: number | null
   tasks: { id: number; name: string; sort_order: number }[]
 }
 
 const LIFECYCLE_LABELS: Record<string, string> = {
-  daily_reset: 'Daily Reset',
-  persistent_until_complete: 'Persistent',
+  forfeitable: 'Daily Reset',
+  persistent: 'Persistent',
 }
 
 const HARRISON_CREWS = ['Supervisor', '24-7', '24-8', 'Swing']
@@ -138,11 +138,11 @@ export default function ChoreTemplatesPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-zinc-100 text-sm truncate">{t.name}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
-                      t.lifecycle_type === 'daily_reset'
+                      t.lifecycle === 'forfeitable'
                         ? 'bg-blue-500/20 text-blue-400'
                         : 'bg-purple-500/20 text-purple-400'
                     }`}>
-                      {LIFECYCLE_LABELS[t.lifecycle_type] ?? t.lifecycle_type}
+                      {LIFECYCLE_LABELS[t.lifecycle] ?? t.lifecycle}
                     </span>
                   </div>
                   <div className="text-zinc-500 text-xs mt-0.5 truncate">

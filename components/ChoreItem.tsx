@@ -6,7 +6,7 @@ import { formatUnit } from '@/lib/units'
 import { isSupervisorRole } from '@/lib/roles'
 import { formatEmployeeTitle } from '@/lib/employees'
 
-interface ChoreTemplate { name: string; lifecycle_type: string; due_offset_hours: number | null }
+interface ChoreTemplate { name: string; lifecycle: string; due_offset_hours: number | null }
 interface Unit { unit_number: number; unit_type: string; unit_name?: string | null }
 interface Employee { name: string; licensure_level?: string | null }
 interface ChoreTemplateTask { id: number; name: string; sort_order: number }
@@ -99,7 +99,7 @@ export default function ChoreItem({
   }
 
   const isNotYetAvailable = !isDone
-    && chore.chore_template.lifecycle_type === 'daily_reset'
+    && chore.chore_template.lifecycle === 'forfeitable'
     && chore.chore_date != null
     && new Date() < chicagoMidnight(new Date(chore.chore_date))
 

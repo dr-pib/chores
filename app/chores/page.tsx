@@ -27,7 +27,7 @@ function formatShiftMil(d: Date | string) {
   return `${get('weekday')}, ${get('month')}/${get('day')} ${hour}${get('minute')}`
 }
 
-interface ChoreTemplate { name: string; lifecycle_type: string; due_offset_hours: number | null }
+interface ChoreTemplate { name: string; lifecycle: string; due_offset_hours: number | null }
 interface Unit { unit_number: number; unit_type: string; unit_name?: string | null }
 interface Employee { name: string; licensure_level?: string | null }
 interface Chore {
@@ -122,7 +122,7 @@ export default async function ChoresPage() {
   const openPersistent = await prisma.chore.findMany({
     where: {
       status: 'pending',
-      chore_template: { lifecycle_type: 'persistent_until_complete' },
+      chore_template: { lifecycle: 'persistent' },
       operations_log: { actual_end: { lt: now } },
     },
     include: {
