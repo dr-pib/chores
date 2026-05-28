@@ -1924,4 +1924,19 @@ Files updated:
 
 Rule for all future code: new ScheduledWork generation (Step 4+) must read `lifecycle`, `asset_scope`, `is_critical`, and `generates_independently` — never `lifecycle_type`.
 
+## Step 3 Completion Note — 2026-05-27
+
+Step 3 is complete and pushed (commit `d69e13d`).
+
+Completed:
+- `app/api/chores/[id]/complete/route.ts` — wrapped `prisma.chore.update` in `prisma.$transaction`. When the completed chore has a `scheduled_work_id`, the transaction also updates `ScheduledWork` to `{ status: 'complete', completed_at: now, completed_by_id: session.userId }`.
+- `app/api/chores/[id]/uncomplete/route.ts` — same pattern: wrapped in `prisma.$transaction`. When the uncompleted chore has a `scheduled_work_id`, the transaction also resets `ScheduledWork` to `{ status: 'pending', completed_at: null, completed_by_id: null }`.
+- The `changeLog.create` for past-shift edits remains outside the transaction in both routes (intentional — audit log is not critical to atomicity with the chore state).
+- No behavior changes for chores without a `scheduled_work_id` (all current chores). Build clean.
+
+Current next step:
+- Proceed with **Step 4 — Admin generation endpoint** (`/api/admin/generate-scheduled-work`).
+- Goal: generate `ScheduledWork` rows for a given date range for all eligible persistent templates, deduplicating via the `chore_template_id + work_date + asset_type + asset_key` unique constraint.
+- Do not change claiming/shift-linking behavior yet (Step 6).
+
 Current next step: **Step 3 — Completion route sync** — when a `Chore` with `scheduled_work_id` set is completed or uncompleted, sync `ScheduledWork.status` in the same transaction.
