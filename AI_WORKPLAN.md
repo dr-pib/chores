@@ -1988,3 +1988,26 @@ Key design decisions:
 
 Current next step:
 - Proceed with **Step 6 — Claiming in shift creation**: when a shift is created and a truck or NARC box is assigned, link pending ScheduledWork rows to the shift (`claimed_by_log_id`, `claimed_at`) and update `due_at` to shift start + template offset.
+
+## Terminology Clarification — Due vs Overdue vs Missed
+
+User clarified the operational rule:
+- Chores commonly default to due at shift start + 1 hour.
+- Employees can commonly still complete them until shift start + 31 hours.
+- Both `+1` and `+31` are per-template admin-configurable offsets, not global constants.
+- Some chores may use different offsets.
+- Between due time and lock time, the chore is overdue but still actionable.
+- After the lock time, incomplete forfeitable work is missed.
+
+Use this terminology consistently:
+- `due_at`: when the work first becomes late/overdue.
+- employee completion window closes / lock time: shift start + `lock_offset_hours` for shift-linked work.
+- `missed`: forfeitable work that remained incomplete after the employee completion window closed.
+
+Do not treat due time as the missed time.
+
+Important implementation correction for Step 6+:
+- `due_offset_hours` and `lock_offset_hours` already exist on `ChoreTemplate` and are editable in the Chore Template console.
+- The admin UI should continue allowing those values to differ by chore.
+- For shift-linked work, `lock_offset_hours` should be interpreted relative to the shift's actual start time, matching `due_offset_hours`.
+- The current Step 5 endpoint used a work-date anchor to match older completion-route behavior. Before relying on miss transitions for claimed/shift-linked work, align the lock-window calculation with the shift-start anchor where a `claimed_by_log` / linked `Chore.operations_log` exists.
