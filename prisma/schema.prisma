@@ -251,9 +251,10 @@ model ScheduledWork {
   claimed_at        DateTime?
   status            String    @default("pending")
   resolution_note   String?
-  completed_at      DateTime?
-  completed_by_id   Int?
-  created_at        DateTime  @default(now())
+  completed_at       DateTime?
+  completed_by_id    Int?
+  is_late_completion Boolean   @default(false)
+  created_at         DateTime  @default(now())
 
   chore_template ChoreTemplate  @relation(fields: [chore_template_id], references: [id])
   unit           Unit?          @relation(fields: [unit_id], references: [id])

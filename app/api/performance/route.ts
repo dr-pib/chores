@@ -38,19 +38,28 @@ export async function GET(req: NextRequest) {
   const now = new Date()
   const cutoff = new Date(now.getTime() - 60 * 24 * 3600 * 1000)
 
-  const logs = await prisma.operationsLog.findMany({
-    where: {
-      service_date: { gte: cutoff },
-      OR: [
-        { primary_employee_id: employeeId },
-        { partner_employee_id: employeeId },
-      ],
-    },
-    select: LOG_SELECT,
-  })
+  const [logs, late_sw_60d] = await Promise.all([
+    prisma.operationsLog.findMany({
+      where: {
+        service_date: { gte: cutoff },
+        OR: [
+          { primary_employee_id: employeeId },
+          { partner_employee_id: employeeId },
+        ],
+      },
+      select: LOG_SELECT,
+    }),
+    prisma.scheduledWork.count({
+      where: {
+        completed_by_id: employeeId,
+        is_late_completion: true,
+        completed_at: { gte: cutoff },
+      },
+    }),
+  ])
 
   const isNRP = employee.licensure_level === 'NRP'
   const windows = computePerformanceStats(isNRP, logs, now)
 
-  return NextResponse.json({ employee_id: employeeId, licensure_level: employee.licensure_level, windows })
+  return NextResponse.json({ employee_id: employeeId, licensure_level: employee.licensure_level, windows, late_sw_60d })
 }

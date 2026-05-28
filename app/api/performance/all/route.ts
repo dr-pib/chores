@@ -21,29 +21,45 @@ export async function GET() {
 
   const employeeIds = employees.map(e => e.id)
 
-  const logs = await prisma.operationsLog.findMany({
-    where: {
-      service_date: { gte: cutoff },
-      OR: [
-        { primary_employee_id: { in: employeeIds } },
-        { partner_employee_id: { in: employeeIds } },
-      ],
-    },
-    select: {
-      id: true,
-      service_date: true,
-      actual_start: true,
-      actual_end: true,
-      primary_employee_id: true,
-      partner_employee_id: true,
-      chores: {
-        select: {
-          status: true,
-          chore_template: { select: { name: true } },
+  const [logs, lateSw] = await Promise.all([
+    prisma.operationsLog.findMany({
+      where: {
+        service_date: { gte: cutoff },
+        OR: [
+          { primary_employee_id: { in: employeeIds } },
+          { partner_employee_id: { in: employeeIds } },
+        ],
+      },
+      select: {
+        id: true,
+        service_date: true,
+        actual_start: true,
+        actual_end: true,
+        primary_employee_id: true,
+        partner_employee_id: true,
+        chores: {
+          select: {
+            status: true,
+            chore_template: { select: { name: true } },
+          },
         },
       },
-    },
-  })
+    }),
+    prisma.scheduledWork.findMany({
+      where: {
+        completed_by_id: { in: employeeIds },
+        is_late_completion: true,
+        completed_at: { gte: cutoff },
+      },
+      select: { completed_by_id: true },
+    }),
+  ])
+
+  const lateSwByEmployee = new Map<number, number>()
+  for (const sw of lateSw) {
+    if (sw.completed_by_id == null) continue
+    lateSwByEmployee.set(sw.completed_by_id, (lateSwByEmployee.get(sw.completed_by_id) ?? 0) + 1)
+  }
 
   const results = employees.map(emp => {
     const empLogs = logs.filter(
@@ -55,7 +71,8 @@ export async function GET() {
       l => l.actual_start.getTime() <= now.getTime() && l.actual_end.getTime() > now.getTime()
     )
     const nowData = activeLog ? choreStats(activeLog.chores, isNRP) : null
-    return { employee_id: emp.id, name: emp.name, licensure_level: emp.licensure_level, role: emp.role, status: emp.status, windows, now: nowData }
+    const late_sw_60d = lateSwByEmployee.get(emp.id) ?? 0
+    return { employee_id: emp.id, name: emp.name, licensure_level: emp.licensure_level, role: emp.role, status: emp.status, windows, now: nowData, late_sw_60d }
   })
 
   return NextResponse.json(results)

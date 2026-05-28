@@ -101,9 +101,19 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
       include: { chore_template: true, completed_by: true },
     })
     if (chore.scheduled_work_id) {
+      // Read SW status inside the transaction so lateness detection is consistent.
+      const sw = await tx.scheduledWork.findUnique({
+        where: { id: chore.scheduled_work_id },
+        select: { status: true },
+      })
       await tx.scheduledWork.update({
         where: { id: chore.scheduled_work_id },
-        data: { status: 'complete', completed_at: now, completed_by_id: session.userId },
+        data: {
+          status: 'complete',
+          completed_at: now,
+          completed_by_id: session.userId,
+          is_late_completion: sw?.status === 'missed',
+        },
       })
     }
     return updatedChore

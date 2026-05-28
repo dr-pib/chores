@@ -36,7 +36,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
     if (chore.scheduled_work_id) {
       await tx.scheduledWork.update({
         where: { id: chore.scheduled_work_id },
-        data: { status: 'pending', completed_at: null, completed_by_id: null },
+        data: { status: 'pending', completed_at: null, completed_by_id: null, is_late_completion: false },
       })
     }
     return updatedChore
