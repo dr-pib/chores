@@ -2158,8 +2158,13 @@ Extracted `createLogWithChores(chores)` local fn (avoids include duplication). `
 **Fix 4 — Centralize `chicago0800`:**
 Moved to `lib/dates.ts` as an export. Removed local copies from generate-scheduled-work and operations-logs routes.
 
-**Deferred — Item 5: Mark-missed vs linked Chore:**
-Rule proposed to user. Option A (allow late completion, no route change) vs Option B (block completion if SW is 'missed'). User to confirm before coding.
+**Item 5 — Late completion tracking (commit `29e0997`):**
+User chose Option A (allow late completion) with the addition that lateness must be flagged and visible in performance.
+
+- Schema: `is_late_completion Boolean @default(false)` added to `ScheduledWork`.
+- Complete route: reads current SW `status` inside the existing `$transaction` before updating. Sets `is_late_completion: true` when SW was `'missed'` at completion time. Who/when already captured by `completed_by_id` + `completed_at`.
+- Uncomplete route: resets `is_late_completion: false` alongside status/timestamps.
+- Performance endpoints (`/api/performance`, `/api/performance/all`): both now return `late_sw_60d` — count of SW with `is_late_completion: true` completed by the employee in the last 60 days. Existing Chore-based `windows` stats unchanged; late completions are a separate counter.
 
 **Deferred — Item 6: Standalone non-SW chores for removed assets:**
 Intentionally deferred. Will self-resolve once scheduled generation (Step 8) is running reliably.
