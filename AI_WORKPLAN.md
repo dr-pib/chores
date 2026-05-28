@@ -1981,10 +1981,15 @@ Completed:
 - **`app/chore-templates/page.tsx`** — "Mark Missed Forfeitable Work" button added to Admin Utilities panel.
 
 Key design decisions:
-- Lock anchor is `work_date` (midnight UTC, from `@db.Date`), not `due_at`. Same logic as the `lockAfter` check in the Chore complete route. This means a Truck Check for May 27 locks at `2026-05-27T00:00:00Z + 31h = 2026-05-28T07:00:00Z` (02:00 CDT).
 - Overdue ≠ missed: rows where `due_at < now` but `now < lockAfter` remain `pending` (still actionable, just late). Only rows past `lockAfter` become `missed`.
 - No `missed_at` timestamp field exists in the schema — the transition is captured by `status: 'missed'` alone. A future step can add that field if audit/reporting needs it.
 - This endpoint is designed to be safe to call from a cron job once cron infrastructure is added (Step 9/10).
+
+**Post-Step-5 fix (commit `a2b671b`):** Lock anchor corrected to depend on claim status:
+- Unclaimed (`claimed_by_log_id IS NULL`): anchor = `work_date` (midnight UTC)
+- Claimed (`claimed_by_log` set): anchor = `claimed_by_log.actual_start`
+
+Both offsets (`due_offset_hours`, `lock_offset_hours`) are per-template admin-configurable values. The `?? 31` and `?? 1` fallbacks are template-level defaults, not global rules. For shift-linked work, both offsets are always relative to `actual_start`.
 
 Current next step:
 - Proceed with **Step 6 — Claiming in shift creation**: when a shift is created and a truck or NARC box is assigned, link pending ScheduledWork rows to the shift (`claimed_by_log_id`, `claimed_at`) and update `due_at` to shift start + template offset.
@@ -2006,8 +2011,11 @@ Use this terminology consistently:
 
 Do not treat due time as the missed time.
 
-Important implementation correction for Step 6+:
-- `due_offset_hours` and `lock_offset_hours` already exist on `ChoreTemplate` and are editable in the Chore Template console.
-- The admin UI should continue allowing those values to differ by chore.
-- For shift-linked work, `lock_offset_hours` should be interpreted relative to the shift's actual start time, matching `due_offset_hours`.
-- The current Step 5 endpoint used a work-date anchor to match older completion-route behavior. Before relying on miss transitions for claimed/shift-linked work, align the lock-window calculation with the shift-start anchor where a `claimed_by_log` / linked `Chore.operations_log` exists.
+**Implementation rule for Step 6+ (user-clarified, 2026-05-27):**
+- `due_offset_hours` and `lock_offset_hours` are per-template admin-configurable values. Never treat `+1` or `+31` as global constants — always read from the template.
+- For shift-linked work (any ScheduledWork that is claimed, or any Chore on an OperationsLog), both offsets are relative to `shift.actual_start`:
+  - `due_at = actual_start + due_offset_hours`
+  - lock window closes at `actual_start + lock_offset_hours`
+- For unclaimed independently-generated ScheduledWork: `due_at` defaults to 08:00 Chicago (`work_date + offset`). Lock anchor also uses `work_date` until claimed.
+- Once a ScheduledWork is claimed by a shift (Step 6), update `due_at` to `actual_start + due_offset_hours` at claim time. The mark-missed endpoint then correctly uses `actual_start` as the lock anchor for those rows.
+- The Chore complete route already reads `lock_offset_hours` from the template — that pattern is correct. Do not hardcode the lock value in any new code.
