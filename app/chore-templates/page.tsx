@@ -34,6 +34,11 @@ export default function ChoreTemplatesPage() {
   const [backfillResult, setBackfillResult] = useState<string | null>(null)
   const [fixingNarc, setFixingNarc] = useState(false)
   const [fixNarcResult, setFixNarcResult] = useState<string | null>(null)
+  const [generateDate, setGenerateDate] = useState(() =>
+    new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+  )
+  const [generating, setGenerating] = useState(false)
+  const [generateResult, setGenerateResult] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -76,6 +81,30 @@ export default function ChoreTemplatesPage() {
       setFixNarcResult('Network error.')
     } finally {
       setFixingNarc(false)
+    }
+  }
+
+  async function handleGenerate() {
+    setGenerating(true)
+    setGenerateResult(null)
+    try {
+      const res = await fetch('/api/admin/generate-scheduled-work', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_date: generateDate, end_date: generateDate }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setGenerateResult(data.created === 0
+          ? 'No new ScheduledWork rows — already up to date for this date.'
+          : `Created ${data.created} ScheduledWork row${data.created === 1 ? '' : 's'} (${data.skipped} already existed).`)
+      } else {
+        setGenerateResult('Error: ' + (data.error ?? 'Unknown error'))
+      }
+    } catch {
+      setGenerateResult('Network error.')
+    } finally {
+      setGenerating(false)
     }
   }
 
@@ -220,6 +249,29 @@ export default function ChoreTemplatesPage() {
               {fixNarcResult && (
                 <p className="text-zinc-400 text-xs mt-2 font-medium">{fixNarcResult}</p>
               )}
+              <div className="mt-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={generateDate}
+                    onChange={e => { setGenerateDate(e.target.value); setGenerateResult(null) }}
+                    className="flex-1 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 text-sm"
+                  />
+                  <button
+                    onClick={handleGenerate}
+                    disabled={generating || !generateDate}
+                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 text-sm rounded-lg font-medium transition-colors whitespace-nowrap"
+                  >
+                    {generating ? 'Generating…' : 'Generate Work'}
+                  </button>
+                </div>
+                <p className="text-zinc-600 text-xs mt-1.5 leading-snug">
+                  Generates ScheduledWork rows (Monthly/Quarterly Expires for Units 1–11, 14, 20; NARC Expires for boxes A–L) for the selected date. Safe to re-run — duplicates are skipped.
+                </p>
+                {generateResult && (
+                  <p className="text-zinc-400 text-xs mt-2 font-medium">{generateResult}</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
