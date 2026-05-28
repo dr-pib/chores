@@ -9,8 +9,37 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [username, setUsername] = useState('')
   const [emtNumber, setEmtNumber] = useState('')
-  const exampleAccounts = [
-    { name: 'Cathy', emtNumber: '27889' },
+  const crewRows = [
+    [
+      { name: 'Scottie', emtNumber: '17857' },
+      { name: 'Brent', emtNumber: '33493' },
+    ],
+    [
+      { name: 'Michael Crowley', emtNumber: '28454' },
+      { name: 'Dale', emtNumber: '26430' },
+    ],
+    [
+      { name: 'Tim', emtNumber: '28645' },
+      { name: 'Stormy', emtNumber: '34762' },
+    ],
+    [
+      { name: 'Teddy', emtNumber: '27898' },
+      { name: 'Cathy', emtNumber: '27889' },
+    ],
+    [
+      { name: 'Paige', emtNumber: '34387' },
+      { name: 'Jasmin', emtNumber: '36232' },
+    ],
+    [
+      { name: 'Clay', emtNumber: '33784' },
+      { name: 'Shaun', emtNumber: '30934' },
+    ],
+    [
+      { name: 'Zac', emtNumber: '24243' },
+      { name: 'Mary', emtNumber: '15559' },
+    ],
+  ]
+  const otherAccounts = [
     { name: 'Nathan', emtNumber: '22592' },
     { name: 'Melissa', emtNumber: '34195' },
     { name: 'JoRob', emtNumber: '14557' },
@@ -20,17 +49,17 @@ export default function LoginPage() {
     { name: 'Duncan', emtNumber: '22407' },
     { name: 'Katie', emtNumber: '32740' },
     { name: 'Binford', emtNumber: '30141' },
-    { name: 'Teddy', emtNumber: '27898' },
   ]
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  function loginWithCredentials(usernameToUse: string, emtNumberToUse: string) {
     setError('')
+    setUsername(usernameToUse)
+    setEmtNumber(emtNumberToUse)
     startTransition(async () => {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email_username: username, emt_number: emtNumber }),
+        body: JSON.stringify({ email_username: usernameToUse, emt_number: emtNumberToUse }),
       })
       if (res.ok) {
         router.push('/my-chores?from=login')
@@ -39,6 +68,11 @@ export default function LoginPage() {
         setError(data?.error ?? 'Login failed')
       }
     })
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    loginWithCredentials(username, emtNumber)
   }
 
   return (
@@ -101,21 +135,41 @@ export default function LoginPage() {
 
         <div className="mt-6 bg-zinc-900 rounded-xl border border-zinc-800 p-4">
           <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider mb-3">Testing accounts</p>
-          <div className="grid grid-cols-2 gap-2">
-            {exampleAccounts.map(account => (
-              <button
-                key={account.emtNumber}
-                type="button"
-                onClick={() => {
-                  setUsername('')
-                  setEmtNumber(account.emtNumber)
-                }}
-                className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-left text-xs transition-colors hover:border-blue-500/60 hover:bg-blue-950/30"
-              >
-                <span className="font-medium text-zinc-300">{account.name}</span>
-                <span className="font-mono text-zinc-500">{account.emtNumber}</span>
-              </button>
+          <div className="space-y-2">
+            {crewRows.map((row, rowIndex) => (
+              <div key={rowIndex} className="grid grid-cols-2 gap-2">
+                {row.map(account => (
+                  <button
+                    key={account.emtNumber}
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => loginWithCredentials('', account.emtNumber)}
+                    className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-left text-xs transition-colors hover:border-blue-500/60 hover:bg-blue-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="font-medium text-zinc-300">{account.name}</span>
+                    <span className="font-mono text-zinc-500">{account.emtNumber}</span>
+                  </button>
+                ))}
+              </div>
             ))}
+          </div>
+
+          <div className="mt-4 border-t border-zinc-800 pt-3">
+            <p className="text-zinc-600 text-xs font-medium uppercase tracking-wider mb-2">Other testers</p>
+            <div className="grid grid-cols-2 gap-2">
+              {otherAccounts.map(account => (
+                <button
+                  key={account.emtNumber}
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => loginWithCredentials('', account.emtNumber)}
+                  className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-left text-xs transition-colors hover:border-blue-500/60 hover:bg-blue-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="font-medium text-zinc-300">{account.name}</span>
+                  <span className="font-mono text-zinc-500">{account.emtNumber}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -969,7 +969,7 @@ Important consequences:
   - Daily Truck Checks, Monthly Expires, and Quarterly Expires belong conceptually to trucks/units.
   - NARC Expires belongs conceptually to NARC boxes.
   - Station chores belong to the Harrison crew/shift profile.
-  - Shifts/crews claim responsibility for asset-based work while they are assigned that truck or NARC box.
+  - Shifts/crews claim responsibility for asset-based work while they are assigned that truck or NARC box. The work belongs conceptually to the asset; responsibility for completing/checking it off belongs to the employees on the shift that claimed the asset.
   - If a truck/box is removed from a shift before the pending work is completed, the work should become unassigned and visible to supervisors/Operations Chief.
   - If a crew completed work before losing the asset, the completion remains credited to that crew/shift.
   - If a crew takes over a truck later, they need to see whether that truck's work was already completed by another crew or is still pending/unassigned.
@@ -978,6 +978,7 @@ Important consequences:
     - Daily Truck Checks are critical asset work, but not make-up/persistent work. If missed, they should be recorded/escalated as missed for accountability, not regenerated later as something to complete twice.
     - Expires are critical and persistent because the work remains needed until completed and will not recur for 30/90 days.
   - Supervisors may need to attach unassigned asset work to someone, complete it themselves, or mark the asset/work with an operational status such as at shop/out of service.
+  - If shift-level employees do not claim a critical asset work item and therefore do not take responsibility for it, someone up the chain of command must know in real time and be able to assign it, complete it, or document why it is not applicable.
   - Station chores are different: they belong to the Harrison crew/shift profile. If a crew does not run, the station chore may simply not exist or not get done. Supervisors may optionally assign it, but it does not need the same command-dashboard treatment as asset work.
   - Chore Admin becomes a core configuration surface. Each chore template needs metadata beyond frequency:
     - scope/owner type: crew/shift, station, truck/unit asset, NARC box asset
@@ -1279,11 +1280,11 @@ Correct initial template classification should be closer to:
 | Monthly Expires | `unit_asset` | `true` | `true` |
 | Quarterly Expires | `unit_asset` | `true` | `true` |
 | NARC Expires | `narc_box_asset` | `true` | `true` |
-| Future NARC Box Check | `narc_box_asset` | `true` | `true` |
+| NARC Box Check | `narc_box_asset` | `true` | `true` |
 | Bathroom/Garage/Kitchen/Quarters | `shift` or `crew_shift` | `false` | `false` |
 | Additional Chore | likely `shift` | usually `false` | `false` |
 
-This is important because the user explicitly said Daily Truck Checks, NARC Box Checks, and every expire type "exist and need to be tracked." Station chores are the exception.
+This is important because the user explicitly said Daily Truck Checks, NARC Box Checks, and every expire type "exist and need to be tracked." Station chores are the exception. NARC Box Check is real current shift-start work currently bundled into the truck check workflow: box number/letter, seal number, medication counts, and completed paperwork counts for each medication.
 
 Important lifecycle distinction: `Truck Check` should not be treated as persistent-until-complete just because it is critical and asset-generated. It is a daily accountability item. If missed, it should become missed/overdue for that day/shift, not remain as make-up work to complete later. Monthly/Quarterly/NARC Expires are persistent until complete.
 
@@ -1491,11 +1492,11 @@ This also matters for **performance reporting**: a `not_applicable` resolution s
 | Monthly Expires | `unit_asset` | `true` | `true` | `persistent_until_complete` |
 | Quarterly Expires | `unit_asset` | `true` | `true` | `persistent_until_complete` |
 | NARC Expires | `narc_box_asset` | `true` | `true` | `persistent_until_complete` |
-| Future NARC Box Check | `narc_box_asset` | `true` | `true` | forfeitable |
+| NARC Box Check | `narc_box_asset` | `true` | `true` | forfeitable |
 | Bathroom/Garage/Kitchen/Quarters | `crew_shift` | `false` | `false` | `daily_reset` |
 | Additional Chore | `crew_shift` | `false` | `false` | `daily_reset` |
 
-The existing `lifecycle_type` field only has `daily_reset` and `persistent_until_complete`. **Window-bound is a third type** needed for Daily Truck Check and future NARC Box Check. This is important because:
+The existing `lifecycle_type` field only has `daily_reset` and `persistent_until_complete`. A forfeitable lifecycle is needed for Daily Truck Check and any future daily/shift-start NARC box verification if that is ever added. This is important because:
 
 - `persistent` = obligation remains open until completed; make-up is possible and expected
 - `forfeitable` = opportunity is gone if the window closes; becomes a missed/coverage-gap record
@@ -1594,7 +1595,7 @@ station_scope  String?
 | Monthly Expires | `truck` | `persistent` | `true` | `true` |
 | Quarterly Expires | `truck` | `persistent` | `true` | `true` |
 | NARC Expires | `narc_box` | `persistent` | `true` | `true` |
-| Future NARC Box Check | `narc_box` | `forfeitable` | `true` | `true` |
+| NARC Box Check | `narc_box` | `forfeitable` | `true` | `true` |
 | Bathroom/Garage/Kitchen/Quarters | `crew` | `forfeitable` | `false` | `false` |
 | Additional Chore | `crew` | `forfeitable` | `false` | `false` |
 
@@ -1664,7 +1665,7 @@ Core vocabulary: **Persistent or Forfeitable**. Expires are persistent — the o
 
 Updated after Claude's matrix revision: Codex agrees with the **two-value lifecycle axis** and the three-axis matrix model.
 
-- `forfeitable`: critical asset work that has a meaningful completion window. If missed, it becomes a missed/accountability record, not a make-up task. Examples: Daily Truck Check, future NARC Box Check if it is a daily/shift-start verification.
+- `forfeitable`: critical asset work that has a meaningful completion window. If missed, it becomes a missed/accountability record, not a make-up task. Examples: Daily Truck Check and NARC Box Check.
 - `persistent`: critical work that remains actionable until completed. Examples: Monthly Expires, Quarterly Expires, NARC Expires.
 
 Retiring `daily_reset` as a lifecycle value is acceptable if station chores are represented by the other matrix dimensions:
@@ -1703,3 +1704,65 @@ All four design axes are settled. `generates_independently` is stored explicitly
 **Rationale for explicit `generates_independently`:** Chore Admin exposes it as a direct toggle ("does this chore generate a ScheduledWork record even when no shift has claimed this asset?"). Future templates may deviate from the expected correlation with `asset_scope + is_critical` without requiring a code change. Both Claude and Codex agree on explicit.
 
 **Step 1 is unblocked.** Schema-only commit: add these five fields to `ChoreTemplate`, seed existing templates per the classification matrix, run build, commit.
+
+## Overnight Pin — 2026-05-25
+
+User is stopping for the night. Start here in the morning.
+
+Current state:
+- Claude pushed `e174a5b schema: add ChoreTemplate classification matrix fields`.
+- Local `main` is even with `origin/main` after fetch.
+- Step 1 code is present: `ChoreTemplate` now has `asset_scope`, `lifecycle`, `is_critical`, `generates_independently`, and `station_scope`.
+- `prisma/seed.ts` was updated to stamp the existing template matrix values.
+- Claude reported a clean build.
+- No `ScheduledWork` table yet.
+- No behavior changes yet.
+- No UI changes yet.
+
+Morning verification checklist:
+- Check `git status --short --branch` before editing. At bedtime, `AI_WORKPLAN.md` and `PROJECT_CONTEXT.md` had local documentation edits.
+- Confirm whether Claude's Railway `db:push` finished successfully.
+- If `db:push` did not finish, run it against the Railway Postgres using the Railway `DATABASE_URL`.
+- Confirm whether seed ran after the schema push. If not, run the seed so existing `chore_templates` rows receive the new matrix values.
+- Verify the live database has the five new `chore_templates` columns and the expected seeded values.
+- Re-run `npm run build` if anything looks uncertain.
+
+Do not begin Step 2 until Step 1 is confirmed in both code and database.
+
+Next planned step after verification:
+- Step 2 is schema-only: add `ScheduledWork` and a future link from `Chore` to scheduled work. Keep it separate from behavior changes.
+
+## Codex Clarification Before Step 2 — 2026-05-27
+
+User clarified the operational rules that should shape the `ScheduledWork` schema before implementation.
+
+Generation/recurrence:
+- Truck Checks and Harrison station chores are due each 24 hours. A 48-hour shift needs one Truck Check per covered unit per day and one applicable station chore per day.
+- Monthly and Quarterly Expires generate for Units 1-11, Unit 14, and Unit 20 Explorer. Current backup units are 1, 3, 5, 6, 7, and 8. Current frontline units are 2, 4, 9, 10, 11, and 14. Backup/frontline status should not exclude a unit from Expires generation.
+- NARC Expires generate for all NARC boxes A-L on the 25th, even boxes sitting in the safe and boxes not claimed by any shift.
+
+Forfeitable timing:
+- Daily Truck Check and NARC Box Check are due at shift start + 1 hour.
+- Being past due is not the same as missed. A call may prevent the crew from doing the check right at shift start, so it should remain actionable but visually overdue.
+- After the meaningful work window closes, forfeitable work becomes missed. Missed work cannot truly be made up later; supervisors document or acknowledge the miss.
+- Overdue vs missed are separate states for color, listing, escalation, and supervisor action.
+
+Out-of-service / shop handling:
+- Do not delete work because a unit or NARC box is at the shop, out of service, remounted, or otherwise unavailable.
+- Supervisors should be able to mark work not applicable for a specific date with a reason such as "at shop".
+- Admins may eventually need date-range blockouts for longer outages, both proactive and retroactive.
+- Not-applicable/blockout handling removes the item from the active "needs attention" list but preserves the operational record.
+
+Naming recommendation:
+- Avoid `owner` and `assignee` for the ScheduledWork-to-shift link. The work belongs to the asset, while the shift accepts responsibility for that asset during the shift.
+- Preferred internal schema name: `claimed_by_log_id` / `claimed_at`. This reads naturally: "Unit 10 Monthly Expires was claimed by the 24-8 shift log."
+- Preferred user-facing wording: "responsible shift", "claimed by shift", or "assigned to". Example: "Unit 10 Monthly Expires is unclaimed" or "Assigned to 24-8 | Teddy Burkitt, NRP & Cathy Harris, EMT."
+- `claimed` should not be a status. Status should describe the work state (`pending`, `complete`, `missed`, `not_applicable`, `voided`). `claimed_by_log_id` describes responsibility.
+
+Supervisor assignment feature:
+- Future supervisors should be able to create a one-off chore and assign it to a crew/shift.
+- Future supervisors should also be able to reassign existing scheduled work to another crew/shift when the original/current crew cannot or will not complete it.
+- This fits the ScheduledWork model: ScheduledWork remains the asset/date/template record, while `claimed_by_log_id`/assignment points to the shift currently responsible for doing it.
+
+Step 2 implication:
+- Schema-only `ScheduledWork` should include fields that support these distinctions now, even before behavior changes: `due_at`, optional future close/window fields, `status`, `resolution_note`, `claimed_by_log_id`, `claimed_at`, `asset_type`, `asset_key`, and proper nullable FK fields for `unit_id` and `narc_box_id`.
