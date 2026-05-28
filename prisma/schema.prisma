@@ -36,8 +36,9 @@ model Employee {
   default_shift_profile    ShiftProfile?        @relation("EmployeeDefaultShiftProfile", fields: [default_shift_profile_id], references: [id])
   primary_logs             OperationsLog[]  @relation("PrimaryEmployee")
   partner_logs             OperationsLog[]  @relation("PartnerEmployee")
-  completed_chores         Chore[]          @relation("ChoreCompletedBy")
-  completed_chore_tasks    ChoreTask[]      @relation("ChoreTaskCompletedBy")
+  completed_chores          Chore[]          @relation("ChoreCompletedBy")
+  completed_chore_tasks     ChoreTask[]      @relation("ChoreTaskCompletedBy")
+  completed_scheduled_work  ScheduledWork[]  @relation("ScheduledWorkCompletedBy")
   supervisor_confirmed_logs OperationsLog[] @relation("SupervisorConfirmedBy")
   change_logs              ChangeLog[]      @relation("ChangeLogChangedBy")
   targeted_change_logs     ChangeLog[]      @relation("ChangeLogTargetEmployee")
@@ -65,10 +66,11 @@ model Unit {
   created_at  DateTime @default(now())
 
   default_for_shift_profiles ShiftProfile[]
-  primary_in_logs     OperationsLog[]    @relation("PrimaryUnit")
-  in_bays             OperationsLogBay[]
-  in_chores           Chore[]            @relation("ChoreUnit")
-  in_shift_profile_bays   ShiftProfileBay[]      @relation("ShiftProfileBayUnit")
+  primary_in_logs            OperationsLog[]    @relation("PrimaryUnit")
+  in_bays                    OperationsLogBay[]
+  in_chores                  Chore[]            @relation("ChoreUnit")
+  in_shift_profile_bays      ShiftProfileBay[]  @relation("ShiftProfileBayUnit")
+  in_scheduled_work          ScheduledWork[]
 
   @@map("units")
 }
@@ -133,6 +135,7 @@ model OperationsLog {
   bays                     OperationsLogBay[]
   chores                   Chore[]
   change_logs              ChangeLog[]
+  claimed_scheduled_work   ScheduledWork[]    @relation("ClaimedScheduledWork")
 
   @@map("operations_logs")
 }
@@ -164,8 +167,9 @@ model ChoreTemplate {
   generates_independently Boolean  @default(false)
   station_scope           String?
 
-  chores Chore[]
-  tasks  ChoreTemplateTask[]
+  chores         Chore[]
+  tasks          ChoreTemplateTask[]
+  scheduled_work ScheduledWork[]
 
   @@map("chore_templates")
 }
@@ -194,12 +198,14 @@ model Chore {
   completed_by_id   Int?
   notes             String?
   chore_date        DateTime? @db.Date
+  scheduled_work_id Int?      @unique
   created_at        DateTime  @default(now())
 
-  operations_log OperationsLog @relation(fields: [operations_log_id], references: [id], onDelete: Cascade)
-  chore_template ChoreTemplate @relation(fields: [chore_template_id], references: [id])
-  unit           Unit?         @relation("ChoreUnit", fields: [unit_id], references: [id])
-  completed_by   Employee?     @relation("ChoreCompletedBy", fields: [completed_by_id], references: [id])
+  operations_log OperationsLog  @relation(fields: [operations_log_id], references: [id], onDelete: Cascade)
+  chore_template ChoreTemplate  @relation(fields: [chore_template_id], references: [id])
+  unit           Unit?          @relation("ChoreUnit", fields: [unit_id], references: [id])
+  completed_by   Employee?      @relation("ChoreCompletedBy", fields: [completed_by_id], references: [id])
+  scheduled_work ScheduledWork? @relation(fields: [scheduled_work_id], references: [id])
   tasks          ChoreTask[]
   change_logs    ChangeLog[]
 
@@ -227,8 +233,37 @@ model NarcBox {
   created_at DateTime @default(now())
 
   operations_logs OperationsLog[]
+  scheduled_work  ScheduledWork[]
 
   @@map("narc_boxes")
+}
+
+model ScheduledWork {
+  id                Int       @id @default(autoincrement())
+  chore_template_id Int
+  unit_id           Int?
+  narc_box_id       Int?
+  asset_type        String
+  asset_key         String
+  work_date         DateTime  @db.Date
+  due_at            DateTime
+  claimed_by_log_id Int?
+  claimed_at        DateTime?
+  status            String    @default("pending")
+  resolution_note   String?
+  completed_at      DateTime?
+  completed_by_id   Int?
+  created_at        DateTime  @default(now())
+
+  chore_template ChoreTemplate  @relation(fields: [chore_template_id], references: [id])
+  unit           Unit?          @relation(fields: [unit_id], references: [id])
+  narc_box       NarcBox?       @relation(fields: [narc_box_id], references: [id])
+  claimed_by_log OperationsLog? @relation("ClaimedScheduledWork", fields: [claimed_by_log_id], references: [id])
+  completed_by   Employee?      @relation("ScheduledWorkCompletedBy", fields: [completed_by_id], references: [id])
+  chore          Chore?
+
+  @@unique([chore_template_id, work_date, asset_type, asset_key])
+  @@map("scheduled_work")
 }
 
 model ChangeLog {
