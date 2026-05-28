@@ -2104,3 +2104,65 @@ Step 7 is complete and pushed (commit `28d609d`).
 
 Current next step:
 - **Step 8 — Monthly/Quarterly and NARC generation + claiming**: confirm scope before starting.
+
+## Codex Pre-Step-8 Integrity Review — 2026-05-28
+
+User authorized fixing the Step 6/7 integrity concerns before proceeding to Step 8. Do not start Step 8 until these are addressed or explicitly deferred.
+
+Items to fix/review:
+
+1. **Retained-asset linked Chore preservation**
+   - Possible Step 7 bug: the edit path bulk-deletes all Truck Check chores, including linked `ScheduledWork` chores for trucks that are still present on the shift.
+   - If the asset is retained, the `ScheduledWork` stays claimed by this log, but Phase 3 only queries unclaimed SW, so the visible linked Chore may not be recreated.
+   - Fix so retained pending SW remains linked to a Chore after truck check replacement. Removed assets should still release pending claims. Completed work should still be left untouched.
+
+2. **New-shift claiming should only attach unclaimed SW**
+   - The new-shift creation lookup for pending ScheduledWork should include `claimed_by_log_id: null` unless there is an intentional same-log edit path.
+   - Avoid attaching or trying to attach a SW row already claimed by another active shift.
+
+3. **Claiming race / unique-constraint handling**
+   - Current read-annotate-create flow is not atomic. Two shifts attempting to claim the same asset/date/template could both read the same pending SW, then the second create can fail on `Chore.scheduled_work_id @unique`.
+   - Wrap the claim/create/update path in a transaction or re-check/re-claim inside a transaction so a race results in a clean conflict/skip, not a 500 that loses the whole shift.
+
+4. **Chicago service-date/work-date helper**
+   - Audit server-local date math around `serviceDate`, `work_date`, and SW lookup keys.
+   - Service/work dates should use the project’s Chicago-local date semantics consistently. Avoid depending on Railway/server timezone by accident.
+   - Move duplicated `chicago0800` logic into a shared helper such as `lib/dates.ts` if touching the related code.
+
+5. **Mark-missed vs linked Chore status**
+   - If a `ScheduledWork` row becomes `missed`, any linked pending `Chore` must not remain normally employee-actionable.
+   - Decide and implement the rule carefully: forfeitable work after the lock window should become missed/accountability work; completing it later should not silently overwrite the missed state unless the product explicitly allows supervisor override/reopen.
+
+6. **Standalone chores for removed assets**
+   - Transitional gap: standalone non-SW Monthly/Quarterly/etc. chores may remain on a shift after a truck is removed if no ScheduledWork row existed.
+   - This may be less important once scheduled generation is reliable, but it should be noted and either fixed now or intentionally deferred.
+
+Expected finish:
+- Build clean.
+- Commit and push.
+- Update this workplan with what was fixed and what was intentionally deferred.
+
+## Step 7 Integrity Fixes Completion — 2026-05-28 (commit `333b1eb`)
+
+Items 1–4 addressed. Items 5–6 deferred per user direction.
+
+**Fix 1 — Retained-asset Truck Check SW preservation (edit path):**
+Before rebuilding TC chores in the main update, query existing SW-linked TC rows. Build `tcSwByKey` (`${chore_date_ms}-${unit_id}` → `scheduled_work_id`). New TC rows for retained trucks carry the SW link via `withTcSw()`. Prevents `deleteMany/create` from leaving a ScheduledWork claimed but no Chore visible.
+
+**Fix 2 — New-shift SW query: unclaimed only:**
+Added `claimed_by_log_id: null` to `pendingSw` query. Prevents annotating a chore with a SW already claimed by another shift.
+
+**Fix 3 — Race guard on operationsLog.create:**
+Extracted `createLogWithChores(chores)` local fn (avoids include duplication). `let log; let claimMatchedSw = true`. On `P2002`: fall back to `createLogWithChores(choresToCreate)` (unlinked), skip SW claim loop. SW stays unclaimed for Step 9 supervisor UI.
+
+**Fix 4 — Centralize `chicago0800`:**
+Moved to `lib/dates.ts` as an export. Removed local copies from generate-scheduled-work and operations-logs routes.
+
+**Deferred — Item 5: Mark-missed vs linked Chore:**
+Rule proposed to user. Option A (allow late completion, no route change) vs Option B (block completion if SW is 'missed'). User to confirm before coding.
+
+**Deferred — Item 6: Standalone non-SW chores for removed assets:**
+Intentionally deferred. Will self-resolve once scheduled generation (Step 8) is running reliably.
+
+**Deferred — serviceDate timezone risk:**
+`new Date(startDt.getFullYear(), startDt.getMonth(), startDt.getDate())` uses local server timezone. Works on Railway (UTC). Flagged for future hardening with UTC date extraction.
