@@ -1898,3 +1898,30 @@ Current next step:
 - Do not build the ScheduledWork generation endpoint yet.
 - Do not change chore creation/claiming behavior yet.
 - Run build and commit/push only this cleanup.
+
+## Step 2.5 Completion Note — 2026-05-28
+
+Step 2.5 is complete and pushed (commit `ce3099e`).
+
+Completed:
+- Added `lib/lifecycle.ts` with `isPersistent()` and `isForfeitable()` helpers using `ChoreTemplate.lifecycle` ('persistent' | 'forfeitable').
+- Migrated all runtime lifecycle checks and Prisma WHERE filters across 10 files to use the new `lifecycle` field.
+- `lifecycle_type` intentionally left in place for Chore Admin edit form (`chore-templates/[id]/page.tsx`, `ChoreTemplateEditPanel.tsx`), its API routes (`api/chore-templates/route.ts`, `api/chore-templates/[id]/route.ts`), and `prisma/seed.ts`. The column is not retired yet.
+- No behavior changes. Build clean.
+
+Files updated:
+- `lib/lifecycle.ts` (new)
+- `app/api/chores/[id]/complete/route.ts` — `isForfeitable()` replaces `lifecycle_type === 'daily_reset'`
+- `app/api/chore-tasks/[id]/complete/route.ts` — same
+- `app/api/admin/backfill-chores/route.ts` — `isPersistent()` replaces `lifecycle_type === 'persistent_until_complete'`
+- `app/api/alerts/overdue-expires/route.ts` — Prisma WHERE filter switched to `lifecycle: 'persistent'`
+- `app/api/operations-logs/route.ts` — 3 filter sites replaced with `isPersistent(t)`
+- `app/api/badges/route.ts` — 2 Prisma WHERE filters + 2 runtime checks replaced
+- `app/chores/page.tsx` — interface + Prisma WHERE filter
+- `app/log/[id]/page.tsx` — 3 runtime filter sites + Prisma WHERE filter
+- `app/chore-templates/page.tsx` — interface + `LIFECYCLE_LABELS` keys + display check
+- `components/ChoreItem.tsx` — interface + runtime check
+
+Rule for all future code: new ScheduledWork generation (Step 4+) must read `lifecycle`, `asset_scope`, `is_critical`, and `generates_independently` — never `lifecycle_type`.
+
+Current next step: **Step 3 — Completion route sync** — when a `Chore` with `scheduled_work_id` set is completed or uncompleted, sync `ScheduledWork.status` in the same transaction.
