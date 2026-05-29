@@ -2396,16 +2396,13 @@ Steps 1 through 9 are functionally complete, but current testing exposed workflo
      - `unit_present` + no unit → Bay X Missing Truck (supervisor-only, amber)
    - Roster `unitLine` refactored to accept `isSupervisor` param; bays type extended with `bay_label`.
 
-### Active Priority: Unassigned Daily Truck Checks
+### Active Priority: Unassigned Daily Truck Checks [COMPLETE]
 
 6. **Make unassigned Daily Truck Checks visible before the window closes.**
-   - The concern is unassigned chores, not uncovered shifts.
-   - Supervisors need to know: "Unit 10's Truck Check has no one assigned today."
-   - Preferred design: independently generate `ScheduledWork` for Truck Check for all eligible units each service date, with lifecycle `forfeitable`.
-   - When a shift claims a unit, existing ScheduledWork claim logic should attach that unit's Truck Check to the shift.
-   - Unclaimed Truck Check SW should appear in the supervisor unassigned section before lock time.
-   - After lock time, mark-missed should move it to Coverage Gaps.
-   - Preserve lifecycle distinction: Truck Check is forfeitable, not persistent and not make-up work.
+   - **Implemented**: Removed `isPersistent` filters from `generate-scheduled-work` and `operations-logs` (ensureScheduledWork) to allow forfeitable `generates_independently` templates (Truck Check).
+   - **Implemented**: Refactored shift update logic to correctly lookup and link `ScheduledWork` for all assets, including newly added trucks.
+   - **Implemented**: Updated "Everyone's Chores" supervisor view to show unassigned critical work (including Truck Checks) before they are marked as missed.
+   - **Verified**: Build successful. Missed logic in `mark-missed-scheduled-work` already supports forfeitable lifecycle.
 
 ### Step 10: After The Above
 

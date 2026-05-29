@@ -166,12 +166,14 @@ export default async function ChoresPage() {
   const isSupervisor = isSupervisorRole(session.role)
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
 
-  // Section 1: unclaimed pending persistent critical SW — work that still needs to be done
-  const unassignedPersistent = !isSupervisor ? [] : await prisma.scheduledWork.findMany({
+  // Section 1: unclaimed pending critical SW — work that still needs to be done.
+  // Includes persistent work (Monthly/Expires) and forfeitable work (Truck Check)
+  // before it reaches its lock window and becomes 'missed'.
+  const unassignedCriticalWork = !isSupervisor ? [] : await prisma.scheduledWork.findMany({
     where: {
       status: 'pending',
       claimed_by_log_id: null,
-      chore_template: { lifecycle: 'persistent', is_critical: true },
+      chore_template: { is_critical: true, generates_independently: true },
     },
     include: {
       chore_template: { select: { name: true } },
@@ -235,14 +237,14 @@ export default async function ChoresPage() {
           </div>
         )}
 
-        {/* Section 1: Unassigned persistent critical SW — needs completion (supervisor only) */}
-        {isSupervisor && unassignedPersistent.length > 0 && (
+        {/* Section 1: Unassigned critical SW — needs completion (supervisor only) */}
+        {isSupervisor && unassignedCriticalWork.length > 0 && (
           <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-4 mb-5">
             <h2 className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">
               Unassigned — Needs Completion
             </h2>
             <div className="space-y-2">
-              {unassignedPersistent.map(sw => (
+              {unassignedCriticalWork.map(sw => (
                 <div key={sw.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className="text-zinc-200 font-medium">{sw.chore_template.name}</span>
                   <span className="text-zinc-300">{swAssetLabel(sw)}</span>

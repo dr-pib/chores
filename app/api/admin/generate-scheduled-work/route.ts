@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
     prisma.narcBox.findMany({ select: { id: true, letter: true } }),
   ])
 
-  // Only persistent independently-generated templates produce ScheduledWork rows.
-  // Truck Check is generates_independently but forfeitable — excluded here.
-  const eligibleTemplates = templates.filter(isPersistent)
+  // Both persistent and forfeitable templates can produce ScheduledWork rows
+  // if they are marked with generates_independently: true.
+  const eligibleTemplates = templates.filter(t => t.generates_independently)
 
   const toCreate: {
     chore_template_id: number
