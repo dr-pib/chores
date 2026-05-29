@@ -162,19 +162,15 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
             {isToday && <span className="text-blue-400 mr-1.5">Today —</span>}
             {formatRosterDate(serviceDate)}
           </span>
-          {!isToday ? (
-            <Link
-              href={`/log?date=${toDateParam(nextDate)}`}
-              className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors"
-              aria-label="Next day"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-          ) : (
-            <span className="w-8" />
-          )}
+          <Link
+            href={`/log?date=${toDateParam(nextDate)}`}
+            className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors"
+            aria-label="Next day"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
         </div>
 
         {/* Roster */}
