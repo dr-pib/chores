@@ -32,7 +32,10 @@ export default function ChoreTemplatesPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [backfilling, setBackfilling] = useState(false)
   const [backfillResult, setBackfillResult] = useState<string | null>(null)
-const [generateDate, setGenerateDate] = useState(() =>
+  const [generateStartDate, setGenerateStartDate] = useState(() =>
+    new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+  )
+  const [generateEndDate, setGenerateEndDate] = useState(() =>
     new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
   )
   const [generating, setGenerating] = useState(false)
@@ -93,13 +96,13 @@ const [generateDate, setGenerateDate] = useState(() =>
       const res = await fetch('/api/admin/generate-scheduled-work', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start_date: generateDate, end_date: generateDate }),
+        body: JSON.stringify({ start_date: generateStartDate, end_date: generateEndDate }),
       })
       const data = await res.json()
       if (res.ok) {
         setGenerateResult(data.created === 0
-          ? 'No new ScheduledWork rows — already up to date for this date.'
-          : `Created ${data.created} ScheduledWork row${data.created === 1 ? '' : 's'} (${data.skipped} already existed).`)
+          ? 'No new ScheduledWork rows — already up to date for this range.'
+          : `Created ${data.created} ScheduledWork row${data.created === 1 ? '' : 's'} across ${data.dates} date${data.dates === 1 ? '' : 's'} (${data.skipped} already existed).`)
       } else {
         setGenerateResult('Error: ' + (data.error ?? 'Unknown error'))
       }
@@ -263,23 +266,30 @@ const [generateDate, setGenerateDate] = useState(() =>
                 <p className="text-zinc-400 text-xs mt-2 font-medium">{backfillResult}</p>
               )}
 <div className="mt-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <input
                     type="date"
-                    value={generateDate}
-                    onChange={e => { setGenerateDate(e.target.value); setGenerateResult(null) }}
-                    className="flex-1 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 text-sm"
+                    value={generateStartDate}
+                    onChange={e => { setGenerateStartDate(e.target.value); setGenerateResult(null) }}
+                    className="flex-1 min-w-0 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 text-sm"
+                  />
+                  <span className="text-zinc-500 text-xs">to</span>
+                  <input
+                    type="date"
+                    value={generateEndDate}
+                    onChange={e => { setGenerateEndDate(e.target.value); setGenerateResult(null) }}
+                    className="flex-1 min-w-0 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 text-sm"
                   />
                   <button
                     onClick={handleGenerate}
-                    disabled={generating || !generateDate}
+                    disabled={generating || !generateStartDate || !generateEndDate}
                     className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 text-sm rounded-lg font-medium transition-colors whitespace-nowrap"
                   >
                     {generating ? 'Generating…' : 'Generate Work'}
                   </button>
                 </div>
                 <p className="text-zinc-600 text-xs mt-1.5 leading-snug">
-                  Generates ScheduledWork rows (Monthly/Quarterly Expires for Units 1–11, 14, 20; NARC Expires for boxes A–L) for the selected date. Safe to re-run — duplicates are skipped.
+                  Generates ScheduledWork rows for all eligible assets across the date range. Truck Checks for Units 1–11, 14, 20 daily; Monthly/Quarterly Expires on qualifying dates; NARC Expires for boxes A–L on the 25th. Safe to re-run — duplicates are skipped.
                 </p>
                 {generateResult && (
                   <p className="text-zinc-400 text-xs mt-2 font-medium">{generateResult}</p>
