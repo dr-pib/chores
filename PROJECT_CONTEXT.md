@@ -136,6 +136,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
   - `/my-chores` and `/chores` live under the `Chores` nav concept.
   - `/log` and `/history` live under the `Roster` nav concept.
 - A later cleanup may consolidate to `/chores?view=my|everyone` and `/roster?view=today|history`.
+- `lib/chore-rotation.ts` — `shouldGenerateScheduledChore(templateName, date)` returns true when a ScheduledWork row should be created for that template on that date. Truck Check returns `true` for every date (daily). NARC Expires returns true on the 25th. Monthly/Quarterly Expires return true on their respective calendar rules. All other templates return `false`. When adding a new independently-generated template, add its rule here first.
 - `lib/lifecycle.ts` — `isPersistent(t)` and `isForfeitable(t)` helpers read `ChoreTemplate.lifecycle` (`'persistent'` | `'forfeitable'`). Always use these helpers; never compare `lifecycle_type` in new code.
 - `lib/chore-targeting.ts` — `resolvePresentTruckTargets`, `resolvePrimaryUnitTarget`, `resolveCrewTarget`, `targetKey`. Use `resolvePrimaryUnitTarget` for NARC Expires only; never route NARC through `resolvePresentTruckTargets`.
 - `lib/chore-generation.ts` — `buildChoreRows` (pure, no Prisma). `ChoreCreateData` for nested shift creation; `ChoreCreateManyData` (adds `operations_log_id`) for `prisma.chore.createMany`.

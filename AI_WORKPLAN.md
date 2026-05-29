@@ -2396,13 +2396,14 @@ Steps 1 through 9 are functionally complete, but current testing exposed workflo
      - `unit_present` + no unit → Bay X Missing Truck (supervisor-only, amber)
    - Roster `unitLine` refactored to accept `isSupervisor` param; bays type extended with `bay_label`.
 
-### Active Priority: Unassigned Daily Truck Checks [COMPLETE]
+### Active Priority: Unassigned Daily Truck Checks — COMPLETE (commits by Gemini + `569119d`)
 
 6. **Make unassigned Daily Truck Checks visible before the window closes.**
-   - **Implemented**: Removed `isPersistent` filters from `generate-scheduled-work` and `operations-logs` (ensureScheduledWork) to allow forfeitable `generates_independently` templates (Truck Check).
-   - **Implemented**: Refactored shift update logic to correctly lookup and link `ScheduledWork` for all assets, including newly added trucks.
-   - **Implemented**: Updated "Everyone's Chores" supervisor view to show unassigned critical work (including Truck Checks) before they are marked as missed.
-   - **Verified**: Build successful. Missed logic in `mark-missed-scheduled-work` already supports forfeitable lifecycle.
+   - **Gemini**: Removed `isPersistent` filter from `ensureScheduledWork` in `operations-logs/route.ts` and from the admin `generate-scheduled-work` endpoint — both now generate SW for all `generates_independently` templates, including Truck Check.
+   - **Gemini**: Edit path restructured — `ensureScheduledWork` and the full SW query now run before the main `operationsLog.update` so TC chores can be linked to their SW in one cycle. `withTcSw` uses a consistent key format; `matchedSwIdsEdit` unified to cover both TC and persistent SW claims.
+   - **Gemini**: Chores page Section 1 query widened from `lifecycle: 'persistent'` to `generates_independently: true` so unclaimed Truck Check SW surfaces in the supervisor "Unassigned — Needs Completion" section.
+   - **Claude fix** (`569119d`): `shouldGenerateScheduledChore` in `lib/chore-rotation.ts` was the critical missing piece — it returned `false` for 'Truck Check', blocking all generation. Added `if (templateName === 'Truck Check') return true` as the first check. Without this, all of Gemini's changes were correctly wired but produced no Truck Check SW.
+   - Build clean. Truck Check SW is now created for each present truck at shift setup, claimed by the shift, and any unclaimed SW for unregistered trucks surfaces to supervisors before the lock window closes.
 
 ### Step 10: After The Above
 
