@@ -16,7 +16,7 @@ export default async function MyChoresPage({ searchParams }: { searchParams: Pro
         { partner_employee_id: session.userId },
       ],
     },
-    orderBy: [{ service_date: 'desc' }, { created_at: 'desc' }],
+    orderBy: [{ created_at: 'desc' }],
   })
 
   if (myLog) redirect(`/log/${myLog.id}`)
