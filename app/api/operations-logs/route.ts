@@ -7,7 +7,7 @@ import { resolvePresentTruckTargets, resolvePrimaryUnitTarget, resolveCrewTarget
 import { buildChoreRows, ChoreCreateData, ChoreCreateManyData } from '@/lib/chore-generation'
 import { isPersistent } from '@/lib/lifecycle'
 import { chicago0800, chicagoServiceDate } from '@/lib/dates'
-import { isSupervisorRole } from '@/lib/roles'
+import { isSupervisorRole, isDom } from '@/lib/roles'
 
 // Ensures ScheduledWork rows exist for independently-generated templates
 // (both persistent and forfeitable) scoped to a specific shift's assets and dates.
@@ -555,7 +555,7 @@ export async function POST(req: NextRequest) {
         service_date: serviceDate,
         shift_profile_id,
         station_id: shiftProfile.station_id,
-        primary_employee_id: session.userId,
+        primary_employee_id: (isDom(session.role) && bodyPrimaryEmployeeId != null) ? bodyPrimaryEmployeeId : session.userId,
         partner_employee_id,
         primary_unit_id,
         narc_box_id: narc_box_id ?? null,
