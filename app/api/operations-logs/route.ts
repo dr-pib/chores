@@ -6,7 +6,7 @@ import { getStationChoreForPost, shouldGenerateScheduledChore } from '@/lib/chor
 import { resolvePresentTruckTargets, resolvePrimaryUnitTarget, resolveCrewTarget } from '@/lib/chore-targeting'
 import { buildChoreRows, ChoreCreateData, ChoreCreateManyData } from '@/lib/chore-generation'
 import { isPersistent } from '@/lib/lifecycle'
-import { chicago0800 } from '@/lib/dates'
+import { chicago0800, chicagoServiceDate } from '@/lib/dates'
 import { isSupervisorRole } from '@/lib/roles'
 
 // Ensures ScheduledWork rows exist for independently-generated templates
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const dateStr = searchParams.get('date')
   const date = dateStr ? new Date(dateStr) : new Date()
-  const serviceDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const serviceDate = chicagoServiceDate(date)
 
   const logs = await prisma.operationsLog.findMany({
     where: { service_date: serviceDate },
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
 
   const startDt = new Date(actual_start)
   const endDt = new Date(actual_end)
-  const serviceDate = new Date(startDt.getFullYear(), startDt.getMonth(), startDt.getDate())
+  const serviceDate = chicagoServiceDate(startDt)
   const is48h = endDt.getTime() - startDt.getTime() >= 48 * 3600 * 1000
 
   const templates = await prisma.choreTemplate.findMany()

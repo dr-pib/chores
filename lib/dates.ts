@@ -33,6 +33,14 @@ export function chicago0800(workDate: Date): Date {
   return new Date(workDate.getTime() + 13 * 3_600_000) // CDT fallback
 }
 
+// Returns the UTC-midnight Date for the Chicago-local calendar date of any given instant.
+// Use this when computing service_date from actual_start — never use .getFullYear/Month/Date()
+// which returns the UTC date and mis-classifies shifts that start after 7pm CDT (midnight UTC).
+export function chicagoServiceDate(utcInstant: Date): Date {
+  const dateStr = utcInstant.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+  return new Date(dateStr + 'T00:00:00.000Z')
+}
+
 export function todayChicago(): Date {
   const parts = new Intl.DateTimeFormat('en-US', {
     year: 'numeric', month: '2-digit', day: '2-digit',
