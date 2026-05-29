@@ -80,6 +80,19 @@ Steps 1–11 of the ScheduledWork ownership model are complete. The app has:
 
 ---
 
+## Open Questions / Needs Answer Before Building
+
+**Q1 — NARC Box dropdown (already exists — needs verification):**
+The NARC box dropdown already exists in Shift Setup and Edit Shift — both use `app/setup/page.tsx` which has `narcBoxId` state and a NARC box selector. The user has asked to "add" it, which may mean they don't see it in the current UI, OR they want confirmation that selecting the NARC box there actually drives NARC Expires generation. The real gap is the claiming logic: NARC Expires are currently claimed based on the truck's `primary_unit_id`, not the shift's `narc_box_id`. Fix needed in `app/api/operations-logs/route.ts` claiming path. **Question for user: do you currently see a NARC box dropdown in Shift Setup? If yes, does selecting it not work as expected?**
+
+**Q2 — Programmer / Demo Dashboard:**
+User wants a tool to build backdated shifts and mark chores complete for demo purposes. Questions before building:
+- Should this be a separate route (e.g., `/demo` or `/dev`) accessible only to Dom?
+- For "build shifts from the past": should it reuse the normal Shift Setup form but allow past dates? Or a streamlined bulk-entry form?
+- For completing chores: one-click "Mark all complete" per shift, or individual chore checkboxes?
+- Should backdated shifts trigger NARC Expires / Monthly / Quarterly generation for those past dates, or just create basic chores?
+- Should this page be hidden/removed after the demo, or kept as a permanent utility?
+
 ## Open Questions
 
 - **NARC Expires follow the truck, not the NARC box** — because Edit Shift lacks a NARC box dropdown. NARC Expires should follow the NARC box asset, not the truck. Fix: add NARC box dropdown to Edit Shift (same as Shift Setup already has), then update claiming logic to key off `narc_box_id` on the OperationsLog.

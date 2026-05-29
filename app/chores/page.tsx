@@ -165,12 +165,12 @@ export default async function ChoresPage() {
   })
 
   const isSupervisor = isSupervisorRole(session.role)
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000)
 
   // Section 1: unclaimed pending critical SW — work that still needs to be done.
   // Includes persistent work (Monthly/Expires) and forfeitable work (Truck Check)
   // before it reaches its lock window and becomes 'missed'.
-  const unassignedCriticalWork = !isSupervisor ? [] : await prisma.scheduledWork.findMany({
+  const unassignedCriticalWorkRaw = !isSupervisor ? [] : await prisma.scheduledWork.findMany({
     where: {
       status: 'pending',
       claimed_by_log_id: null,
@@ -181,15 +181,24 @@ export default async function ChoresPage() {
       unit: { select: { unit_number: true } },
       narc_box: { select: { letter: true } },
     },
-    orderBy: { due_at: 'asc' },
+  })
+  // Sort alphabetically: by template name, then units numerically, then NARC boxes by letter
+  const unassignedCriticalWork = [...unassignedCriticalWorkRaw].sort((a, b) => {
+    const nameDiff = a.chore_template.name.localeCompare(b.chore_template.name)
+    if (nameDiff !== 0) return nameDiff
+    if (a.unit && b.unit) return a.unit.unit_number - b.unit.unit_number
+    if (a.narc_box && b.narc_box) return a.narc_box.letter.localeCompare(b.narc_box.letter)
+    if (a.unit) return -1
+    if (b.unit) return 1
+    return 0
   })
 
-  // Section 2: missed forfeitable critical SW — coverage gaps needing documentation
+  // Section 2: missed truck checks — last 7 days
   const missedForfeitable = !isSupervisor ? [] : await prisma.scheduledWork.findMany({
     where: {
       status: 'missed',
       chore_template: { lifecycle: 'forfeitable', is_critical: true },
-      work_date: { gte: thirtyDaysAgo },
+      work_date: { gte: sevenDaysAgo },
     },
     include: {
       chore_template: { select: { name: true } },
@@ -262,9 +271,9 @@ export default async function ChoresPage() {
         {isSupervisor && missedForfeitable.length > 0 && (
           <div className="bg-zinc-900 border border-yellow-600/25 rounded-xl p-4 mb-5">
             <h2 className="text-xs font-semibold text-yellow-500/80 uppercase tracking-wider mb-1">
-              Coverage Gaps — Missed Forfeitable Work
+              Missed Truck Checks
             </h2>
-            <p className="text-xs text-zinc-600 mb-3">Last 30 days. Document reason (OOS, at shop) if known.</p>
+            <p className="text-xs text-zinc-600 mb-3">Last 7 days. Mark Inaccessible if unit was OOS or at shop.</p>
             <div className="space-y-2">
               {missedForfeitable.map(sw => (
                 <div key={sw.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">

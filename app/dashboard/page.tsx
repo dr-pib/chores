@@ -33,7 +33,7 @@ export default async function DashboardPage() {
   // Lazy-generate Truck Check SW for today on first load after 5am
   await ensureDailySW(serviceDate)
 
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000)
 
   const [activeShifts, allUnits, todaySW, unresolvedCriticals, coverageGaps] = await Promise.all([
     prisma.operationsLog.findMany({
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
     prisma.scheduledWork.findMany({
       where: {
         status: 'missed',
-        work_date: { gte: thirtyDaysAgo },
+        work_date: { gte: sevenDaysAgo },
         chore_template: { lifecycle: 'forfeitable', is_critical: true },
       },
       include: {
@@ -183,11 +183,11 @@ export default async function DashboardPage() {
             )}
           </div>
 
-          {/* Column 3: Coverage Gaps */}
+          {/* Column 3: Missed Truck Checks */}
           <div className="bg-zinc-900 border border-yellow-700/25 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
               <h2 className="text-xs font-semibold text-yellow-500/80 uppercase tracking-wider">
-                Coverage Gaps
+                Missed Truck Checks
               </h2>
               {coverageGaps.length > 0 && (
                 <span className="bg-yellow-700/50 text-yellow-200 text-[11px] font-semibold rounded-full px-1.5 py-0.5 leading-none">
@@ -195,7 +195,7 @@ export default async function DashboardPage() {
                 </span>
               )}
             </div>
-            <p className="text-zinc-600 text-xs mb-3">Missed forfeitable work — last 30 days</p>
+            <p className="text-zinc-600 text-xs mb-3">Last 7 days</p>
             {coverageGaps.length === 0 ? (
               <p className="text-zinc-500 text-sm">No missed forfeitable work.</p>
             ) : (
