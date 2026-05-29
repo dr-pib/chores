@@ -98,7 +98,7 @@ User wants a tool to build backdated shifts and mark chores complete for demo pu
 
 ## Open Questions
 
-- **NARC Expires follow the truck, not the NARC box** — because Edit Shift lacks a NARC box dropdown. NARC Expires should follow the NARC box asset, not the truck. Fix: add NARC box dropdown to Edit Shift (same as Shift Setup already has), then update claiming logic to key off `narc_box_id` on the OperationsLog.
+- ~~**NARC Expires follow the truck, not the NARC box**~~ ✅ Fixed — `previousPersistentChores` query now excludes NARC Expires from the truck-based unit_id condition and instead matches them by `operations_log.narc_box_id = log.narc_box_id`. NARC Expires now follow the NARC box across crews, not the truck. No schema change needed — the ScheduledWork table already had correct narc_box_id; only the Chore query needed fixing.
 - **Harrison Daily Station Duties Rotation table is hard-coded** — future Chore Admin should generate it dynamically from the database.
 - **Completed truck check gets unchecked when secondary truck added via Edit Shift** — when a crew member completes their Unit 11 truck check then edits their shift to add a secondary truck, the Unit 11 truck check reverts to uncompleted. Root cause: the edit path deletes and recreates all Truck Check chores including completed ones. Fix: skip completed Truck Check chores in the TC delete/recreate cycle — only delete/replace pending ones.
 - **Overdue expires red banner should show for all users, not just supervisors** — user wants mild peer pressure visibility across all roles. Currently gated to `isSupervisorRole` in NavBar. Widen to all logged-in users. Note: the banner text and link should remain the same; just remove the role gate.

@@ -8,6 +8,8 @@ import { nextServiceDate } from '@/lib/dates'
 import { formatEmployeeTitle } from '@/lib/employees'
 import SegmentedNav from '@/components/SegmentedNav'
 import { isSupervisorRole } from '@/lib/roles'
+import ConfirmShiftButton from '@/components/ConfirmShiftButton'
+import DeleteShiftButton from '@/components/DeleteShiftButton'
 
 const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
 
@@ -201,34 +203,43 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
               const total = log.chores.length
               const allDone = total > 0 && done === total
               return (
-                <Link key={post.id} href={`/log/${log.id}`} className="block">
-                  <div className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-4 transition-colors">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-zinc-100">{crewLine(log)}</span>
-                          {log.supervisor_confirmed_at ? (
-                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">Confirmed</span>
-                          ) : isSupervisor ? (
-                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Needs Review</span>
-                          ) : null}
-                        </div>
-                        {unitLine(log, isSupervisor)}
-                        <div className="text-zinc-400 text-sm mt-0.5">
-                          {formatShiftMil(log.actual_start)} – {formatShiftMil(log.actual_end)}
-                        </div>
+                <div key={post.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 transition-colors">
+                  <div className="flex items-center justify-between gap-4">
+                    {/* Clickable shift info */}
+                    <Link href={`/log/${log.id}`} className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-zinc-100">{crewLine(log)}</span>
+                        {log.supervisor_confirmed_at ? (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">Confirmed</span>
+                        ) : isSupervisor ? (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Needs Review</span>
+                        ) : null}
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className={`text-xs ${allDone ? 'text-green-400' : 'text-zinc-500'}`}>
-                          {done}/{total} chores
-                        </div>
-                        <svg className="w-4 h-4 text-zinc-600 mt-1 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                      {unitLine(log, isSupervisor)}
+                      <div className="text-zinc-400 text-sm mt-0.5">
+                        {formatShiftMil(log.actual_start)} – {formatShiftMil(log.actual_end)}
                       </div>
+                    </Link>
+                    {/* Right side: chore count + supervisor actions */}
+                    <div className="shrink-0 flex flex-col items-end gap-1.5">
+                      <div className={`text-xs ${allDone ? 'text-green-400' : 'text-zinc-500'}`}>
+                        {done}/{total} chores
+                      </div>
+                      {isSupervisor && (
+                        <div className="flex items-center gap-1.5">
+                          <Link
+                            href={`/setup?logId=${log.id}`}
+                            className="text-xs text-zinc-500 hover:text-zinc-300 border border-zinc-700 hover:border-zinc-500 px-2 py-0.5 rounded transition-colors"
+                          >
+                            Edit
+                          </Link>
+                          <ConfirmShiftButton logId={log.id} confirmed={!!log.supervisor_confirmed_at} />
+                          <DeleteShiftButton logId={log.id} />
+                        </div>
+                      )}
                     </div>
                   </div>
-                </Link>
+                </div>
               )
             }
 

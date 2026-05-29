@@ -52,7 +52,16 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
     label: badges?.hasActiveShift ? 'Edit Current Shift' : 'Shift Setup',
   }
   const links = isSupervisorRole(userRole)
-    ? [setupLink, ...BASE_LINKS, { href: '/dashboard', label: 'Dashboard' }, { href: '/shift-profiles', label: 'Shift Profiles' }, { href: '/employees', label: 'Employees' }, { href: '/chore-templates', label: 'Chore Templates' }, { href: '/change-log', label: 'Change Log' }, { href: '/report', label: 'Report' }]
+    ? [
+        setupLink, ...BASE_LINKS,
+        { href: '/dashboard', label: 'Dashboard' },
+        { href: '/shift-profiles', label: 'Shift Profiles' },
+        { href: '/employees', label: 'Employees' },
+        { href: '/chore-templates', label: 'Chore Templates' },
+        { href: '/change-log', label: 'Change Log' },
+        { href: '/report', label: 'Report' },
+        ...(userRole === 'Dom' ? [{ href: '/dev', label: 'Dev' }] : []),
+      ]
     : [setupLink, ...BASE_LINKS]
 
   function isActive(href: string) {
