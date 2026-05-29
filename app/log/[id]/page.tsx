@@ -124,17 +124,20 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       OR: [
         ...(currentUnitIds.length > 0
           ? [
-              // Truck-based expires (Monthly/Quarterly) — exclude NARC Expires here;
-              // they must match by NARC box below, not by truck.
+              // Monthly/Quarterly Expires — match by truck (never NARC Expires)
               { unit_id: { in: currentUnitIds }, chore_template: { name: { not: 'NARC Expires' } } },
               { unit_id: null, operations_log: { bays: { some: { unit_id: { in: currentUnitIds } } } } },
             ]
           : []),
         // Station / crew-level chores from same shift profile
         { unit_id: null, operations_log: { shift_profile_id: log.shift_profile_id } },
-        // NARC Expires follow the NARC box, not the truck — match by source shift's narc_box_id
+        // NARC Expires: match by NARC box when the source shift recorded one (new data)
         ...(log.narc_box_id
           ? [{ chore_template: { name: 'NARC Expires' }, operations_log: { narc_box_id: log.narc_box_id } }]
+          : []),
+        // NARC Expires: fall back to truck matching for old shifts that have no narc_box_id recorded
+        ...(currentUnitIds.length > 0
+          ? [{ chore_template: { name: 'NARC Expires' }, unit_id: { in: currentUnitIds }, operations_log: { narc_box_id: null } }]
           : []),
       ],
     },
