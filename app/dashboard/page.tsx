@@ -144,7 +144,7 @@ export default async function DashboardPage() {
             )}
             {unresolvedCriticals.length > 0 && (
               <Link href="/chores" className="mt-3 block text-xs text-red-400 hover:text-red-300 transition-colors">
-                Resolve in Everyone&apos;s Chores →
+                View in Everyone&apos;s Chores →
               </Link>
             )}
           </div>
@@ -213,7 +213,7 @@ export default async function DashboardPage() {
             )}
             {coverageGaps.length > 0 && (
               <Link href="/chores" className="mt-3 block text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                Document in Everyone&apos;s Chores →
+                View in Everyone&apos;s Chores →
               </Link>
             )}
           </div>
