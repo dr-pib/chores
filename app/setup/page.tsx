@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import NavBar from '@/components/NavBar'
@@ -58,7 +59,7 @@ function normalizeBayLabel(label: string) {
   return label.replace(/^Bay\s+/i, '')
 }
 
-export default function SetupPage() {
+function SetupPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supervisorTargetLogId = searchParams.get('logId') ? Number(searchParams.get('logId')) : null
@@ -561,4 +562,8 @@ export default function SetupPage() {
       </div>
     </div>
   )
+}
+
+export default function SetupPage() {
+  return <Suspense fallback={<div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-400">Loading…</div>}><SetupPageContent /></Suspense>
 }
