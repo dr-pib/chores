@@ -58,7 +58,7 @@ export default async function DashboardPage() {
     prisma.scheduledWork.findMany({
       where: {
         status: 'pending',
-        work_date: { lt: serviceDate },
+        due_at: { lt: now },
         chore_template: { is_critical: true, lifecycle: 'persistent' },
       },
       include: { chore_template: true, unit: true, narc_box: true },

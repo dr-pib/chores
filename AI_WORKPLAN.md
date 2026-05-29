@@ -83,8 +83,10 @@ Steps 1–11 of the ScheduledWork ownership model are complete. The app has:
 ## Open Questions
 
 - **NARC Expires follow the truck, not the NARC box** — because Edit Shift lacks a NARC box dropdown. NARC Expires should follow the NARC box asset, not the truck. Fix: add NARC box dropdown to Edit Shift (same as Shift Setup already has), then update claiming logic to key off `narc_box_id` on the OperationsLog.
-- **Cron job for mark-missed** — currently a manual Admin Utilities button. Once a cron provider is chosen, wire `mark-missed-scheduled-work` to run nightly. Lazy trigger handles SW generation; cron handles missed transition.
 - **Harrison Daily Station Duties Rotation table is hard-coded** — future Chore Admin should generate it dynamically from the database.
+- **Completed truck check gets unchecked when secondary truck added via Edit Shift** — when a crew member completes their Unit 11 truck check then edits their shift to add a secondary truck, the Unit 11 truck check reverts to uncompleted. Root cause: the edit path deletes and recreates all Truck Check chores including completed ones. Fix: skip completed Truck Check chores in the TC delete/recreate cycle — only delete/replace pending ones.
+- **Overdue expires red banner should show for all users, not just supervisors** — user wants mild peer pressure visibility across all roles. Currently gated to `isSupervisorRole` in NavBar. Widen to all logged-in users. Note: the banner text and link should remain the same; just remove the role gate.
+- **Supervisor confirm warning for Harrison shifts without secondary truck** — when a supervisor confirms a Harrison shift that has no secondary truck assigned, they should receive a warning before confirming. The confirm workflow itself may need re-evaluation (unclear if it's still needed and why it was added). Do not implement until the purpose of shift confirmation is revisited.
 
 ---
 
