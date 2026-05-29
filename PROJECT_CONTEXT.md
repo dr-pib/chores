@@ -150,6 +150,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - The build script includes `prisma generate`; keep that intact unless deployment strategy changes.
 - Railway database environment variables have needed fallback handling before; be careful changing DB connection setup.
 - Run `npm run build` before pushing meaningful app changes when possible. Turbopack (local dev) skips some production checks — notably, `useSearchParams()` in Next.js App Router requires a `<Suspense>` boundary that Turbopack does not enforce but the full build does. Any page using `useSearchParams()` must wrap the consuming component in `<Suspense>` or the Railway deployment will fail.
+- **Never run `prisma db push` via `railway run` for schema changes.** The Chores Railway project has its own Postgres service, but `railway run` may inject a DATABASE_URL pointing to a shared Supabase instance also used by the Simplify project. Running `db push` there would drop Simplify's tables (`apparatus`, `calls`, `personnel`, etc.). For production schema changes, apply the specific ALTER TABLE SQL directly in the Supabase SQL editor or the Railway Postgres console. The `db:push` npm script is safe for local development only.
 
 ## Admin Utilities
 
@@ -190,7 +191,7 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - `At Shop` should save as `unit_status = 'unit_at_shop'`.
   - A present Bay 2 with no meaningful unit/status is a setup warning, displayed to supervisors as `Secondary Unit Unassigned` or `Bay 2 Missing Truck`.
   - Roster cards should show Bay 2 present/empty/shop/missing state clearly for supervisors.
-- Operations Chief / command-level dashboard — **design captured, not yet built**:
+- Operations Chief / command-level dashboard — **first version built** (`/dashboard`, supervisor+ only):
   - Primary user: Brent (Operations Chief). Logs in around 0815. Leaves dashboard open all day on a browser tab. Also used by supervisors. If a non-supervisor is working the Supervisor truck, Brent may act as de facto supervisor.
   - Horizontal column layout for large screen (TV/wide monitor), no scrolling ideal. Mobile-viewable with scrolling accepted. Drills down to Everyone's Chores, Roster, or appropriate page on click.
   - Column order: (1) Unresolved Criticals from Previous Days — overdue persistent expires, most urgent; (2) Unassigned Trucks Today — eligible units with no active shift, shows location note if set, distinguishes unbuilt vs unconfirmed shifts via color; (3) Missed Forfeitable Work / Coverage Gaps — side list; (4) Shift Status / Performance — completion percentages, drills to employee/crew/supervisor/station breakdowns.
@@ -203,13 +204,13 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - Gerald is an employee but NOT a workflow actor. He will not log in to mark trucks.
   - Supervisors set a location note on an unclaimed truck's ScheduledWork row. Valid values include Gerald-1/2/3, Off-site, or free text. Location does not change SW status — the row stays `pending`. Dashboard shows "Unit 6 — Gerald-2" so Brent knows it's physically accounted for.
   - Location notes reset each service day. No return-date field.
-  - Implementation: add `location_note String?` to `ScheduledWork`. A non-null `location_note` on a `pending` row means "acknowledged location, still unassigned."
+  - Implementation: `location_note String?` added to `ScheduledWork`. A non-null `location_note` on a `pending` row means "acknowledged location, still unassigned."
   - When a supervisor assigns a Gerald truck to a crew, the crew gets a new bay (Add Unit / Edit shift). Chores appear immediately when the shift is re-saved. Due time is relative to the shift's original `actual_start`, not the time of assignment.
   - Mid-shift truck assignment should be audited: record who added the bay and when. The dashboard and Everyone's Chores show this as small-print context ("Assigned at 11:14 by Jim Ketterman") at the same visual weight as due-time details.
 
 - Shift phone numbers:
   - Phone number follows the shift and position, not the employee. Example: DC-1 is the paramedic slot at Diamond City — that number is always DC-1 regardless of who is working.
-  - Add `phone_number String?` to `ShiftProfile`. The number for each position is a permanent property of the shift profile.
+  - `phone_number String?` added to `ShiftProfile`. The number for each position is a permanent property of the shift profile.
   - Used for the 10am supervisor SMS and as a quick reference for Brent.
 
 - SMS notifications — design captured, implementation deferred (no provider chosen yet):

@@ -2413,12 +2413,21 @@ Steps 1 through 9 are functionally complete, but current testing exposed workflo
    - **Implemented**: Added `ScheduledWorkActionButtons` component to "Everyone's Chores" for supervisors to quickly resolve unassigned work and coverage gaps.
    - **Verified**: Build successful.
 
-### Step 11: Operations Chief Dashboard & Performance Analytics
+### Step 11: Operations Chief Dashboard & Performance Analytics [IN PROGRESS]
 
-8. **Operations Chief Dashboard**
-   - Build the high-level horizontal column dashboard for Brent.
-   - Implement `location_note` on `ScheduledWork` for unassigned truck tracking.
-   - Implement shift phone numbers on `ShiftProfile`.
+8. **Operations Chief Dashboard** — first version built at `/dashboard` (supervisor+ only)
+   - 4-column layout: Unresolved Criticals | Unassigned Trucks Today | Coverage Gaps | Shift Status
+   - `location_note String?` added to `ScheduledWork` schema — visible in Unassigned Trucks column when set
+   - `phone_number String?` added to `ShiftProfile` schema — not yet surfaced in UI
+   - Lazy daily SW generation: `lib/ensure-daily-sw.ts` fires on first dashboard load after 5am, creates Truck Check SW for all eligible units if none exist yet
+   - Dashboard link added to supervisor nav
+   - **Still to do for dashboard:**
+     - Location note setter: supervisor UI to tag an unassigned truck with Gerald-1/2/3 or Off-site (currently stored but no setter UI)
+     - Phone numbers: add to Shift Profiles edit form and surface on dashboard
+     - Unconfirmed vs confirmed shift distinction in Column 2 (shift built but not supervisor-confirmed)
+     - Drill-down links from dashboard columns to relevant pages
+     - Performance column improvements: on-time rate, trend indicators
+     - Mobile layout review
 
 ### Operations Chief Dashboard — Design Captured 2026-05-28
 

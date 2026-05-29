@@ -83,6 +83,7 @@ model ShiftProfile {
   default_start_time         String
   default_shift_length_hours Int      @default(24)
   default_unit_id            Int?
+  phone_number               String?
   created_at                 DateTime @default(now())
 
   station           Station         @relation(fields: [station_id], references: [id])
@@ -252,6 +253,7 @@ model ScheduledWork {
   claimed_at        DateTime?
   status            String    @default("pending")
   resolution_note   String?
+  location_note     String?
   completed_at       DateTime?
   completed_by_id    Int?
   is_late_completion Boolean   @default(false)
