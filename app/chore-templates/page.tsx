@@ -41,6 +41,8 @@ export default function ChoreTemplatesPage() {
   const [generateResult, setGenerateResult] = useState<string | null>(null)
   const [markingMissed, setMarkingMissed] = useState(false)
   const [markMissedResult, setMarkMissedResult] = useState<string | null>(null)
+  const [cleaningDuplicates, setCleaningDuplicates] = useState(false)
+  const [cleanDuplicatesResult, setCleanDuplicatesResult] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -127,6 +129,31 @@ export default function ChoreTemplatesPage() {
       setGenerateResult('Network error.')
     } finally {
       setGenerating(false)
+    }
+  }
+
+  async function handleCleanDuplicates() {
+    setCleaningDuplicates(true)
+    setCleanDuplicatesResult(null)
+    try {
+      const res = await fetch('/api/admin/cleanup-duplicate-logs', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        const parts = []
+        if (data.deleted === 0 && data.skipped === 0) {
+          parts.push('No duplicate active logs found — already clean.')
+        } else {
+          if (data.deleted > 0) parts.push(`Removed ${data.deleted} duplicate log${data.deleted === 1 ? '' : 's'}.`)
+          if (data.skipped > 0) parts.push(`Skipped ${data.skipped} log${data.skipped === 1 ? '' : 's'} with completed chores (manual review needed).`)
+        }
+        setCleanDuplicatesResult(parts.join(' '))
+      } else {
+        setCleanDuplicatesResult('Error: ' + (data.error ?? 'Unknown error'))
+      }
+    } catch {
+      setCleanDuplicatesResult('Network error.')
+    } finally {
+      setCleaningDuplicates(false)
     }
   }
 
@@ -306,6 +333,19 @@ export default function ChoreTemplatesPage() {
               </p>
               {markMissedResult && (
                 <p className="text-zinc-400 text-xs mt-2 font-medium">{markMissedResult}</p>
+              )}
+              <button
+                onClick={handleCleanDuplicates}
+                disabled={cleaningDuplicates}
+                className="w-full mt-3 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 text-sm rounded-lg font-medium transition-colors text-left"
+              >
+                {cleaningDuplicates ? 'Cleaning…' : 'Remove Duplicate Active Logs'}
+              </button>
+              <p className="text-zinc-600 text-xs mt-1.5 leading-snug">
+                Removes extra active shift logs for employees who have more than one. Keeps the most recently created log per employee. Only deletes duplicates with no completed chores — logs with completed work are reported but not touched.
+              </p>
+              {cleanDuplicatesResult && (
+                <p className="text-zinc-400 text-xs mt-2 font-medium">{cleanDuplicatesResult}</p>
               )}
             </div>
           </div>
