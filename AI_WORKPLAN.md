@@ -2405,12 +2405,62 @@ Steps 1 through 9 are functionally complete, but current testing exposed workflo
    - **Claude fix** (`569119d`): `shouldGenerateScheduledChore` in `lib/chore-rotation.ts` was the critical missing piece — it returned `false` for 'Truck Check', blocking all generation. Added `if (templateName === 'Truck Check') return true` as the first check. Without this, all of Gemini's changes were correctly wired but produced no Truck Check SW.
    - Build clean. Truck Check SW is now created for each present truck at shift setup, claimed by the shift, and any unclaimed SW for unregistered trucks surfaces to supervisors before the lock window closes.
 
-### Step 10: After The Above
+### Step 10: Supervisor Direct Action on ScheduledWork
 
 7. **Supervisor direct action on ScheduledWork.**
    - Build route/UI for supervisors to complete unassigned persistent work or mark work not applicable with a note.
    - Audit actor/time/action.
-   - This is still Step 10, but should wait until the build is green and the review/edit/bay-state issues are resolved.
+
+### Operations Chief Dashboard — Design Captured 2026-05-28
+
+This is the major next feature after Step 10. Full design context captured here for Codex, Gemini, and future contributors.
+
+**Purpose:** Brent (Operations Chief) needs a single screen showing all critical operational data for the service day. He currently tallies shift performance manually with a calculator every two weeks — this dashboard eliminates that entirely and moves accountability live and visible to everyone.
+
+**Primary user:** Brent, Operations Chief. He is at the station every day starting at 0600. He logs in around 0815 to check status. He leaves the dashboard up on a browser tab all day and checks back. Supervisors have access too but they are usually on their own truck and use Roster/Chores more naturally. If a non-supervisor is working the Supervisor truck, Brent may be the de facto supervisor for that day.
+
+**Screen design:** Horizontal column layout designed for a large screen (TV or wide monitor) with ideally no scrolling. Also viewable on mobile with scrolling accepted. Brent drills down by clicking — takes him to Everyone's Chores, Roster, or the appropriate page depending on what he clicked.
+
+**Column layout (approximate — subject to revision when built or when Brent sees it):**
+1. **Unresolved Criticals from Previous Days** — overdue persistent expires (Monthly/Quarterly/NARC) that rolled over. Most urgent. Top of Brent's attention.
+2. **Unassigned Trucks Today** — eligible units (1–11, 14, 20) with no active shift claiming them. Shows location note if set (Gerald-1/2/3 or other). Distinguishes: not built vs built but unconfirmed vs confirmed. Subtle color differences. A truck with a location note is still unassigned until added to a crew's bay.
+3. **Missed Forfeitable Work / Coverage Gaps** — truck checks and NARC box checks that closed without completion. Documentation needed, not make-up work. Side list, not top priority.
+4. **Shift Status / Performance** — completion percentages per active shift. Brent is the ultimate consumer of performance data. Drills down to individual employees, crews, supervisors, stations.
+
+**Gerald bays — physical location labels:**
+- Gerald-1, Gerald-2, Gerald-3 are physical garage bays at the mechanic's facility (Gerald is an employee but not a workflow actor — he will not log in).
+- Trucks cycle there when being worked on OR when main bays are full (Gerald's bays are through a wall from the main station).
+- A supervisor can set a location note on an unclaimed truck's ScheduledWork row: Gerald-1, Gerald-2, Gerald-3, Off-site, or other. This is informational only — the truck is still "unassigned" until added to a crew's bay.
+- Location notes reset each service day. No return-date field for now.
+- Bay defaults exist for frontline trucks but are template values, not permanent assignments.
+- Implementation: add `location_note String?` to ScheduledWork. Setting a location note does NOT change status — the SW row stays `pending`. The dashboard shows location next to the unit label when set. Brent can see "Unit 6 — Gerald-2" and know it's been physically accounted for even if no crew has it.
+
+**Assigning an unaccounted truck to a crew:**
+- When a supervisor assigns a Gerald truck to a crew, the crew gets a new bay (third ambulance via Add Unit / Edit shift).
+- The truck check and any applicable expires chores appear immediately in that crew's My Chores when the shift is re-saved through the API.
+- Due time and lock window are relative to the shift's original `actual_start`, not the time of assignment. The dashboard and Everyone's Chores show small-print context: "Assigned at 11:14 by Jim Ketterman" — same visual weight as the existing "Due Wed, 5/20 07:00" detail line.
+- Audit trail: the `ChangeLog` table (or equivalent) should record who added the bay and when. This is new data — currently bay adds via Edit shift are not separately logged.
+
+**Shift phone numbers:**
+- Phone number follows the shift and position, not the employee. Example: DC-1 is the paramedic slot at Diamond City — that phone number is always DC-1 regardless of who is working it.
+- Add `phone_number String?` to `ShiftProfile`. The SUP-1 number lives on the Supervisor shift profile permanently.
+- Used for the 10am supervisor SMS and potentially for Brent to quickly know who to call.
+
+**SMS notifications (design captured, implementation deferred — SMS provider not yet chosen):**
+- **10:00 AM text to the active Supervisor shift phone:** any unresolved criticals or unassigned/unaccounted trucks still open at 10am.
+- **12:00 PM text to Brent:** same summary — unresolved criticals, unassigned trucks, missed work. Fires regardless of whether everything is resolved (send "all clear" too, so silence doesn't mean good news).
+- SMS, not push notifications (no app yet).
+- Provider TBD (Twilio most likely). Do not implement until provider is chosen and credentials are available.
+
+**Performance report — design captured:**
+- Brent currently tallies 6 shifts × 14 days = 84 manual rows every two weeks with a calculator. No trends, no outlier detection, no time for analysis.
+- The `/report` and `/report/[id]` pages exist and compute per-employee rates. What's needed on top:
+  - Date range filtering ("May 1–14")
+  - Multiple views: by individual employee, by crew/shift, by supervisor (each employee has a `direct_supervisor_id`), by station
+  - Trend lines — Brent needs to spot consistently poor vs consistently excellent performers and crews
+  - Highlight very good and very poor performers explicitly
+  - Export/print for the supervisor meeting: printable summary, shareable on the big TV, email to all supervisors simultaneously
+  - The supervisor meeting is every two weeks; Brent needs a clean, credible report he can present, not a screen of numbers
 
 ### Deferred / Later
 

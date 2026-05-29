@@ -190,9 +190,33 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - `At Shop` should save as `unit_status = 'unit_at_shop'`.
   - A present Bay 2 with no meaningful unit/status is a setup warning, displayed to supervisors as `Secondary Unit Unassigned` or `Bay 2 Missing Truck`.
   - Roster cards should show Bay 2 present/empty/shop/missing state clearly for supervisors.
-- Operations Chief / command-level dashboard:
-  - higher-level view for supervisors/chiefs who are not assigned to a truck
-  - should surface coverage gaps, unassigned scheduled work, out-of-service/offsite trucks, unchecked expires, and eventually NARC box status
+- Operations Chief / command-level dashboard — **design captured, not yet built**:
+  - Primary user: Brent (Operations Chief). Logs in around 0815. Leaves dashboard open all day on a browser tab. Also used by supervisors. If a non-supervisor is working the Supervisor truck, Brent may act as de facto supervisor.
+  - Horizontal column layout for large screen (TV/wide monitor), no scrolling ideal. Mobile-viewable with scrolling accepted. Drills down to Everyone's Chores, Roster, or appropriate page on click.
+  - Column order: (1) Unresolved Criticals from Previous Days — overdue persistent expires, most urgent; (2) Unassigned Trucks Today — eligible units with no active shift, shows location note if set, distinguishes unbuilt vs unconfirmed shifts via color; (3) Missed Forfeitable Work / Coverage Gaps — side list; (4) Shift Status / Performance — completion percentages, drills to employee/crew/supervisor/station breakdowns.
+  - Brent currently tallies 6 shifts × 14 days = 84 manual rows every two weeks with a calculator. This dashboard eliminates that and moves performance visibility live to every employee in the organization.
+  - A truck with a location note (e.g., Gerald-2) is still "unassigned" on the dashboard until added to a crew's bay. Location is informational, not accountability.
+  - Brent needs to print, put on the big TV, and email all supervisors simultaneously for the biweekly meeting. Performance report needs date-range filtering, views by employee/crew/supervisor/station, trend lines, and outlier highlighting.
+
+- Gerald bays — physical location labels for unassigned truck tracking:
+  - Gerald-1, Gerald-2, Gerald-3 are physical garage bays at the mechanic's facility, through a wall from the main Harrison station.
+  - Gerald is an employee but NOT a workflow actor. He will not log in to mark trucks.
+  - Supervisors set a location note on an unclaimed truck's ScheduledWork row. Valid values include Gerald-1/2/3, Off-site, or free text. Location does not change SW status — the row stays `pending`. Dashboard shows "Unit 6 — Gerald-2" so Brent knows it's physically accounted for.
+  - Location notes reset each service day. No return-date field.
+  - Implementation: add `location_note String?` to `ScheduledWork`. A non-null `location_note` on a `pending` row means "acknowledged location, still unassigned."
+  - When a supervisor assigns a Gerald truck to a crew, the crew gets a new bay (Add Unit / Edit shift). Chores appear immediately when the shift is re-saved. Due time is relative to the shift's original `actual_start`, not the time of assignment.
+  - Mid-shift truck assignment should be audited: record who added the bay and when. The dashboard and Everyone's Chores show this as small-print context ("Assigned at 11:14 by Jim Ketterman") at the same visual weight as due-time details.
+
+- Shift phone numbers:
+  - Phone number follows the shift and position, not the employee. Example: DC-1 is the paramedic slot at Diamond City — that number is always DC-1 regardless of who is working.
+  - Add `phone_number String?` to `ShiftProfile`. The number for each position is a permanent property of the shift profile.
+  - Used for the 10am supervisor SMS and as a quick reference for Brent.
+
+- SMS notifications — design captured, implementation deferred (no provider chosen yet):
+  - 10:00 AM text to the active Supervisor shift phone: unresolved criticals and unassigned/unaccounted trucks still open.
+  - 12:00 PM text to Brent: same summary. Fires regardless — send "all clear" too so silence never means good news.
+  - SMS, not push notifications (no mobile app yet). Provider TBD (Twilio most common).
+  - Do not implement until provider is chosen and credentials are available.
 - Scheduled-work ownership model — **built** (Steps 1–8):
   - `ScheduledWork` table tracks asset-level work independent of shift ownership
   - `ChoreTemplate` now has `asset_scope`, `lifecycle`, `is_critical`, `generates_independently`, `station_scope` classification fields
@@ -206,7 +230,7 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - NARC Expires display shows box letter and unit number together when both are known, e.g. `NARC Expires Box C Unit 4`
   - Unresolved: boxes in the safe are not yet auto-generated via shift creation (requires the admin generation endpoint or a future cron); the SW model is ready for it
 - Performance reporting — **built**: `lib/performance.ts`, `/api/performance`, `/api/performance/all`, `/report`, `/report/[id]`, stat strip on My Chores detail, performance card on profile. Supervisor nav shows "Report" link.
-  - Still to do: on-time rate (completed before `due_at`), export/CSV, peer comparison
+  - Still to do: date-range filtering; views sliced by employee, crew/shift, supervisor (via `direct_supervisor_id`), and station; trend lines; outlier highlighting (very good and very poor performers); printable/TV-displayable summary for the biweekly supervisor meeting; email-all-supervisors action; on-time rate (completed before `due_at`).
 - Deeper route cleanup for Chores/Roster after the current UX shape proves stable.
 - Settings/Admin configuration later, including custom shift sort if needed.
 
