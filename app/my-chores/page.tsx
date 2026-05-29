@@ -9,8 +9,9 @@ export default async function MyChoresPage({ searchParams }: { searchParams: Pro
   const session = await getSession()
   if (!session.isLoggedIn) redirect('/login')
 
-  // Any login after 5am triggers daily SW generation if it hasn't run yet today
-  void ensureDailySW(todayChicago())
+  // Any login after 5am triggers daily SW generation and mark-missed transition.
+  // Must be awaited — redirect() throws immediately after, killing fire-and-forget promises.
+  await ensureDailySW(todayChicago())
 
   const now = new Date()
   // Find the shift currently in progress: started already, not yet ended.
