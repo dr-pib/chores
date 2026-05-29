@@ -260,11 +260,11 @@ export async function POST(req: NextRequest) {
       ...(newNarcBoxId != null ? [{ asset_type: 'narc_box', asset_key: String(newNarcBoxId) }] : []),
     ]
 
-    const unclaimedSw = swAssetConditionsEdit.length > 0
+    // Fetch pending-unclaimed and complete SW for current assets in one query.
+    const relevantSwEdit = swAssetConditionsEdit.length > 0
       ? await prisma.scheduledWork.findMany({
           where: {
-            status: 'pending',
-            claimed_by_log_id: null,
+            status: { in: ['pending', 'complete'] },
             work_date: { in: choreDatesEdit },
             OR: swAssetConditionsEdit,
           },
@@ -275,9 +275,25 @@ export async function POST(req: NextRequest) {
             unit_id: true,
             narc_box_id: true,
             work_date: true,
+            status: true,
+            claimed_by_log_id: true,
           },
         })
       : []
+
+    const unclaimedSw = relevantSwEdit.filter(sw => sw.status === 'pending' && sw.claimed_by_log_id == null)
+
+    // Keys for work already complete — used to block the Day 2 standalone loop from
+    // creating a duplicate pending Chore. NARC key uses primary_unit_id to match how
+    // the chore row is keyed (chore carries unit_id, not narc_box_id).
+    const completedSwKeysEdit = new Set(
+      relevantSwEdit
+        .filter(sw => sw.status === 'complete')
+        .map(sw => {
+          const choreUnitId = sw.asset_type === 'narc_box' ? primary_unit_id : sw.unit_id
+          return `${sw.chore_template_id}-${sw.work_date.getTime()}-${choreUnitId ?? 'shift'}`
+        })
+    )
 
     // Load chores currently on this log for dedup (post-Phase-1 + post-main-update state).
     const existingChores = await prisma.chore.findMany({
@@ -335,7 +351,7 @@ export async function POST(req: NextRequest) {
         ...buildChoreRows(day2NarcTemplate ? [day2NarcTemplate] : [], narcTargets, day2Date, startDt, DAY_2_OFFSET_MS),
       ]) {
         const choreKey = `${row.chore_template_id}-${row.chore_date.getTime()}-${row.unit_id ?? 'shift'}`
-        if (existingChoreKeys.has(choreKey) || handledChoreKeys.has(choreKey)) continue
+        if (existingChoreKeys.has(choreKey) || handledChoreKeys.has(choreKey) || completedSwKeysEdit.has(choreKey)) continue
         choresToAdd.push({ ...row, operations_log_id: existing.id })
       }
     }
@@ -433,11 +449,13 @@ export async function POST(req: NextRequest) {
       : []),
   ]
 
-  const pendingSw = swAssetConditions.length > 0
+  // Fetch pending-unclaimed and complete SW for this shift's assets in one query.
+  // Pending-unclaimed rows are claimed and linked to new Chores.
+  // Complete rows signal already-done work — no duplicate pending Chore should be created.
+  const relevantSw = swAssetConditions.length > 0
     ? await prisma.scheduledWork.findMany({
         where: {
-          status: 'pending',
-          claimed_by_log_id: null,
+          status: { in: ['pending', 'complete'] },
           work_date: { in: choreDates },
           OR: swAssetConditions,
         },
@@ -448,9 +466,13 @@ export async function POST(req: NextRequest) {
           unit_id: true,
           narc_box_id: true,
           work_date: true,
+          status: true,
+          claimed_by_log_id: true,
         },
       })
     : []
+
+  const pendingSw = relevantSw.filter(sw => sw.status === 'pending' && sw.claimed_by_log_id == null)
 
   // Build a lookup map so annotation is O(1) per chore row.
   // Key: `${template_id}-unit-${unit_id}-${date_ms}` for truck-scoped rows
@@ -464,12 +486,36 @@ export async function POST(req: NextRequest) {
     ])
   )
 
+  // Keys for template/asset/date combinations already complete — suppress pending Chore creation.
+  const completedSwKeys = new Set(
+    relevantSw
+      .filter(sw => sw.status === 'complete')
+      .map(sw =>
+        sw.asset_type === 'unit'
+          ? `${sw.chore_template_id}-unit-${sw.unit_id}-${sw.work_date.getTime()}`
+          : `${sw.chore_template_id}-narc-${sw.narc_box_id}-${sw.work_date.getTime()}`
+      )
+  )
+
+  // Drop chore rows for work that is already complete — prevents duplicating pending Chores
+  // when another crew or supervisor has already finished the work for this asset/date.
+  const filteredChoresToCreate = choresToCreate.filter(chore => {
+    const tmpl = templateById.get(chore.chore_template_id)
+    if (!tmpl) return true
+    const dateMs = chore.chore_date.getTime()
+    if (tmpl.asset_scope === 'truck' && chore.unit_id != null)
+      return !completedSwKeys.has(`${chore.chore_template_id}-unit-${chore.unit_id}-${dateMs}`)
+    if (tmpl.asset_scope === 'narc_box' && narc_box_id != null)
+      return !completedSwKeys.has(`${chore.chore_template_id}-narc-${narc_box_id}-${dateMs}`)
+    return true
+  })
+
   const matchedSwIds = new Set<number>()
 
   // Annotate chore rows with scheduled_work_id where a pending SW exists.
   // For truck-scoped templates, match by unit_id. For NARC-box templates, match by
   // the shift's narc_box_id (the chore itself carries unit_id, not narc_box_id).
-  const annotatedChores = choresToCreate.map(chore => {
+  const annotatedChores = filteredChoresToCreate.map(chore => {
     const tmpl = templateById.get(chore.chore_template_id)
     if (!tmpl) return chore
     const dateMs = chore.chore_date.getTime()
@@ -521,7 +567,7 @@ export async function POST(req: NextRequest) {
     if ((e as { code?: string }).code !== 'P2002') throw e
     // Concurrent SW claim: another shift won the race. Create the log without SW links.
     claimMatchedSw = false
-    log = await createLogWithChores(choresToCreate)
+    log = await createLogWithChores(filteredChoresToCreate)
   }
 
   await seedChoreTasks(log.id)
