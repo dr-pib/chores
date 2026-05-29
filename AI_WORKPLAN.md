@@ -2226,6 +2226,29 @@ Edit path (Phase 3):
 
 Completed work credit, claim/unclaim, race guard, and forfeitable work behavior all unchanged.
 
+## ESO Shift Seed — 2026-05-28 (logs 50–73)
+
+One-time test seed from `imports/eso_shift_seed_2026-05-28_to_2026-05-31.csv`. Scripts live in `imports/`.
+
+- **preflight-eso-shifts.ts** — dry-run: checks employee/profile matches, existing shifts, needs_review rows
+- **seed-eso-shifts.ts** — inserts 24 shifts (6 profiles × 4 days), uses shift profile defaults for bays/units
+- **list-employees.ts** — helper used to resolve name mismatches during preflight
+
+Name aliases applied (ESO name → DB name):
+
+| ESO | DB |
+|---|---|
+| James Ketterman | Jim Ketterman |
+| Jerry Halliday | Dale Halliday |
+| Donald Remer | Don Remer |
+| Melissa Remer | Melissa Henderson |
+| Joe Deaton | Vince Deaton |
+| Jacqueline Rowton | Paige Rowton |
+
+Result: 24 inserted, 0 skipped. Chore counts: Harrison profiles got Truck Check + station chore (2 chores); DC-ALS and NC-ALS got Truck Check only (1 chore). No scheduled expires for May 28–31 (no qualifying dates). Truck/NARC details use shift profile defaults — user will correct via Shift Setup.
+
+`schedule_import_first_name String?` was added to the `Employee` model during this work to support first-name mismatches in future ESO imports. Future import matching should check this field alongside the display name.
+
 ## Current Next Step — 2026-05-28
 
 Steps 1 through 8 (including edge case fix) are complete. Ready for Step 9.
@@ -2237,6 +2260,7 @@ Known deferred items:
 - Supervisor direct-complete/not-applicable route is later Step 10.
 - Chore Admin UI for the new classification fields remains future work.
 - ESO schedule import/parser is a future separate project; best current source is the daily `.xls` export.
+- Employee records now include optional `schedule_import_first_name` to support ESO first-name mismatches during import, e.g. Jim/James Ketterman and Dale/Jerry Halliday. Future import matching should check both the display first name and this field.
 - "Someone else completes persistent work after the window" case: original crew keeps the miss; completing employee gets normal credit. Full implementation requires the Step 10 supervisor direct-complete path or a future assign-to-another-crew feature. Current code only handles the original crew completing their own chore late.
 - Overall dashboard "resolved late" view: persistent late completions are currently surfaced only through the `late_sw_60d` counter on the performance endpoints; a dedicated dashboard section is deferred.
 
