@@ -1861,16 +1861,16 @@ All four issues resolved. Decisions locked:
 ### Updated implementation sequence
 
 1. ~~Step 1 — ChoreTemplate metadata fields~~ ✅ done (commit e174a5b)
-2. **Step 2 — ScheduledWork table + Chore FK** (schema only, no behavior)
-3. **Step 2.5 — lifecycle_type cleanup** — migrate reads from `lifecycle_type` → `lifecycle` across all routes/pages/helpers listed by Codex. Run build. Commit.
-4. **Step 3 — Completion route sync** (sync ScheduledWork.status when a linked Chore is completed)
-5. **Step 4 — Admin generation endpoint** (reads new fields only, not lifecycle_type)
-6. **Step 5 — Window-bound miss transition**
-7. **Step 6 — Claiming in shift creation**
-8. **Step 7 — Unclaiming + re-claiming in shift edit**
-9. **Step 8 — Monthly/Quarterly and NARC generation + claiming**
-10. **Step 9 — Supervisor unassigned/missed UI**
-11. **Step 10 — Supervisor direct-complete / not-applicable action**
+2. ~~Step 2 — ScheduledWork table + Chore FK~~ ✅ done
+3. ~~Step 2.5 — lifecycle_type cleanup~~ ✅ done
+4. ~~Step 3 — Completion route sync~~ ✅ done
+5. ~~Step 4 — Admin generation endpoint~~ ✅ done
+6. ~~Step 5 — Window-bound miss transition~~ ✅ done
+7. ~~Step 6 — Claiming in shift creation~~ ✅ done
+8. ~~Step 7 — Unclaiming + re-claiming in shift edit~~ ✅ done
+9. ~~Step 8 — Monthly/Quarterly and NARC generation + claiming~~ ✅ done
+10. ~~Step 9 — Supervisor unassigned/missed UI~~ ✅ done
+11. ~~Step 10 — Supervisor direct-complete / not-applicable action~~ ✅ done (commits c68855d, 9aac0e2)
 
 ## Step 2 Completion Note — 2026-05-27
 
@@ -2542,3 +2542,23 @@ User added real workplace examples that the future Chore Console must support:
 - **Consistency:** The "Wednesday All Crews" example confirms that the future console needs a `weekday_pattern` or `recurrence_rule` field. 
 - **Conflict Check:** No conflicts found. The matrix model (`asset_scope × lifecycle × is_critical`) implemented in Step 2.5 is robust enough to handle the variety of chores described in the "Future Console" note.
 - **Positive:** Step 10 (Direct Action) is the key to making the dashboard actionable. The `not_applicable` status is critical for keeping the "Unassigned" list clean when trucks are at the shop.
+
+## Known Issues & Deferred Fixes — 2026-05-29
+
+### NARC Expires follow the truck, not the NARC box
+Currently, when a crew claims a truck with an open NARC Expires from a prior shift, those expires appear on the new crew's My Chores as if they own them. The correct behavior is for NARC Expires to follow the **NARC box** (e.g., Box C), not the truck/unit. Fix requires: Edit Shift must have a NARC box dropdown (same as Shift Setup already does), and the NARC Expires claim logic must key off `narc_box_id` on the OperationsLog, not `unit_id`. This is different behavior from Monthly/Quarterly Expires which correctly follow the truck. Do not conflate the two paths.
+
+### Overdue/persistent chore section should appear above Daily Chores on My Chores
+The red "Overdue / Unfinished" box currently renders below the Daily Chores section. It should move **above** Daily Chores so it is impossible to miss. A crew member who has a prior-shift NARC Expires or Expires overdue should see it immediately at the top of their work view, not buried below the completed daily work.
+
+### Chore count discrepancy: My Chores vs Roster, and performance implications
+My Chores shows `2/3` (counting a prior-shift NARC Expires in the denominator). Roster shows `2/2` (excludes it). This surfaces a design question that needs a deliberate answer before performance scoring is finalized:
+
+**The question:** Should an inherited overdue persistent chore (e.g., NARC Expires from 5/25 that predates Paige's current shift) count in Paige's performance denominator?
+
+**Proposed rule (not yet implemented):** No — the original crew/shift that missed the expires keeps the miss in their denominator. If Paige's crew completes it, they get credit (it adds to both their numerator and denominator). If they do not complete it, it should NOT count against Paige's performance — she inherited a miss, not a new obligation. The Roster count (`2/2`, chores generated for this shift only) is closer to the correct denominator for performance. The `2/3` count in My Chores is a display issue: it shows all non-completed chores on the log including inherited ones, which is useful for visibility but not the right performance baseline.
+
+**Action needed:** Decide and document the performance denominator rule here, then audit `lib/performance.ts` to confirm it matches. The `computePerformanceStats` function currently counts all chores on a shift; it may need to filter to only chores whose `chore_date` falls within the shift's own service window.
+
+### Harrison Daily Station Duties Rotation table is hard-coded
+The rotation table in Chore Templates sidebar is hard-coded HTML. Future Chore Admin should generate this dynamically from the actual rotation schedule stored in the database. Deferred — note for future console work.

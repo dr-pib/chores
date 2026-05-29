@@ -212,7 +212,7 @@ const [generateDate, setGenerateDate] = useState(() =>
             {/* Harrison Rotation Grid */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
               <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-                Harrison Rotation
+                Harrison Daily Station Duties Rotation
               </h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
