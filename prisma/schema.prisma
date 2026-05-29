@@ -263,6 +263,7 @@ model ScheduledWork {
   claimed_by_log OperationsLog? @relation("ClaimedScheduledWork", fields: [claimed_by_log_id], references: [id])
   completed_by   Employee?      @relation("ScheduledWorkCompletedBy", fields: [completed_by_id], references: [id])
   chore          Chore?
+  change_logs    ChangeLog[]
 
   @@unique([chore_template_id, work_date, asset_type, asset_key])
   @@map("scheduled_work")
@@ -272,6 +273,7 @@ model ChangeLog {
   id                      Int      @id @default(autoincrement())
   operations_log_id       Int?
   chore_id                Int?
+  scheduled_work_id       Int?
   target_employee_id      Int?
   changed_by_employee_id  Int
   action                  String
@@ -281,6 +283,7 @@ model ChangeLog {
 
   operations_log      OperationsLog? @relation(fields: [operations_log_id], references: [id])
   chore               Chore?         @relation(fields: [chore_id], references: [id])
+  scheduled_work      ScheduledWork? @relation(fields: [scheduled_work_id], references: [id])
   target_employee     Employee?      @relation("ChangeLogTargetEmployee", fields: [target_employee_id], references: [id])
   changed_by_employee Employee       @relation("ChangeLogChangedBy", fields: [changed_by_employee_id], references: [id])
 

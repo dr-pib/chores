@@ -2405,11 +2405,20 @@ Steps 1 through 9 are functionally complete, but current testing exposed workflo
    - **Claude fix** (`569119d`): `shouldGenerateScheduledChore` in `lib/chore-rotation.ts` was the critical missing piece — it returned `false` for 'Truck Check', blocking all generation. Added `if (templateName === 'Truck Check') return true` as the first check. Without this, all of Gemini's changes were correctly wired but produced no Truck Check SW.
    - Build clean. Truck Check SW is now created for each present truck at shift setup, claimed by the shift, and any unclaimed SW for unregistered trucks surfaces to supervisors before the lock window closes.
 
-### Step 10: Supervisor Direct Action on ScheduledWork
+### Step 10: Supervisor Direct Action on ScheduledWork [COMPLETE]
 
 7. **Supervisor direct action on ScheduledWork.**
-   - Build route/UI for supervisors to complete unassigned persistent work or mark work not applicable with a note.
-   - Audit actor/time/action.
+   - **Implemented**: Added `scheduled_work_id` to `ChangeLog` for auditing direct actions.
+   - **Implemented**: Built `/api/scheduled-work/[id]/resolve` POST endpoint for supervisors to mark work as `complete` or `not_applicable` with a note.
+   - **Implemented**: Added `ScheduledWorkActionButtons` component to "Everyone's Chores" for supervisors to quickly resolve unassigned work and coverage gaps.
+   - **Verified**: Build successful.
+
+### Step 11: Operations Chief Dashboard & Performance Analytics
+
+8. **Operations Chief Dashboard**
+   - Build the high-level horizontal column dashboard for Brent.
+   - Implement `location_note` on `ScheduledWork` for unassigned truck tracking.
+   - Implement shift phone numbers on `ShiftProfile`.
 
 ### Operations Chief Dashboard — Design Captured 2026-05-28
 

@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import ChoreItem from '@/components/ChoreItem'
+import ScheduledWorkActionButtons from '@/components/ScheduledWorkActionButtons'
 import { sortChores } from '@/lib/chore-rotation'
 import { nextServiceDate } from '@/lib/dates'
 import { formatEmployeeTitle } from '@/lib/employees'
@@ -250,9 +251,7 @@ export default async function ChoresPage() {
                   <span className="text-zinc-300">{swAssetLabel(sw)}</span>
                   <span className="text-zinc-500">{formatWorkDate(sw.work_date)}</span>
                   <span className="text-zinc-600 text-xs">Due {formatDueAt(sw.due_at)}</span>
-                  <span className="text-xs text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded ml-auto">
-                    Unassigned
-                  </span>
+                  <ScheduledWorkActionButtons swId={sw.id} status={sw.status} />
                 </div>
               ))}
             </div>
@@ -265,7 +264,7 @@ export default async function ChoresPage() {
             <h2 className="text-xs font-semibold text-yellow-500/80 uppercase tracking-wider mb-1">
               Coverage Gaps — Missed Forfeitable Work
             </h2>
-            <p className="text-xs text-zinc-600 mb-3">Last 30 days. Cannot be made up — document with a reason in a future step.</p>
+            <p className="text-xs text-zinc-600 mb-3">Last 30 days. Document reason (OOS, at shop) if known.</p>
             <div className="space-y-2">
               {missedForfeitable.map(sw => (
                 <div key={sw.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
@@ -275,9 +274,7 @@ export default async function ChoresPage() {
                   {sw.claimed_by_log && (
                     <span className="text-zinc-600 text-xs">{sw.claimed_by_log.shift_profile.name}</span>
                   )}
-                  <span className="text-xs text-yellow-600/80 bg-yellow-500/10 px-1.5 py-0.5 rounded ml-auto">
-                    Missed
-                  </span>
+                  <ScheduledWorkActionButtons swId={sw.id} status={sw.status} />
                 </div>
               ))}
             </div>
