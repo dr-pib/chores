@@ -83,6 +83,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Employee card/title format: `John Robinson, NRP`.
 - Employee dropdown/list format: `Robinson, John, NRP`.
 - Employee dropdowns/lists should sort by last name.
+- Employee records can have an optional `schedule_import_first_name` for schedule-import matching when ESO or another scheduling source uses a different first name than the app display name. Examples: Jim Ketterman may appear as `James Ketterman`; Dale Halliday may appear as `Jerry Halliday`. Import matching should check display name and this import first name before treating a person as unmatched.
 - Shift card top line format: `24-8 | Teddy Burkitt, NRP & Cathy Harris, EMT`.
 - Shift card second line should be the shift start/end date-time range.
 - Use the same shift card format and default sort order on Today's Roster, History, and Everyone's Chores.

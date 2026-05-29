@@ -18,6 +18,7 @@ const prisma = new PrismaClient({ adapter })
 
 type EmployeeCsvRow = {
   name: string
+  schedule_import_first_name: string
   email: string
   email_username: string
   emt_number: string
@@ -263,6 +264,7 @@ async function main() {
         where: { email_username: employee.email_username },
         update: {
           name: employee.name,
+          schedule_import_first_name: employee.schedule_import_first_name || null,
           email: employee.email || null,
           emt_number: employee.emt_number,
           licensure_level: employee.licensure_level,
@@ -274,6 +276,7 @@ async function main() {
         },
         create: {
           name: employee.name,
+          schedule_import_first_name: employee.schedule_import_first_name || null,
           email: employee.email || null,
           email_username: employee.email_username,
           emt_number: employee.emt_number,

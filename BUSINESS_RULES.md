@@ -259,3 +259,29 @@ Chore templates should eventually be configurable by several independent dimensi
 - specific asset groups when needed
 
 These are separate settings. A chore is not simply "daily" or "persistent"; it may be truck-based, forfeitable, critical, and independently generated all at the same time.
+
+The Chore Console must be flexible enough for real workplace chore schedules, including:
+
+- chores that apply to selected stations, using explicit station selectors such as Harrison, Diamond City, and Newton County
+- chores that apply to all stations
+- chores that apply only on specific weekdays
+- recurring calendar-style rules such as daily, weekly by day of week, monthly by date, monthly by weekday pattern, quarterly rules, annual rules, and manual/ad hoc work
+- chores that are added in addition to the normal Harrison station rotation
+- per-template due and lock offsets, such as due at shift start plus 2 hours and lock at shift start plus 31 hours
+
+Example current workplace rules:
+
+- Wednesday All Crews applies to all stations as a separate crew-level chore, in addition to the normal rotation.
+- Thursday All Crews applies to all stations as a separate crew-level chore, in addition to the normal rotation.
+- Wednesday/Thursday all-crew chores apply to Supervisor shifts as well as 24-7, 24-8, Swing, DC-ALS, and NC-ALS.
+- Wednesday/Thursday all-crew chores should default to due `+2 hours` and lock `+31 hours`, but those values should remain editable in Chore Console.
+
+Non-critical forfeitable asset chores need a different supervisor view than mission-critical persistent work.
+
+Example: truck deep clean.
+
+- It may be truck/unit-based and recurring.
+- If missed, it should count against the responsible employee/crew performance as expected.
+- It should not appear like an urgent "must be completed now" compliance item in the same way as Expires.
+- A useful supervisor view should list each unit and the date the deep clean was last performed.
+- This lets supervisors see freshness/coverage without treating the missed chore as a persistent obligation that must be made up.

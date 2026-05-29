@@ -10,6 +10,7 @@ datasource db {
 model Employee {
   id                         Int      @id @default(autoincrement())
   name                       String
+  schedule_import_first_name String?
   email                      String?
   email_username             String   @unique
   emt_number                 String   @unique
