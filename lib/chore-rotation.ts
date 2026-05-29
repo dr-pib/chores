@@ -27,6 +27,9 @@ export function shouldGenerateScheduledChore(templateName: string, serviceDate: 
   const year = serviceDate.getFullYear()
   const month = serviceDate.getMonth()
 
+  // Daily forfeitable asset work — generates every service date
+  if (templateName === 'Truck Check') return true
+
   if (templateName === 'NARC Expires') {
     return serviceDate.getDate() === 25
   }
