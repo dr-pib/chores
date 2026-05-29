@@ -90,6 +90,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Default internal shift sort order: Supervisor, 24-7, 24-8, Swing, Diamond City, Newton County.
 - Keep Diamond City and Newton County shift labels as they exist in the system, such as `DC-ALS` and `NC-ALS`, unless the user asks otherwise.
 - The active side of segmented switches should be visually obvious; current pattern is a blue selected pill.
+- Roster date navigation (Today's Roster) allows moving forward into future dates. Future dates with no shifts show the normal empty state. Only the back arrow suppresses navigation at a logical boundary (do not disable it either unless there is a specific reason). Do not hide or disable the forward arrow when the selected date is today.
 
 ## Badges And Alerts
 
@@ -102,8 +103,13 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Proposed supervisor ticker text pattern:
   `Overdue: MONTHLY EXPIRES: Unit(s) 1, 2, and 6 | QUARTERLY EXPIRES: Unit(s) 1, 2, 6, 7, and 14 | NARC EXPIRES: Unit(s) 4 and 11.`
 - The ticker should only show categories that have overdue units, deduplicate units per category, sort unit numbers ascending, and link to Everyone's Chores.
+- The ticker now also includes unclaimed pending persistent critical ScheduledWork past `due_at` (no shift has claimed it). Truck-scope SW contributes unit numbers; narc_box-scope SW contributes "Box X" identifiers (e.g. "Box C").
 - Ticker visibility: Supervisor, Admin, and Dom only.
 - Avoid user-facing lifecycle jargon such as `Persistent`; prefer operational labels like overdue, unfinished, expires, or scheduled chores.
+- Everyone's Chores has two supervisor-only sections (Supervisor/Admin/Dom) above the existing overdue/shift lists:
+  1. **Unassigned — Needs Completion** (amber): unclaimed pending persistent critical ScheduledWork. Shows template name, asset (Unit X or Box Y), work date, due time. Work that still needs to be done.
+  2. **Coverage Gaps — Missed Forfeitable Work** (yellow/zinc): missed forfeitable critical ScheduledWork for the last 30 days. Truck Checks and future NARC Box Checks that closed without completion. Cannot be made up — documentation is Step 10. Shows template name, asset, work date, and which shift claimed it.
+- Regular employees never see these command-level sections.
 
 ## Permissions And Audit
 
@@ -178,7 +184,8 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - Shift creation and edit auto-ensure persistent `ScheduledWork` rows for the shift's specific present trucks (Monthly/Quarterly Expires) and NARC box (NARC Expires) on qualifying dates; no admin pre-run required
   - Claim/unclaim/re-claim logic in `app/api/operations-logs/route.ts` links pending unclaimed SW to shift Chores and releases claims when assets are removed or swapped
   - `ScheduledWork.is_late_completion` flag set when persistent work is completed after it was already `missed`
-  - Still to do: supervisor UI for unassigned/missed SW (Step 9), supervisor direct-complete/not-applicable route (Step 10), cron job for mark-missed transition
+  - Step 9 **built**: supervisor-only sections in Everyone's Chores surface unassigned pending persistent SW and missed forfeitable SW; overdue ticker extended to include unclaimed SW
+  - Still to do: supervisor direct-complete/not-applicable route (Step 10), cron job for mark-missed transition
 - NARC box model — **built** (foundation complete):
   - NARC boxes A–L have their own `NarcBox` table; Shift Setup saves one shift-level NARC box selection
   - NARC Expires display shows box letter and unit number together when both are known, e.g. `NARC Expires Box C Unit 4`

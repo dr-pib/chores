@@ -2249,9 +2249,51 @@ Result: 24 inserted, 0 skipped. Chore counts: Harrison profiles got Truck Check 
 
 `schedule_import_first_name String?` was added to the `Employee` model during this work to support first-name mismatches in future ESO imports. Future import matching should check this field alongside the display name.
 
+## Step 9 Completion Note — 2026-05-28 (commit `dd06dea`)
+
+Step 9 is complete and pushed. Supervisor/Admin/Dom now have an operational view of ScheduledWork that needs attention on Everyone's Chores.
+
+**What was built:**
+
+Two supervisor-only sections added to `app/chores/page.tsx`, above the existing "Overdue/Unfinished" chores section:
+
+**Section 1 — Unassigned / Needs Completion (amber):**
+- Query: `ScheduledWork` where `status='pending'`, `claimed_by_log_id=null`, `lifecycle='persistent'`, `is_critical=true`
+- These are Monthly/Quarterly/NARC Expires with no shift owning them yet
+- Displays: template name, asset (Unit X or Box Y), work date, due time, "Unassigned" badge
+- Sorted by `due_at` ascending (most urgent first)
+
+**Section 2 — Coverage Gaps / Missed Forfeitable Work (yellow/zinc):**
+- Query: `ScheduledWork` where `status='missed'`, `lifecycle='forfeitable'`, `is_critical=true`, `work_date` within last 30 days, max 60 rows
+- These are Truck Checks (and future NARC Box Checks) that closed without completion
+- Cannot be made up — documentation is Step 10
+- Displays: template name, asset, work date, claiming shift (if any), "Missed" badge
+- Sorted by work_date descending then unit number ascending
+
+**Overdue-expires ticker extended (`app/api/alerts/overdue-expires/route.ts`):**
+- Added a parallel query for unclaimed pending persistent critical SW where `due_at < now`
+- Truck-scope SW contributes unit numbers; narc_box-scope SW contributes "Box X" strings
+- Type widened from `Set<number | 'Unassigned'>` to `Set<number | string>`; sort updated for mixed types
+
+**Also shipped:**
+- Roster forward-arrow fix (commit `638c229`): forward arrow no longer hidden when selected date is today; future dates show normal empty state
+
+**What is unchanged:**
+- Regular employee view of Everyone's Chores: untouched
+- Existing "Overdue/Unfinished" shift-owned chores section: untouched
+- Performance scoring: untouched
+- No direct-complete/not-applicable actions yet: Step 10
+
+**Deferred items still on the list:**
+- Step 10: supervisor direct-complete / not-applicable route for unassigned SW
+- Cron job to run the mark-missed transition automatically
+- Chore Admin UI for classification matrix fields
+- Supervisor truck coverage view (trucks not on any shift today)
+- Operations Chief command-level dashboard
+
 ## Current Next Step — 2026-05-28
 
-Steps 1 through 8 (including edge case fix) are complete. Ready for Step 9.
+Steps 1 through 9 are complete. Ready for Step 10.
 
 Known deferred items:
 - Standalone non-SW chores for removed assets may remain during the transition; expected to matter less once scheduled generation is reliable.
