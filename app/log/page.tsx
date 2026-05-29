@@ -7,6 +7,7 @@ import { formatUnit } from '@/lib/units'
 import { nextServiceDate } from '@/lib/dates'
 import { formatEmployeeTitle } from '@/lib/employees'
 import SegmentedNav from '@/components/SegmentedNav'
+import { isSupervisorRole } from '@/lib/roles'
 
 const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
 
@@ -29,23 +30,40 @@ function toDateParam(d: Date) {
   return d.toISOString().slice(0, 10)
 }
 
-function unitLine(log: {
-  primary_unit: { unit_number: number } | null
-  bays: { unit: { unit_number: number } | null; unit_status: string }[]
-}) {
+function unitLine(
+  log: {
+    primary_unit: { unit_number: number } | null
+    bays: { bay_label: string; unit: { unit_number: number } | null; unit_status: string }[]
+  },
+  isSupervisor: boolean,
+) {
   const primaryNum = log.primary_unit?.unit_number ?? null
-  const secondaryNums = log.bays
-    .filter(b => b.unit_status === 'unit_present' && b.unit && b.unit.unit_number !== primaryNum)
-    .map(b => b.unit!.unit_number)
+  const secondaryBays = log.bays.filter(
+    b => !(b.unit && b.unit.unit_number === primaryNum)
+  )
 
-  if (!primaryNum && secondaryNums.length === 0) return null
+  const secondaryItems = secondaryBays.map(b => {
+    if (b.unit_status === 'unit_present' && b.unit) {
+      return <span key={b.bay_label} className="text-sm text-zinc-500">(Unit {b.unit.unit_number})</span>
+    }
+    if (b.unit_status === 'empty_bay') {
+      return <span key={b.bay_label} className="text-sm text-zinc-500">(Bay {b.bay_label} Empty)</span>
+    }
+    if (b.unit_status === 'unit_at_shop') {
+      return <span key={b.bay_label} className="text-sm text-zinc-500">(Bay {b.bay_label} At Shop)</span>
+    }
+    if (isSupervisor) {
+      return <span key={b.bay_label} className="text-sm text-amber-500/80">(Bay {b.bay_label} Missing Truck)</span>
+    }
+    return null
+  }).filter(Boolean)
+
+  if (!primaryNum && secondaryItems.length === 0) return null
 
   return (
-    <div className="flex items-center gap-1 mt-0.5">
+    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
       {primaryNum && <span className="text-sm font-semibold text-zinc-100">Unit {primaryNum}</span>}
-      {secondaryNums.map(n => (
-        <span key={n} className="text-sm text-zinc-500">(Unit {n})</span>
-      ))}
+      {secondaryItems}
     </div>
   )
 }
@@ -94,6 +112,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
     serviceDate = todayLocal
   }
 
+  const isSupervisor = isSupervisorRole(session.role)
   const isToday = serviceDate.getTime() === todayLocal.getTime()
   const prevDate = new Date(serviceDate.getTime() - 24 * 3600 * 1000)
   const nextDate = nextServiceDate(serviceDate)
@@ -188,11 +207,13 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-zinc-100">{crewLine(log)}</span>
-                          {log.supervisor_confirmed_at && (
+                          {log.supervisor_confirmed_at ? (
                             <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">Confirmed</span>
-                          )}
+                          ) : isSupervisor ? (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Needs Review</span>
+                          ) : null}
                         </div>
-                        {unitLine(log)}
+                        {unitLine(log, isSupervisor)}
                         <div className="text-zinc-400 text-sm mt-0.5">
                           {formatShiftMil(log.actual_start)} – {formatShiftMil(log.actual_end)}
                         </div>

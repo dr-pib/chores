@@ -9,6 +9,7 @@ import { sortChores, getStationChoreForPost } from '@/lib/chore-rotation'
 import { isPastShift, todayChicago } from '@/lib/dates'
 import { computePerformanceStats, trendArrow, formatRate } from '@/lib/performance'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
+import ConfirmShiftButton from '@/components/ConfirmShiftButton'
 import LiveClock from '@/components/LiveClock'
 import { formatEmployeeTitle } from '@/lib/employees'
 import SegmentedNav from '@/components/SegmentedNav'
@@ -290,10 +291,10 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                 ]}
               />
             )}
-            {log.supervisor_confirmed_at ? (
+            {isSupervisorRole(session.role) ? (
+              <ConfirmShiftButton logId={log.id} confirmed={!!log.supervisor_confirmed_at} />
+            ) : log.supervisor_confirmed_at ? (
               <span className="px-2.5 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">Confirmed</span>
-            ) : isSupervisorRole(session.role) ? (
-              <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">Needs Review</span>
             ) : null}
           </div>
         </div>
@@ -353,9 +354,19 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
         {/* Shift summary */}
         {(() => {
-          const secondUnit = log.bays.find(
-            b => b.unit && b.unit_id !== log.primary_unit_id && b.unit_status === 'unit_present'
-          )?.unit ?? null
+          const sb = log.bays.find(b => b.unit_id !== log.primary_unit_id)
+          const secondaryDisplay = (() => {
+            if (!sb) return null
+            if (sb.unit_status === 'unit_present' && sb.unit)
+              return <span className="font-normal text-zinc-500"> ({formatUnit(sb.unit, false)})</span>
+            if (sb.unit_status === 'empty_bay')
+              return <span className="font-normal text-zinc-500"> (Bay {sb.bay_label} Empty)</span>
+            if (sb.unit_status === 'unit_at_shop')
+              return <span className="font-normal text-zinc-500"> (Bay {sb.bay_label} At Shop)</span>
+            if (isSupervisorRole(session.role))
+              return <span className="text-amber-500/80"> (Bay {sb.bay_label} Missing Truck)</span>
+            return null
+          })()
           return (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6">
               <div className="font-semibold text-zinc-100">
@@ -367,9 +378,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               <div className="text-sm font-semibold text-zinc-100 mt-0.5">
                 {log.shift_profile.name} {log.station.name}{' | '}
                 {formatUnit(log.primary_unit, false)}
-                {secondUnit && (
-                  <span className="font-normal text-zinc-500"> ({formatUnit(secondUnit, false)})</span>
-                )}
+                {secondaryDisplay}
               </div>
               <div className="text-sm text-zinc-500 mt-0.5">
                 {formatShiftMil(log.actual_start)} → {formatShiftMil(log.actual_end)}

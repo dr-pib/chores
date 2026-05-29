@@ -488,7 +488,7 @@ function SetupPageContent() {
                       className={`w-full ${inputClass}`}
                       aria-label="Unit"
                     >
-                      <option value="">No unit</option>
+                      <option value="">Select unit…</option>
                       {units.map(u => (
                         <option key={u.id} value={u.id}>{formatUnit(u)}</option>
                       ))}
