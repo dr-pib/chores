@@ -2291,9 +2291,9 @@ Two supervisor-only sections added to `app/chores/page.tsx`, above the existing 
 - Supervisor truck coverage view (trucks not on any shift today)
 - Operations Chief command-level dashboard
 
-## Known Issues Found During Testing — 2026-05-28
+## Known Issues Found During Testing — Resolved 2026-05-28
 
-### Issue 1: Seeded shift times are 5 hours off (UTC vs CDT)
+### Issue 1: Seeded shift times are 5 hours off (UTC vs CDT) — FIXED (commit `c22ce40`)
 
 **What happened:** `imports/seed-eso-shifts.ts` used `Date.UTC(year, month-1, day, startH, startM, 0)` which treats the CSV start times (06:00, 07:00, 08:00) as UTC. CDT (Central Daylight Time, in effect for May) is UTC-5, so those shifts should have been stored as UTC+5h. A 07:00 CDT start should be `12:00 UTC`, but was stored as `07:00 UTC` and displays as `02:00 CDT` on the roster.
 
@@ -2311,7 +2311,16 @@ Two supervisor-only sections added to `app/chores/page.tsx`, above the existing 
    ```
    A more robust version would detect the UTC offset for the given date dynamically using `Intl.DateTimeFormat` (handles DST transitions automatically), but the explicit `-05:00` is correct and safe for any seed date in May–October (CDT window).
 
-Do not change `actual_start` semantics in the app — the app already handles Chicago timezone correctly; only the seed script was wrong.
+**What was done (commit `c22ce40`):**
+- `lib/dates.ts`: Added `chicagoLocalToUtc(dateStr, timeStr)` — converts Chicago-local date + clock time to UTC, handling CST/CDT automatically via Intl round-trip check. This is now the canonical helper for building `actual_start`/`actual_end`.
+- `imports/seed-eso-shifts.ts`: Replaced `Date.UTC(y,m,d,h,min)` with `chicagoLocalToUtc()`.
+- `imports/repair-seed-times.ts`: One-time script to add 5h to logs 50–73 `actual_start`/`actual_end` and all chore `due_at` values. Already run; all 24 logs now show correct CDT times.
+
+Also shipped in the same commit:
+- Supervisor "Edit shift" button on `/log/[id]` links to `/setup?logId=X`
+- Setup page accepts `?logId` for supervisor target-log edit; shows Primary Employee dropdown; includes `supervisor_log_id` + `primary_employee_id` in POST body
+- API accepts `supervisor_log_id` to bypass session-user constraint for supervisors
+- "Submitted" badge renamed "Needs Review" and shown only to Supervisor/Admin/Dom
 
 ### Issue 2: Unassigned Truck Check chores need proactive supervisor visibility
 
