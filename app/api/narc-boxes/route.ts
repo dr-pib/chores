@@ -12,7 +12,8 @@ export async function GET() {
     orderBy: { letter: 'asc' },
     include: {
       operations_logs: {
-        where: { actual_end: { gt: now } },
+        where: { actual_start: { lte: now }, actual_end: { gt: now } },
+        orderBy: { actual_start: 'desc' },
         take: 1,
         select: { id: true, shift_profile: { select: { name: true } } },
       },
