@@ -8,8 +8,11 @@ export default async function MyChoresPage({ searchParams }: { searchParams: Pro
   if (!session.isLoggedIn) redirect('/login')
 
   const now = new Date()
+  // Find the shift currently in progress: started already, not yet ended.
+  // Prefer in-progress over future imports by checking actual_start <= now.
   const myLog = await prisma.operationsLog.findFirst({
     where: {
+      actual_start: { lte: now },
       actual_end: { gt: now },
       OR: [
         { primary_employee_id: session.userId },
