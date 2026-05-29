@@ -2508,3 +2508,28 @@ User added real workplace examples that the future Chore Console must support:
 
 - `app/api/chores/[id]/complete/route.ts`: `is_late_completion` now only set when `isPersistent(chore.chore_template) && sw?.status === 'missed'`. Added `isPersistent` import.
 - `app/api/chores/[id]/uncomplete/route.ts`: reads SW `is_late_completion` inside the transaction before resetting. If `is_late_completion` was true (late completion being undone), restores SW to `'missed'` instead of `'pending'`.
+
+## Gemini Review — May 28, 2026
+
+### Operations Chief Dashboard & Gerald Bays
+- **Model Check:** The proposed `location_note String?` field on `ScheduledWork` is well-aligned with the asset-centric model. Since Truck Check SW is now generated daily for all eligible units (Step 6), this field provides the perfect anchor for tracking unassigned trucks without requiring a separate "Location" table.
+- **Gaps:** The dashboard design calls for "Assigned at 11:14 by [Name]" context. Currently, `OperationsLog` updates replace bays in bulk, which destroys the specific "assignment event" timestamp. To support this, we should either:
+    1.  Add a `created_at` timestamp to the `OperationsLogBay` model.
+    2.  Explicitly log `bay_added` actions in the `ChangeLog` during the shift edit transaction.
+- **Ambiguity:** For the "Unassigned Trucks" column, we should explicitly define the color logic for "Unconfirmed" shifts (likely checking if `supervisor_confirmed_at` is null on an active log).
+- **Positive:** The "TV/Large Screen" focus for Brent's dashboard is excellent. Horizontal column layouts are perfect for status-at-a-glance monitoring.
+
+### Shift Phone Numbers & SMS
+- **Model Check:** Adding `phone_number` to `ShiftProfile` is the correct durable home for these. It decouples the communication channel from the specific employee working the seat.
+- **Ordering:** Deferred SMS implementation is the right call. The "all clear" message rule is a high-signal design choice that prevents ambiguity.
+- **Gap:** When Brent sees a phone number on the dashboard, it should be a `tel:` link for one-tap dialing if he's viewing on a tablet or phone.
+
+### Performance Reporting
+- **Alignment:** The biweekly meeting focus is a strong "North Star" for the reporting UI. The `late_sw_60d` metric added in Step 7 provides a necessary nuance for "Persistent" work that the basic denominator/numerator stats miss.
+- **Ambiguity:** "Trend lines" will need a defined bucket size (e.g., biweekly to match the meeting cycle) to be meaningful.
+- **Ordering:** Date-range filtering is the most critical next step for the biweekly meeting use case.
+
+### Step 10 & Future Console
+- **Consistency:** The "Wednesday All Crews" example confirms that the future console needs a `weekday_pattern` or `recurrence_rule` field. 
+- **Conflict Check:** No conflicts found. The matrix model (`asset_scope × lifecycle × is_critical`) implemented in Step 2.5 is robust enough to handle the variety of chores described in the "Future Console" note.
+- **Positive:** Step 10 (Direct Action) is the key to making the dashboard actionable. The `not_applicable` status is critical for keeping the "Unassigned" list clean when trucks are at the shop.
