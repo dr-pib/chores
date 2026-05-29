@@ -2419,7 +2419,7 @@ Steps 1 through 9 are functionally complete, but current testing exposed workflo
    - 4-column layout: Unresolved Criticals | Unassigned Trucks Today | Coverage Gaps | Shift Status
    - `location_note String?` added to `ScheduledWork` schema — visible in Unassigned Trucks column when set
    - `phone_number String?` added to `ShiftProfile` schema — not yet surfaced in UI
-   - Lazy daily SW generation: `lib/ensure-daily-sw.ts` fires on first dashboard load after 5am, creates Truck Check SW for all eligible units if none exist yet
+   - Lazy daily SW generation: `lib/ensure-daily-sw.ts` fires on first login by any user after 5am (in `/my-chores`), creates Truck Check SW for all eligible units if none exist yet. Also called from dashboard as a fallback.
    - Dashboard link added to supervisor nav
    - **Still to do for dashboard:**
      - Location note setter: supervisor UI to tag an unassigned truck with Gerald-1/2/3 or Off-site (currently stored but no setter UI)

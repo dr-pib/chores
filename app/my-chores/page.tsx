@@ -2,10 +2,15 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { isSupervisorRole } from '@/lib/roles'
+import { todayChicago } from '@/lib/dates'
+import { ensureDailySW } from '@/lib/ensure-daily-sw'
 
 export default async function MyChoresPage({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
   const session = await getSession()
   if (!session.isLoggedIn) redirect('/login')
+
+  // Any login after 5am triggers daily SW generation if it hasn't run yet today
+  void ensureDailySW(todayChicago())
 
   const now = new Date()
   // Find the shift currently in progress: started already, not yet ended.
