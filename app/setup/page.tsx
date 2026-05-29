@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import NavBar from '@/components/NavBar'
 import { BAY_OPTIONS } from '@/lib/bays'
 import { formatUnit } from '@/lib/units'
@@ -60,6 +60,8 @@ function normalizeBayLabel(label: string) {
 
 export default function SetupPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const supervisorTargetLogId = searchParams.get('logId') ? Number(searchParams.get('logId')) : null
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
 
@@ -71,6 +73,7 @@ export default function SetupPage() {
 
   const [hasExistingShift, setHasExistingShift] = useState(false)
   const [currentLogId, setCurrentLogId] = useState<number | null>(null)
+  const [primaryEmployeeId, setPrimaryEmployeeId] = useState<number | ''>('')
   const [activeBayMap, setActiveBayMap] = useState<Map<number, { logId: number; shiftName: string }>>(new Map())
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null)
   const [startDt, setStartDt] = useState('')
@@ -80,15 +83,19 @@ export default function SetupPage() {
   const [bays, setBays] = useState<BayState[]>([])
 
   useEffect(() => {
+    const logFetch = supervisorTargetLogId
+      ? fetch(`/api/operations-logs/${supervisorTargetLogId}`).then(r => r.json())
+      : fetch('/api/operations-logs/current').then(r => r.json())
+
     Promise.all([
       fetch('/api/me').then(r => r.json()),
       fetch('/api/shift-profiles').then(r => r.json()),
       fetch('/api/employees').then(r => r.json()),
       fetch('/api/units').then(r => r.json()),
-      fetch('/api/operations-logs/current').then(r => r.json()),
+      logFetch,
       fetch('/api/units/active-bays').then(r => r.json()),
       fetch('/api/narc-boxes').then(r => r.json()),
-    ]).then(([meData, postsData, empsData, unitsData, currentData, activeBaysData, narcBoxesData]) => {
+    ]).then(([meData, postsData, empsData, unitsData, logData, activeBaysData, narcBoxesData]) => {
       if (!meData.user) { router.push('/login'); return }
 
       setUser(meData.user)
@@ -105,16 +112,18 @@ export default function SetupPage() {
         setActiveBayMap(map)
       }
 
-      const currentLog = currentData?.log
-      if (currentLog) {
+      // Supervisor edit: logData is the raw log object; normal mode: logData is { log: ... }
+      const targetLog = supervisorTargetLogId ? logData : logData?.log
+      if (targetLog) {
         setHasExistingShift(true)
-        setCurrentLogId(currentLog.id)
-        setSelectedPostId(currentLog.shift_profile_id)
-        setStartDt(formatLocalDatetime(new Date(currentLog.actual_start)))
-        setEndDt(formatLocalDatetime(new Date(currentLog.actual_end)))
-        setPartnerId(currentLog.partner_employee_id ?? '')
-        setNarcBoxId(currentLog.narc_box_id ?? null)
-        setBays(currentLog.bays.map((b: { bay_label: string; unit_id: number | null; unit_status: string; sort_order: number }) => ({
+        setCurrentLogId(targetLog.id)
+        setSelectedPostId(targetLog.shift_profile_id)
+        setStartDt(formatLocalDatetime(new Date(targetLog.actual_start)))
+        setEndDt(formatLocalDatetime(new Date(targetLog.actual_end)))
+        setPartnerId(targetLog.partner_employee_id ?? '')
+        setNarcBoxId(targetLog.narc_box_id ?? null)
+        setPrimaryEmployeeId(targetLog.primary_employee_id ?? '')
+        setBays(targetLog.bays.map((b: { bay_label: string; unit_id: number | null; unit_status: string; sort_order: number }) => ({
           bay_label: normalizeBayLabel(b.bay_label),
           unit_id: b.unit_id,
           unit_status: b.unit_status as BayState['unit_status'],
@@ -131,7 +140,7 @@ export default function SetupPage() {
         if (meData.user.default_partner_id) setPartnerId(meData.user.default_partner_id)
       }
     })
-  }, [router])
+  }, [router, supervisorTargetLogId])
 
   function initPostDefaults(post: ShiftProfile, shiftHours: number) {
     const now = new Date()
@@ -236,18 +245,23 @@ export default function SetupPage() {
 
     setError('')
     startTransition(async () => {
+      const body: Record<string, unknown> = {
+        shift_profile_id: selectedPostId,
+        partner_employee_id: partnerId || null,
+        primary_unit_id: primaryUnit,
+        actual_start: new Date(startDt).toISOString(),
+        actual_end: new Date(endDt).toISOString(),
+        narc_box_id: narcBoxId,
+        bays,
+      }
+      if (supervisorTargetLogId) {
+        body.supervisor_log_id = supervisorTargetLogId
+        if (primaryEmployeeId) body.primary_employee_id = primaryEmployeeId
+      }
       const res = await fetch('/api/operations-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          shift_profile_id: selectedPostId,
-          partner_employee_id: partnerId || null,
-          primary_unit_id: primaryUnit,
-          actual_start: new Date(startDt).toISOString(),
-          actual_end: new Date(endDt).toISOString(),
-          narc_box_id: narcBoxId,
-          bays,
-        }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
         const log = await res.json()
@@ -269,7 +283,7 @@ export default function SetupPage() {
       <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-zinc-100">
-            {hasExistingShift ? 'Edit Current Shift' : 'Set Up Your Shift'}
+            {supervisorTargetLogId ? 'Edit Shift' : hasExistingShift ? 'Edit Current Shift' : 'Set Up Your Shift'}
           </h1>
         </div>
 
@@ -361,6 +375,23 @@ export default function SetupPage() {
               </div>
             )}
 
+            {supervisorTargetLogId && (
+              <div className="mb-5">
+                <label htmlFor="primary-employee" className={labelClass}>Primary Employee</label>
+                <select
+                  id="primary-employee"
+                  value={primaryEmployeeId}
+                  onChange={e => setPrimaryEmployeeId(e.target.value === '' ? '' : Number(e.target.value))}
+                  className={`w-full ${inputClass}`}
+                >
+                  <option value="">Select employee…</option>
+                  {employees.sort(compareEmployeesByLastName).map(e => (
+                    <option key={e.id} value={e.id}>{formatEmployeeDropdown(e)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="mb-5">
               <label htmlFor="partner" className={labelClass}>Partner</label>
               <select
@@ -370,7 +401,7 @@ export default function SetupPage() {
                 className={`w-full ${inputClass}`}
               >
                 <option value="">No partner / solo</option>
-                {employees.filter(e => e.id !== user.id).sort(compareEmployeesByLastName).map(e => (
+                {employees.filter(e => !supervisorTargetLogId || e.id !== primaryEmployeeId).sort(compareEmployeesByLastName).map(e => (
                   <option key={e.id} value={e.id}>{formatEmployeeDropdown(e)}</option>
                 ))}
               </select>

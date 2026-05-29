@@ -1,3 +1,24 @@
+// Converts a Chicago-local calendar date (YYYY-MM-DD) and local clock time (HH:mm)
+// to the correct UTC Date, handling both CST (UTC-6) and CDT (UTC-5) automatically.
+// Use this whenever building actual_start/actual_end from operational shift times.
+// Never use Date.UTC() directly with Chicago local clock values — it ignores the
+// timezone offset and stores times 5–6 hours too early.
+export function chicagoLocalToUtc(dateStr: string, timeStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const [hour, minute] = timeStr.split(':').map(Number)
+  const padded = (n: number) => String(n).padStart(2, '0')
+  const expected = `${padded(hour)}:${padded(minute)}`
+  for (const offsetH of [5, 6]) {
+    const candidate = new Date(Date.UTC(year, month - 1, day, hour + offsetH, minute))
+    const roundTrip = candidate.toLocaleString('en-US', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: 'America/Chicago',
+    }).replace(/^24:/, '00:')
+    if (roundTrip === expected) return candidate
+  }
+  return new Date(Date.UTC(year, month - 1, day, hour + 5, minute)) // CDT fallback
+}
+
 // Returns the UTC Date representing 08:00 America/Chicago on the given work_date.
 // workDate must be midnight UTC for a Chicago calendar date (as stored in @db.Date fields).
 export function chicago0800(workDate: Date): Date {

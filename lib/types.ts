@@ -21,4 +21,7 @@ export interface SetShiftInput {
   actual_end: string   // ISO datetime
   narc_box_id: number | null
   bays: BayInput[]
+  // Supervisor edit mode: target a specific log instead of the session user's active shift
+  supervisor_log_id?: number
+  primary_employee_id?: number
 }

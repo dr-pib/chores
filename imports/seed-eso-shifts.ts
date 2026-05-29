@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { PrismaClient } from '../app/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { getStationChoreForPost, shouldGenerateScheduledChore } from '../lib/chore-rotation'
+import { chicagoLocalToUtc } from '../lib/dates'
 import { resolvePresentTruckTargets, resolveCrewTarget } from '../lib/chore-targeting'
 import { buildChoreRows } from '../lib/chore-generation'
 import { isPersistent } from '../lib/lifecycle'
@@ -117,9 +118,8 @@ async function main() {
         continue
       }
 
-      // Build actual_start / actual_end (treating CSV times as UTC for seed purposes)
-      const [startH, startM] = row.start_time.split(':').map(Number)
-      const actualStart = new Date(Date.UTC(year, month - 1, day, startH, startM, 0))
+      // Build actual_start / actual_end as Chicago local times converted to UTC
+      const actualStart = chicagoLocalToUtc(row.service_date, row.start_time)
       const actualEnd = new Date(actualStart.getTime() + 24 * 3600 * 1000)
 
       const primaryUnitId = profile.default_unit_id ?? fallbackUnitId

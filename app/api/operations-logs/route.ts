@@ -7,6 +7,7 @@ import { resolvePresentTruckTargets, resolvePrimaryUnitTarget, resolveCrewTarget
 import { buildChoreRows, ChoreCreateData, ChoreCreateManyData } from '@/lib/chore-generation'
 import { isPersistent } from '@/lib/lifecycle'
 import { chicago0800 } from '@/lib/dates'
+import { isSupervisorRole } from '@/lib/roles'
 
 // Ensures ScheduledWork rows exist for persistent independently-generated templates
 // scoped to a specific shift's assets and dates. Idempotent — skipDuplicates handles
@@ -108,7 +109,13 @@ export async function POST(req: NextRequest) {
   if (!session.isLoggedIn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body: SetShiftInput = await req.json()
-  const { shift_profile_id, partner_employee_id, primary_unit_id, actual_start, actual_end, narc_box_id, bays } = body
+  const {
+    shift_profile_id, partner_employee_id, primary_unit_id, actual_start, actual_end,
+    narc_box_id, bays, supervisor_log_id, primary_employee_id: bodyPrimaryEmployeeId,
+  } = body
+
+  // Supervisor edit mode: target a specific log instead of the session user's active shift
+  const supervisorEdit = supervisor_log_id != null && isSupervisorRole(session.role)
 
   const shiftProfile = await prisma.shiftProfile.findUnique({ where: { id: shift_profile_id } })
   if (!shiftProfile) return NextResponse.json({ error: 'Shift profile not found' }, { status: 404 })
@@ -126,17 +133,24 @@ export async function POST(req: NextRequest) {
   const narcTargets = resolvePrimaryUnitTarget(primary_unit_id)
   const DAY_2_OFFSET_MS = 24 * 3600 * 1000
 
-  // Find any active shift this user is on, regardless of role
-  const existing = await prisma.operationsLog.findFirst({
-    where: {
-      actual_end: { gt: new Date() },
-      OR: [
-        { primary_employee_id: session.userId },
-        { partner_employee_id: session.userId },
-      ],
-    },
-    orderBy: [{ service_date: 'desc' }, { created_at: 'desc' }],
-  })
+  // Find the log to edit: supervisors can target any log by ID; employees find their own active shift
+  const existing = supervisorEdit
+    ? await prisma.operationsLog.findUnique({ where: { id: supervisor_log_id } })
+    : await prisma.operationsLog.findFirst({
+        where: {
+          actual_end: { gt: new Date() },
+          OR: [
+            { primary_employee_id: session.userId },
+            { partner_employee_id: session.userId },
+          ],
+        },
+        orderBy: [{ service_date: 'desc' }, { created_at: 'desc' }],
+      })
+
+  // Supervisor edit mode requires a valid target log
+  if (supervisorEdit && !existing) {
+    return NextResponse.json({ error: 'Shift not found' }, { status: 404 })
+  }
 
   const templateById = new Map(templates.map(t => [t.id, t]))
 
@@ -230,6 +244,8 @@ export async function POST(req: NextRequest) {
         shift_profile_id,
         station_id: shiftProfile.station_id,
         partner_employee_id,
+        // Supervisors can reassign the primary employee; employees cannot change their own
+        ...(supervisorEdit && bodyPrimaryEmployeeId != null ? { primary_employee_id: bodyPrimaryEmployeeId } : {}),
         primary_unit_id,
         narc_box_id: newNarcBoxId,
         actual_start: startDt,

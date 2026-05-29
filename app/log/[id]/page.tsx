@@ -252,9 +252,19 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           ) : !isMyLog && (
             <Link href="/log" className="text-zinc-500 hover:text-zinc-300 text-sm">← Today&apos;s Roster</Link>
           )}
-          {(isMyLog || isSupervisorRole(session.role)) && (
-            <DeleteShiftButton logId={log.id} />
-          )}
+          <div className="flex items-center gap-2">
+            {isSupervisorRole(session.role) && (
+              <Link
+                href={`/setup?logId=${log.id}`}
+                className="px-3 py-1.5 text-xs font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-colors"
+              >
+                Edit shift
+              </Link>
+            )}
+            {(isMyLog || isSupervisorRole(session.role)) && (
+              <DeleteShiftButton logId={log.id} />
+            )}
+          </div>
         </div>
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -282,9 +292,9 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
             )}
             {log.supervisor_confirmed_at ? (
               <span className="px-2.5 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-medium">Confirmed</span>
-            ) : (
-              <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">Submitted</span>
-            )}
+            ) : isSupervisorRole(session.role) ? (
+              <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-medium">Needs Review</span>
+            ) : null}
           </div>
         </div>
 
