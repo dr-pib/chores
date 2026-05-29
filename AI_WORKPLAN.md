@@ -2552,13 +2552,28 @@ Currently, when a crew claims a truck with an open NARC Expires from a prior shi
 The red "Overdue / Unfinished" box currently renders below the Daily Chores section. It should move **above** Daily Chores so it is impossible to miss. A crew member who has a prior-shift NARC Expires or Expires overdue should see it immediately at the top of their work view, not buried below the completed daily work.
 
 ### Chore count discrepancy: My Chores vs Roster, and performance implications
-My Chores shows `2/3` (counting a prior-shift NARC Expires in the denominator). Roster shows `2/2` (excludes it). This surfaces a design question that needs a deliberate answer before performance scoring is finalized:
+My Chores shows `2/3 chores complete`. Roster shows `2/2`. The numbers mean different things and both are intentional — but the display blends them in a way that causes confusion.
 
-**The question:** Should an inherited overdue persistent chore (e.g., NARC Expires from 5/25 that predates Paige's current shift) count in Paige's performance denominator?
+**How the count is built (log/[id]/page.tsx):**
+- `allDailyChores` + `persistentChores` = chores from this shift's `log.chores` (what Roster counts)
+- `sortedPreviousPersistentChores` = pending persistent chores from prior shifts for the same trucks (inherited overdue work — e.g., the NARC Expires from 5/25)
+- `myChoresForProgress` = all three combined → produces the `2/3` progress bar
 
-**Proposed rule (not yet implemented):** No — the original crew/shift that missed the expires keeps the miss in their denominator. If Paige's crew completes it, they get credit (it adds to both their numerator and denominator). If they do not complete it, it should NOT count against Paige's performance — she inherited a miss, not a new obligation. The Roster count (`2/2`, chores generated for this shift only) is closer to the correct denominator for performance. The `2/3` count in My Chores is a display issue: it shows all non-completed chores on the log including inherited ones, which is useful for visibility but not the right performance baseline.
+**Performance calculation is already correct:** `lib/performance.ts` / `computePerformanceStats` and the live `eligible` filter (line 231) only use `allDailyChores + persistentChores` from this shift — inherited previous chores are excluded. The date filter is NOT needed. Performance already ignores inherited work correctly.
 
-**Action needed:** Decide and document the performance denominator rule here, then audit `lib/performance.ts` to confirm it matches. The `computePerformanceStats` function currently counts all chores on a shift; it may need to filter to only chores whose `chore_date` falls within the shift's own service window.
+**The display rule (settled):**
+- Paige did not miss the 5/25 NARC Expires — it should not count against her performance
+- She needs to SEE it undeniably (visibility without liability)
+- If she completes it: adds to her numerator and denominator (credit for real work done)
+- If she doesn't: her score stays `2/2` for today; the miss stays on the original crew's record
+- Roster (`2/2`) reflects her actual performance denominator correctly
+
+**Display fix needed:** The `2/3 chores complete` progress bar blends today's chores with inherited ones into a single fraction. Fix: show `2/2 today's chores` and separately `1 previous unfinished` — don't add them together into the denominator of the fraction. The red "N previous unfinished" label already exists alongside the fraction, but the fraction itself needs to be `done/today's total` only.
+
+### Unassigned trucks from today not showing in Everyone's Chores supervisor section
+The "Unassigned — Needs Completion" section only shows `ScheduledWork` rows that exist in the database. A Truck Check SW row is only created when a shift is built or edited with that truck. If no crew has claimed Unit X today, no SW row exists for it, so supervisors see nothing. Yesterday's trucks showed because their SW rows were created during a prior shift or admin generation.
+
+**Fix:** Auto-generate Truck Check SW for all eligible units (1–11, 14, 20) at the start of each service day, independent of shift creation. The `shouldGenerateScheduledChore` function already returns `true` for Truck Check; the generation logic just needs to run on a cron schedule (or be triggered at midnight). Until the cron job is built, the **Generate Scheduled Work** admin utility for today's date is the manual workaround. This is the same cron gap noted in the Deferred section.
 
 ### Harrison Daily Station Duties Rotation table is hard-coded
 The rotation table in Chore Templates sidebar is hard-coded HTML. Future Chore Admin should generate this dynamically from the actual rotation schedule stored in the database. Deferred — note for future console work.
