@@ -1,6 +1,6 @@
 # EMS Chores
 
-Internal EMS operations app for shift setup, roster/history views, chore completion, persistent overdue chores, employee defaults, and supervisor/admin configuration.
+Internal EMS operations app for shift setup, roster visibility, chore tracking, persistent overdue work, employee defaults, and supervisor/admin configuration.
 
 ## Local Development
 
@@ -12,27 +12,12 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Product Notes
-
-- `Setup` creates a new shift. If the logged-in employee is already on an active shift, the nav label becomes `Edit Current Shift`.
-- `Roster` contains `Today` and `History`.
-- A shift stays on Today's Roster until its actual end date/time, including 48-hour shifts that cross midnight.
-- History opens the same underlying shift detail screen, but ended shifts should display as `Historical Shift Record` with a back link to Roster History.
-- `Chores` contains `My Chores` and `Everyone's Chores`.
-- `My Chores` is the active work view for the logged-in employee's current shift.
-- `Everyone's Chores` lists the same active shifts as Today's Roster, plus a separate section for open persistent chores from past shifts.
-- Supervisors, Admin, and Dom see a red overdue-expires ticker when pending Monthly, Quarterly, or NARC Expires are overdue anywhere in the service.
-
 ## Deployment
 
-Railway should use:
+Railway builds with `npm run build` (includes `prisma generate`). The start command in `railway.json` runs `prisma db push && tsx prisma/seed.ts && npm start` — schema changes apply automatically on deploy.
 
-```bash
-npm run build
-```
-
-The build script runs `prisma generate`; keep that in place unless the deployment strategy changes.
+**Never run `railway run npx prisma db push` manually** — the Railway CLI context may point to a shared Supabase instance used by another app.
 
 ## AI / Contributor Context
 
-Before making product, data model, date/time, role/permission, chore lifecycle, or navigation changes, read `PROJECT_CONTEXT.md`.
+Read `AGENTS.md` first. It explains which docs to consult and when.
