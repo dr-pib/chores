@@ -2360,21 +2360,76 @@ Add a third supervisor query to Everyone's Chores: find eligible units with no T
 
 **Deferred:** Do not implement until Codex reviews this design. No code changes yet.
 
-## Current Next Step — 2026-05-28
+## Current Project State — 2026-05-29
 
-Steps 1 through 9 are complete. Two issues found during testing (see above). Ready for Step 10 after issues are reviewed.
+Steps 1 through 9 are functionally complete, but current testing exposed workflow and data-quality issues that should be handled before moving to Step 10.
 
-Known deferred items:
-- **Fix seeded shift times** (Issue 1 above) — DB correction + seed script fix needed.
-- **Uncovered Units section** (Issue 2 above) — new supervisor section showing eligible units with no active crew; Codex review pending.
+### Immediate Blocker — RESOLVED (commit `361ed5a`)
+
+1. **Railway build failure — fixed.**
+   - Root cause: `useSearchParams()` added to `/setup` page requires a `<Suspense>` boundary in Next.js App Router production builds. Turbopack (local dev) does not enforce this, so it was not caught before push.
+   - Fix: renamed inner component `SetupPage → SetupPageContent`; added `export default function SetupPage()` that wraps it in `<Suspense>`. No logic changed.
+   - **Lesson for all future contributors:** any Next.js App Router page that calls `useSearchParams()` must wrap the consuming component in `<Suspense>`. Always run `npm run build` (not just Turbopack dev) before pushing pages that use this hook.
+
+### Active Priority: Shift Review / Edit Workflow
+
+2. **Make supervisor review actions complete and visible.**
+   - `/log/[id]` now shows `Edit shift` for supervisors and shows `Needs Review` instead of `Submitted`.
+   - Still needed: render the existing `ConfirmShiftButton` (or equivalent) on `/log/[id]` so supervisors can actually confirm/unconfirm the shift from the detail page.
+   - Today's Roster should also show review status for supervisors:
+     - green `Confirmed` when `supervisor_confirmed_at` exists
+     - amber `Needs Review` / `Unconfirmed` when it does not
+   - Employee view can stay quieter unless there is a clear reason to show review state.
+
+3. **Supervisor edit must safely edit the selected shift.**
+   - `/log/[id]` links to `/setup?logId=X`.
+   - Verify `/setup?logId=X` truly edits that log's employees, partner, times, trucks/bays, primary unit, and NARC box.
+   - It must not accidentally edit/create the logged-in supervisor's own current shift.
+   - Past-shift supervisor edits should eventually be audited.
+
+### Active Priority: Secondary Bay State Clarity
+
+4. **Separate placeholder, intentional empty, and missing secondary unit.**
+   - Current "No Unit" wording is misleading.
+   - In Setup/Edit only, the unit dropdown placeholder should be `Select one` or `Select unit`; this is not an operational value and must not be displayed elsewhere.
+   - Intentional empty should be an explicit `Empty` choice that saves `unit_status = 'empty_bay'`.
+   - `unit_at_shop` should display as `Bay 2 At Shop`.
+   - If a Harrison Bay 2 exists but no unit/status was meaningfully selected, display to supervisors as `Bay 2 Missing Truck` or `Secondary Unit Unassigned`.
+   - Do not confuse missing setup data with an intentionally empty bay.
+
+5. **Today's Roster secondary-bay display.**
+   - If Bay 2 has a present unit, keep showing it as the secondary unit.
+   - If Bay 2 is intentionally empty, show `Bay 2 Empty`.
+   - If Bay 2 is at shop, show `Bay 2 At Shop`.
+   - If Bay 2 is missing/unassigned, show a supervisor-only warning.
+
+### Active Priority: Unassigned Daily Truck Checks
+
+6. **Make unassigned Daily Truck Checks visible before the window closes.**
+   - The concern is unassigned chores, not uncovered shifts.
+   - Supervisors need to know: "Unit 10's Truck Check has no one assigned today."
+   - Preferred design: independently generate `ScheduledWork` for Truck Check for all eligible units each service date, with lifecycle `forfeitable`.
+   - When a shift claims a unit, existing ScheduledWork claim logic should attach that unit's Truck Check to the shift.
+   - Unclaimed Truck Check SW should appear in the supervisor unassigned section before lock time.
+   - After lock time, mark-missed should move it to Coverage Gaps.
+   - Preserve lifecycle distinction: Truck Check is forfeitable, not persistent and not make-up work.
+
+### Step 10: After The Above
+
+7. **Supervisor direct action on ScheduledWork.**
+   - Build route/UI for supervisors to complete unassigned persistent work or mark work not applicable with a note.
+   - Audit actor/time/action.
+   - This is still Step 10, but should wait until the build is green and the review/edit/bay-state issues are resolved.
+
+### Deferred / Later
+
 - Standalone non-SW chores for removed assets may remain during the transition; expected to matter less once scheduled generation is reliable.
 - Server-local `serviceDate` calculation should be hardened later to avoid timezone-dependent SW lookup bugs.
-- Supervisor direct-complete/not-applicable route is later Step 10.
-- Chore Admin UI for the new classification fields remains future work.
-- ESO schedule import/parser is a future separate project; best current source is the daily `.xls` export.
-- Employee records now include optional `schedule_import_first_name` to support ESO first-name mismatches during import, e.g. Jim/James Ketterman and Dale/Jerry Halliday. Future import matching should check both the display first name and this field.
-- "Someone else completes persistent work after the window" case: original crew keeps the miss; completing employee gets normal credit. Full implementation requires the Step 10 supervisor direct-complete path or a future assign-to-another-crew feature. Current code only handles the original crew completing their own chore late.
-- Overall dashboard "resolved late" view: persistent late completions are currently surfaced only through the `late_sw_60d` counter on the performance endpoints; a dedicated dashboard section is deferred.
+- Chore Admin UI for classification/frequency/station/asset fields remains future work.
+- Permanent ESO schedule importer/parser remains future work; current source is the daily `.xls` export.
+- Employee records include optional `schedule_import_first_name` for ESO first-name mismatches.
+- "Someone else completes persistent work after the window" case requires Step 10 supervisor direct-complete or a future assign-to-another-crew feature.
+- Overall dashboard "resolved late" view is deferred; late completions currently surface only through `late_sw_60d` on performance endpoints.
 
 ## Future Chore Console Flexibility Note — 2026-05-29
 

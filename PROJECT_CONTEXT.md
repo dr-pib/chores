@@ -148,7 +148,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Railway build command should be `npm run build`.
 - The build script includes `prisma generate`; keep that intact unless deployment strategy changes.
 - Railway database environment variables have needed fallback handling before; be careful changing DB connection setup.
-- Run `npm run build` before pushing meaningful app changes when possible.
+- Run `npm run build` before pushing meaningful app changes when possible. Turbopack (local dev) skips some production checks — notably, `useSearchParams()` in Next.js App Router requires a `<Suspense>` boundary that Turbopack does not enforce but the full build does. Any page using `useSearchParams()` must wrap the consuming component in `<Suspense>` or the Railway deployment will fail.
 
 ## Admin Utilities
 
@@ -161,6 +161,12 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
 
 ## Known Roadmap
 
+- Current short-term goal:
+  - Get the build green after the latest supervisor-edit/timezone work.
+  - Finish the supervisor shift review workflow: `/log/[id]` must show both review state and an obvious supervisor action to confirm/unconfirm.
+  - Finish supervisor shift correction: supervisors need an `Edit shift` path that safely edits the selected shift, not their own shift by accident.
+  - Clean up secondary bay semantics: `Select one` is a form placeholder, `Empty` is an intentional operational status, and `Secondary Unit Unassigned` / `Bay 2 Missing Truck` is a setup warning.
+  - Make unassigned Daily Truck Checks visible to supervisors before the lock window closes.
 - Chore template/frequency editor:
   - create/edit chores
   - configure daily/weekly/monthly/quarterly/persistent frequency
@@ -177,6 +183,12 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - Three distinct supervisor situations that must stay visually separate: (1) Unassigned SW (Step 9 Section 1) = work exists but no shift owns it — act now; (2) Coverage Gaps (Step 9 Section 2) = shift had the unit but missed the check — document after; (3) Unassigned SW for persistent expires = Monthly/Quarterly/NARC with no claiming shift — complete or mark N/A.
   - show trucks with unchecked persistent/scheduled chores
   - resolve the tracking gap for unit-specific Monthly/Quarterly chores when no shift is created for a truck or a truck is out of service
+- Secondary bay UI semantics:
+  - `Select one` / `Select unit` is only a setup/edit form placeholder and must not be treated as an operational value.
+  - `Empty` means the user intentionally marked the bay empty and should save as `unit_status = 'empty_bay'`.
+  - `At Shop` should save as `unit_status = 'unit_at_shop'`.
+  - A present Bay 2 with no meaningful unit/status is a setup warning, displayed to supervisors as `Secondary Unit Unassigned` or `Bay 2 Missing Truck`.
+  - Roster cards should show Bay 2 present/empty/shop/missing state clearly for supervisors.
 - Operations Chief / command-level dashboard:
   - higher-level view for supervisors/chiefs who are not assigned to a truck
   - should surface coverage gaps, unassigned scheduled work, out-of-service/offsite trucks, unchecked expires, and eventually NARC box status
