@@ -8,6 +8,54 @@ import { buildChoreRows, ChoreCreateData, ChoreCreateManyData } from '@/lib/chor
 import { isPersistent } from '@/lib/lifecycle'
 import { chicago0800 } from '@/lib/dates'
 
+// Ensures ScheduledWork rows exist for persistent independently-generated templates
+// scoped to a specific shift's assets and dates. Idempotent — skipDuplicates handles
+// rows that already exist. The caller re-queries for pending unclaimed rows after this.
+async function ensureScheduledWork(
+  templates: Array<{ id: number; name: string; asset_scope: string; lifecycle: string; generates_independently: boolean }>,
+  choreDates: Date[],
+  unitIds: number[],
+  narcBoxId: number | null,
+) {
+  const eligible = templates.filter(t => t.generates_independently && isPersistent(t))
+  if (eligible.length === 0 || (unitIds.length === 0 && narcBoxId == null)) return
+
+  const toCreate: {
+    chore_template_id: number
+    unit_id: number | null
+    narc_box_id: number | null
+    asset_type: string
+    asset_key: string
+    work_date: Date
+    due_at: Date
+    status: string
+  }[] = []
+
+  for (const date of choreDates) {
+    for (const tmpl of eligible) {
+      if (!shouldGenerateScheduledChore(tmpl.name, date)) continue
+      const due_at = chicago0800(date)
+      if (tmpl.asset_scope === 'truck') {
+        for (const unitId of unitIds) {
+          toCreate.push({
+            chore_template_id: tmpl.id, unit_id: unitId, narc_box_id: null,
+            asset_type: 'unit', asset_key: String(unitId), work_date: date, due_at, status: 'pending',
+          })
+        }
+      } else if (tmpl.asset_scope === 'narc_box' && narcBoxId != null) {
+        toCreate.push({
+          chore_template_id: tmpl.id, unit_id: null, narc_box_id: narcBoxId,
+          asset_type: 'narc_box', asset_key: String(narcBoxId), work_date: date, due_at, status: 'pending',
+        })
+      }
+    }
+  }
+
+  if (toCreate.length > 0) {
+    await prisma.scheduledWork.createMany({ data: toCreate, skipDuplicates: true })
+  }
+}
+
 // Creates ChoreTask rows for any chore on this log that has template tasks but no instance tasks yet
 async function seedChoreTasks(operationsLogId: number) {
   const chores = await prisma.chore.findMany({
@@ -202,6 +250,11 @@ export async function POST(req: NextRequest) {
     const choreDatesEdit = [serviceDate]
     if (day2Date) choreDatesEdit.push(day2Date)
 
+    // Ensure persistent SW rows exist for the shift's current assets before claiming.
+    // Creates missing rows (skipDuplicates = true); existing rows are unaffected.
+    const unitIdsForSwEdit = truckTargets.filter(t => t.unit_id != null).map(t => t.unit_id!)
+    await ensureScheduledWork(templates, choreDatesEdit, unitIdsForSwEdit, newNarcBoxId)
+
     const swAssetConditionsEdit: { asset_type: string; asset_key: string }[] = [
       ...truckTargets.filter(t => t.unit_id != null).map(t => ({ asset_type: 'unit', asset_key: String(t.unit_id!) })),
       ...(newNarcBoxId != null ? [{ asset_type: 'narc_box', asset_key: String(newNarcBoxId) }] : []),
@@ -364,6 +417,12 @@ export async function POST(req: NextRequest) {
   // Truck-scoped SW is keyed by unit DB id; NARC-scoped SW is keyed by narc_box DB id.
   const choreDates = [serviceDate]
   if (is48h) choreDates.push(new Date(serviceDate.getTime() + DAY_2_OFFSET_MS))
+
+  // Ensure persistent SW rows exist for this shift's specific assets before claiming.
+  // Mirrors the admin generation endpoint but scoped only to assets on this shift.
+  // Creates missing rows and skips existing ones (idempotent).
+  const unitIdsForSw = truckTargets.filter(t => t.unit_id != null).map(t => t.unit_id!)
+  await ensureScheduledWork(templates, choreDates, unitIdsForSw, narc_box_id ?? null)
 
   const swAssetConditions: { asset_type: string; asset_key: string }[] = [
     ...truckTargets
