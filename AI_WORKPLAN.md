@@ -2172,47 +2172,35 @@ Intentionally deferred. Will self-resolve once scheduled generation (Step 8) is 
 **Deferred — serviceDate timezone risk:**
 `new Date(startDt.getFullYear(), startDt.getMonth(), startDt.getDate())` uses local server timezone. Works on Railway (UTC). Flagged for future hardening with UTC date extraction.
 
+## Step 8 Completion Note — 2026-05-28 (commit `608d3fb`)
+
+Step 8 is complete and pushed.
+
+**Problem solved:** Persistent ScheduledWork (Monthly/Quarterly Expires and NARC Expires) no longer depends on an admin having run the "Generate Work" admin endpoint first. Shift creation and shift edit now guarantee the SW rows exist before claiming them.
+
+**What was built:**
+
+`ensureScheduledWork()` — a new module-level helper in `app/api/operations-logs/route.ts`:
+- Takes the full templates list, chore dates, unit IDs (from `truckTargets`), and the shift's NARC box ID.
+- Filters to templates where `generates_independently && isPersistent(t)`.
+- For each qualifying template + date (using `shouldGenerateScheduledChore`), builds rows scoped to the shift's specific assets only (not all tracked assets globally).
+- Calls `prisma.scheduledWork.createMany({ skipDuplicates: true })` — idempotent; no-ops if rows already exist.
+
+Called in two places:
+1. **New-shift creation path** — after building `choreDates`, before the `pendingSw` query. Creates SW for present truck units + NARC box on qualifying dates, then the existing claim/annotate logic finds them.
+2. **Shift edit path (Phase 3)** — after building `choreDatesEdit`, before the `unclaimedSw` query. Same pattern.
+
+**What is unchanged:**
+- Forfeitable work (Truck Check, station chores): excluded by the `isPersistent()` guard. No behavior change.
+- Claim/annotate/race-guard logic: unchanged.
+- `skipDuplicates`: safe to call on every shift create/edit; if admin pre-ran generation the rows already exist.
+- Completed or missed SW rows: `skipDuplicates` skips them, and the subsequent pending-unclaimed query naturally excludes them.
+
+**Key design point:** The helper creates SW for the shift's specific assets only, not for all eligible assets service-wide. Creating for all units/boxes at shift-setup time would be wrong — unowned assets (at shop, in safe) should only get SW via the admin global generation endpoint or future cron jobs.
+
 ## Current Next Step — 2026-05-28
 
-All pre-Step-8 integrity fixes and late-completion tracking are complete. Ready for **Step 8**.
-
-Step 8 scope (confirm before coding): Monthly/Quarterly Expires and NARC Expires generation and auto-claiming at shift creation — ensure SW rows exist for the shift's assets/dates at creation time if they don't already, rather than relying on the admin having run generate-scheduled-work first.
-
-Current shipped state:
-- Step 1 through Step 7 are complete and pushed.
-- Step 7 integrity fixes are complete:
-  - retained truck-check ScheduledWork links are preserved through shift edit
-  - new-shift ScheduledWork matching filters to unclaimed rows
-  - race guard falls back to standalone chores on `Chore.scheduled_work_id` unique conflict
-  - `chicago0800` was centralized in `lib/dates.ts`
-- Late completion handling is complete:
-  - `ScheduledWork.is_late_completion` added
-  - completing a SW that was already `missed` sets `is_late_completion = true`
-  - uncomplete resets the late flag
-  - `/api/performance` and `/api/performance/all` return `late_sw_60d`
-
-Important nuance for tomorrow:
-- Current late counter means "completed after SW had already been marked `missed`."
-- It does **not** currently count work completed after `due_at` but before the missed transition runs.
-- User may need to decide whether late reporting should mean:
-  1. late after `due_at`, or
-  2. late only after missed/lock window.
-
-Current local state to check:
-- `PROJECT_CONTEXT.md` has a local uncommitted Codex note about late completion being allowed but tracked/reportable as late.
-- Do not overwrite that note; either commit it, keep it, or merge it with Claude's next docs update.
-- Start tomorrow with `git status --short` and `git log --oneline -10`.
-
-Next planned work:
-- Do **not** start Step 8 until the late-definition nuance is accepted or changed.
-- If accepted, proceed to **Step 8 — Monthly/Quarterly and NARC generation + claiming**.
-- Step 8 scope should be confirmed before coding:
-  - generation endpoint already creates persistent ScheduledWork for eligible dates/assets
-  - next behavior should make shift creation/edit claim the relevant Monthly/Quarterly unit ScheduledWork and NARC-box ScheduledWork without duplicates
-  - keep completed work credit intact
-  - keep pending removed assets unclaimed/visible to supervisors
-  - no Operations Chief dashboard yet
-  - no broad UI work yet unless needed to verify behavior
+Steps 1 through 8 are complete. The ScheduledWork ownership model is now fully wired for shift creation and edit.
 
 Known deferred items:
 - Standalone non-SW chores for removed assets may remain during the transition; expected to matter less once scheduled generation is reliable.
@@ -2223,6 +2211,17 @@ Known deferred items:
 - ESO schedule import/parser is a future separate project; best current source is the daily `.xls` export.
 - "Someone else completes persistent work after the window" case: original crew keeps the miss; completing employee gets normal credit. Full implementation requires the Step 10 supervisor direct-complete path or a future assign-to-another-crew feature. Current code only handles the original crew completing their own chore late.
 - Overall dashboard "resolved late" view: persistent late completions are currently surfaced only through the `late_sw_60d` counter on the performance endpoints; a dedicated dashboard section is deferred.
+
+## Future Chore Console Flexibility Note — 2026-05-29
+
+User added real workplace examples that the future Chore Console must support:
+
+- `Wednesday All Crews` and `Thursday All Crews` are separate chores in addition to the normal Harrison station rotation.
+- They should apply to all stations, but station applicability must be configurable with explicit station checkboxes/selectors in the future console.
+- They apply to Supervisor shifts as well as 24-7, 24-8, Swing, DC-ALS, and NC-ALS.
+- They are crew-level/routine/forfeitable chores, not critical asset ScheduledWork.
+- Their policy offsets are due at shift start +2 hours and lock at shift start +31 hours. Offsets must remain editable per template.
+- Weekly weekday-based generation is required for these chore types, but it is not part of Step 8 unless explicitly approved.
 
 ## Correction: Late/Missed Behavior — 2026-05-28
 
