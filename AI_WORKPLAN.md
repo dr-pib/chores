@@ -2371,37 +2371,30 @@ Steps 1 through 9 are functionally complete, but current testing exposed workflo
    - Fix: renamed inner component `SetupPage → SetupPageContent`; added `export default function SetupPage()` that wraps it in `<Suspense>`. No logic changed.
    - **Lesson for all future contributors:** any Next.js App Router page that calls `useSearchParams()` must wrap the consuming component in `<Suspense>`. Always run `npm run build` (not just Turbopack dev) before pushing pages that use this hook.
 
-### Active Priority: Shift Review / Edit Workflow
+### Active Priority: Shift Review / Edit Workflow — COMPLETE (commit `b690c29`)
 
-2. **Make supervisor review actions complete and visible.**
-   - `/log/[id]` now shows `Edit shift` for supervisors and shows `Needs Review` instead of `Submitted`.
-   - Still needed: render the existing `ConfirmShiftButton` (or equivalent) on `/log/[id]` so supervisors can actually confirm/unconfirm the shift from the detail page.
-   - Today's Roster should also show review status for supervisors:
-     - green `Confirmed` when `supervisor_confirmed_at` exists
-     - amber `Needs Review` / `Unconfirmed` when it does not
-   - Employee view can stay quieter unless there is a clear reason to show review state.
+2. **ConfirmShiftButton on /log/[id] — done.**
+   - Supervisors see interactive `ConfirmShiftButton` (Confirm ↔ Confirmed, toggleable via DELETE/POST to `/api/operations-logs/[id]/confirm`).
+   - Non-supervisors see a static green "Confirmed" badge when confirmed, nothing when not.
 
-3. **Supervisor edit must safely edit the selected shift.**
-   - `/log/[id]` links to `/setup?logId=X`.
-   - Verify `/setup?logId=X` truly edits that log's employees, partner, times, trucks/bays, primary unit, and NARC box.
-   - It must not accidentally edit/create the logged-in supervisor's own current shift.
-   - Past-shift supervisor edits should eventually be audited.
+3. **Today's Roster review status — done.**
+   - Shift cards show green "Confirmed" or amber "Needs Review" based on `supervisor_confirmed_at`.
+   - "Needs Review" is supervisor-only; employees see only "Confirmed" or nothing.
 
-### Active Priority: Secondary Bay State Clarity
+4. **Supervisor edit safety — verified, no code change needed.**
+   - `/setup?logId=X` sends `supervisor_log_id` in the POST body. The API finds `existing` by exact log ID (not session user). Returns 404 if not found. The new-shift creation path is unreachable in supervisor edit mode. Supervisor cannot accidentally create a new shift or touch their own shift.
+   - Note: past-shift supervisor edits are not yet audited — deferred.
 
-4. **Separate placeholder, intentional empty, and missing secondary unit.**
-   - Current "No Unit" wording is misleading.
-   - In Setup/Edit only, the unit dropdown placeholder should be `Select one` or `Select unit`; this is not an operational value and must not be displayed elsewhere.
-   - Intentional empty should be an explicit `Empty` choice that saves `unit_status = 'empty_bay'`.
-   - `unit_at_shop` should display as `Bay 2 At Shop`.
-   - If a Harrison Bay 2 exists but no unit/status was meaningfully selected, display to supervisors as `Bay 2 Missing Truck` or `Secondary Unit Unassigned`.
-   - Do not confuse missing setup data with an intentionally empty bay.
+### Active Priority: Secondary Bay State Clarity — COMPLETE (commit `b690c29`)
 
-5. **Today's Roster secondary-bay display.**
-   - If Bay 2 has a present unit, keep showing it as the secondary unit.
-   - If Bay 2 is intentionally empty, show `Bay 2 Empty`.
-   - If Bay 2 is at shop, show `Bay 2 At Shop`.
-   - If Bay 2 is missing/unassigned, show a supervisor-only warning.
+5. **Bay state display — done.**
+   - Setup page unit dropdown placeholder: "No unit" → "Select unit…" (form-only; not shown elsewhere).
+   - `/log/[id]` shift summary and Today's Roster now handle all bay states:
+     - `unit_present` + unit → Unit X (existing behavior)
+     - `empty_bay` → Bay X Empty (all users)
+     - `unit_at_shop` → Bay X At Shop (all users)
+     - `unit_present` + no unit → Bay X Missing Truck (supervisor-only, amber)
+   - Roster `unitLine` refactored to accept `isSupervisor` param; bays type extended with `bay_label`.
 
 ### Active Priority: Unassigned Daily Truck Checks
 
