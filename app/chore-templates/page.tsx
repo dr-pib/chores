@@ -32,9 +32,7 @@ export default function ChoreTemplatesPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [backfilling, setBackfilling] = useState(false)
   const [backfillResult, setBackfillResult] = useState<string | null>(null)
-  const [fixingNarc, setFixingNarc] = useState(false)
-  const [fixNarcResult, setFixNarcResult] = useState<string | null>(null)
-  const [generateDate, setGenerateDate] = useState(() =>
+const [generateDate, setGenerateDate] = useState(() =>
     new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
   )
   const [generating, setGenerating] = useState(false)
@@ -65,26 +63,6 @@ export default function ChoreTemplatesPage() {
       setSelectedId(id)
     } else {
       router.push(`/chore-templates/${id}`)
-    }
-  }
-
-  async function handleFixNarc() {
-    setFixingNarc(true)
-    setFixNarcResult(null)
-    try {
-      const res = await fetch('/api/admin/fix-narc-expires', { method: 'POST' })
-      const data = await res.json()
-      if (res.ok) {
-        setFixNarcResult(data.deleted === 0
-          ? 'No bad NARC Expires found — already clean.'
-          : `Removed ${data.deleted} incorrect NARC Expires record${data.deleted === 1 ? '' : 's'}.`)
-      } else {
-        setFixNarcResult('Error: ' + (data.error ?? 'Unknown error'))
-      }
-    } catch {
-      setFixNarcResult('Network error.')
-    } finally {
-      setFixingNarc(false)
     }
   }
 
@@ -284,21 +262,7 @@ export default function ChoreTemplatesPage() {
               {backfillResult && (
                 <p className="text-zinc-400 text-xs mt-2 font-medium">{backfillResult}</p>
               )}
-              <button
-                onClick={handleFixNarc}
-                disabled={fixingNarc}
-                className="w-full mt-3 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 text-sm rounded-lg font-medium transition-colors text-left"
-              >
-                {fixingNarc ? 'Cleaning…' : 'Fix NARC Expires (Remove Bad Records)'}
-              </button>
-              <p className="text-zinc-600 text-xs mt-1.5 leading-snug">
-                Removes NARC Expires records that have no unit, or that were placed on a secondary/backup truck.
-                Run once after a unit assignment fix. Then use Backfill to add the correct NARC Expires back.
-              </p>
-              {fixNarcResult && (
-                <p className="text-zinc-400 text-xs mt-2 font-medium">{fixNarcResult}</p>
-              )}
-              <div className="mt-3">
+<div className="mt-3">
                 <div className="flex items-center gap-2">
                   <input
                     type="date"
