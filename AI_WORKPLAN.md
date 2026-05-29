@@ -2198,9 +2198,37 @@ Called in two places:
 
 **Key design point:** The helper creates SW for the shift's specific assets only, not for all eligible assets service-wide. Creating for all units/boxes at shift-setup time would be wrong — unowned assets (at shop, in safe) should only get SW via the admin global generation endpoint or future cron jobs.
 
+## Step 8 Edge Case Fix — completed SW guard (commit `edda355`)
+
+Identified and fixed a bug in the Step 8 implementation before Step 9.
+
+**Problem:** If ScheduledWork already exists with `status='complete'` for the same asset/date/template, shift creation and shift edit would create a duplicate standalone pending Chore. The previous SW queries were filtered to `status='pending'` only, so complete SW was invisible to the claim/annotate logic.
+
+Two affected paths:
+
+1. **New-shift creation:** `ensureScheduledWork()` correctly skips existing complete SW (`skipDuplicates: true`). The `pendingSw` query missed complete SW. `buildChoreRows` still generated a chore row for the asset/template. Result: standalone pending Chore created even though the work was already done.
+
+2. **Edit path — Day 2 standalone loop:** Same skip. `unclaimedSw` missed complete SW. Day 2 loop only checked `existingChoreKeys` and `handledChoreKeys` — neither contains completed work done by another crew. Result: standalone pending Chore created for Day 2 work already done.
+
+**Fix (commit `edda355`):**
+
+New-shift creation path:
+- Widen SW query from `status='pending'` to `status IN ['pending','complete']`.
+- Split result: `pendingSw` (pending+unclaimed for claim logic), `completedSwKeys` set (for suppression).
+- `filteredChoresToCreate = choresToCreate.filter(...)` — drops rows whose template/asset/date key is in `completedSwKeys`.
+- `annotatedChores` and race-guard fallback both use `filteredChoresToCreate`.
+
+Edit path (Phase 3):
+- Same combined query pattern → `relevantSwEdit`.
+- `unclaimedSw = relevantSwEdit.filter(pending+unclaimed)` — same as before.
+- `completedSwKeysEdit` set built from complete rows; key format uses `primary_unit_id` for NARC rows (matching how chore keys are built in the Day 2 loop).
+- Day 2 standalone loop: add `completedSwKeysEdit.has(choreKey)` to skip guard.
+
+Completed work credit, claim/unclaim, race guard, and forfeitable work behavior all unchanged.
+
 ## Current Next Step — 2026-05-28
 
-Steps 1 through 8 are complete. The ScheduledWork ownership model is now fully wired for shift creation and edit.
+Steps 1 through 8 (including edge case fix) are complete. Ready for Step 9.
 
 Known deferred items:
 - Standalone non-SW chores for removed assets may remain during the transition; expected to matter less once scheduled generation is reliable.
@@ -2222,6 +2250,8 @@ User added real workplace examples that the future Chore Console must support:
 - They are crew-level/routine/forfeitable chores, not critical asset ScheduledWork.
 - Their policy offsets are due at shift start +2 hours and lock at shift start +31 hours. Offsets must remain editable per template.
 - Weekly weekday-based generation is required for these chore types, but it is not part of Step 8 unless explicitly approved.
+- Future recurring rules should be calendar-grade: daily, weekly by selected day(s) of week, monthly by date, monthly by weekday pattern, quarterly, annual, and manual/ad hoc.
+- Non-critical forfeitable asset chores (example: truck deep clean) need a "freshness/last completed" supervisor view rather than an urgent persistent-work list: show all units and when each unit was last deep cleaned. Misses still count against the responsible crew/employee performance, but they do not become make-up obligations like Expires.
 
 ## Correction: Late/Missed Behavior — 2026-05-28
 
