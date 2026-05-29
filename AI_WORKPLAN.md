@@ -2313,35 +2313,41 @@ Two supervisor-only sections added to `app/chores/page.tsx`, above the existing 
 
 Do not change `actual_start` semantics in the app — the app already handles Chicago timezone correctly; only the seed script was wrong.
 
-### Issue 2: Uncovered units need proactive supervisor visibility
+### Issue 2: Unassigned Truck Check chores need proactive supervisor visibility
 
-**Concern (user-stated):** By 8am, if any unit from Units 1–11, 14, or 20 Explorer is NOT linked to an active shift (i.e., no crew has claimed it as a present truck in any bay), supervisors need to see this. Truck Checks are forfeitable — if no crew has the unit, no truck check will happen, and the window closes without any accountability. Supervisors need to know early enough to act.
+**Concern (user-stated, clarified):** By 8am, if any eligible unit (1–11, 14, 20 Explorer) has no Truck Check chore assigned to an active shift, supervisors need to see it. This is not about unstaffed shifts — supervisors already know staffing. It is about **unassigned chores**: Unit 10's Truck Check has no one responsible for it today, and the forfeiture window will close without any accountability record.
 
 **Current gap:** Step 9 built two sections in Everyone's Chores:
-- "Unassigned SW" shows unclaimed persistent ScheduledWork — but Monthly/Quarterly/NARC Expires only generate on specific dates, so on most days this section is empty.
-- "Coverage Gaps" shows already-*missed* forfeitable SW — but that only appears after the lock window closes, which is too late to intervene.
+- "Unassigned SW" shows unclaimed *persistent* ScheduledWork. Monthly/Quarterly/NARC Expires only generate on specific dates, so on most days this section is empty.
+- "Coverage Gaps" shows already-*missed* forfeitable SW — only appears after the lock window closes, which is too late to intervene.
 
-Neither section surfaces an uncovered unit *before* the truck check window closes.
+Neither section surfaces an unassigned Truck Check *before* the window closes.
 
-**Recommended approach:**
+**Root cause:** Truck Check SW is never generated independently. The generation endpoint (`/api/admin/generate-scheduled-work`) explicitly excludes forfeitable templates (`eligibleTemplates = templates.filter(isPersistent)`). The `ensureScheduledWork` helper in `operations-logs/route.ts` has the same `isPersistent` guard. So Truck Check SW only exists when a shift creates it — there is no independent Truck Check SW record for unclaimed units.
 
-Add a third supervisor-only section to Everyone's Chores (or Today's Roster): **Uncovered Units**.
+**Recommended approach (for Codex review):**
 
-Query:
-1. Load all eligible unit IDs (unit_number IN [1..11, 14, 20]).
-2. Load all unit IDs currently in active shifts' bays where `unit_status = 'unit_present'`.
-3. The difference = uncovered units — no active crew has responsibility for them today.
+Extend independent ScheduledWork generation to include forfeitable critical templates for the current service date. Specifically:
 
-Display: list of unit numbers with no current shift assignment, surfaced as soon as it can be computed (show all day or filter by time-of-day if needed). Link to or alongside the active shift list so supervisors can act.
+1. **Generate Truck Check SW for all eligible units each day** — same generation pattern as Monthly Expires but scoped to forfeitable + critical + today only. This means every unit gets a `ScheduledWork` row for its Truck Check at the start of each day. These rows begin as `status: 'pending', claimed_by_log_id: null`.
 
-This is a pure query — no ScheduledWork creation, no new schema. The data is already in `operations_log_bays`. Supervisors can then use Step 10 actions (not-applicable, manual assign) to address each uncovered unit.
+2. **When a shift is set up and claims a unit**, the shift creation path already claims pending unclaimed SW. With Truck Check SW generated independently, shift creation would claim the Truck Check SW row just like it claims expires SW — no new claiming logic needed.
 
-**Key design distinction:**
-- "Uncovered Units" = the truck has no active crew. Supervisor must act now.
-- "Coverage Gaps" (existing Step 9) = the truck had a crew but the check was missed. Supervisor documents after the fact.
-- "Unassigned SW" (existing Step 9) = persistent work (expires) exists but no shift claimed it. Supervisor completes or marks N/A.
+3. **Unclaimed Truck Check SW rows** (units where no shift set up that truck today) would automatically surface in the existing Step 9 "Unassigned / Needs Completion" section. No new UI section required.
 
-These are three different operational situations and should remain visually separate.
+4. **After the lock window**, the "Mark Missed" admin endpoint already transitions `forfeitable` pending SW to `missed` — those rows then surface in the existing "Coverage Gaps" section.
+
+This approach uses the existing ScheduledWork model end-to-end without adding a new query pattern or UI section. The only new work is:
+- Generate Truck Check SW independently each day (generation endpoint + `ensureScheduledWork`)
+- Remove the `isPersistent` guard for today's date only, or add a separate generation path for forfeitable critical templates
+
+**Important lifecycle distinction to preserve:**
+- Truck Check SW is still `forfeitable` — it transitions to `missed` after the lock window, cannot be retroactively completed for performance.
+- Persistent SW (expires) is still `persistent` — it remains actionable past the lock window.
+- The generation change does not alter these lifecycle rules; it only makes the work visible before any shift claims it.
+
+**Alternative simpler approach (if the above is too risky to change now):**
+Add a third supervisor query to Everyone's Chores: find eligible units with no Truck Check chore on any active shift today (query `operations_log_bays` + `chores` join, no SW involved). Pure read, no schema or generation changes. Cruder but safe as a stopgap.
 
 **Deferred:** Do not implement until Codex reviews this design. No code changes yet.
 
