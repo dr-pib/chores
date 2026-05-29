@@ -24,34 +24,55 @@ export async function GET() {
   }
 
   const now = new Date()
-  const chores = await prisma.chore.findMany({
-    where: {
-      status: 'pending',
-      chore_template: {
-        lifecycle: 'persistent',
-        name: { in: [...EXPIRE_TEMPLATE_NAMES] },
+  const [chores, unassignedSw] = await Promise.all([
+    prisma.chore.findMany({
+      where: {
+        status: 'pending',
+        chore_template: {
+          lifecycle: 'persistent',
+          name: { in: [...EXPIRE_TEMPLATE_NAMES] },
+        },
+        OR: [
+          { due_at: { lt: now } },
+          { operations_log: { actual_end: { lt: now } } },
+        ],
       },
-      OR: [
-        { due_at: { lt: now } },
-        { operations_log: { actual_end: { lt: now } } },
-      ],
-    },
-    select: {
-      chore_template: { select: { name: true } },
-      unit: { select: { unit_number: true } },
-      operations_log: {
-        select: {
-          primary_unit: { select: { unit_number: true } },
-          bays: {
-            where: { unit_status: 'unit_present', unit_id: { not: null } },
-            select: { unit: { select: { unit_number: true } } },
+      select: {
+        chore_template: { select: { name: true } },
+        unit: { select: { unit_number: true } },
+        operations_log: {
+          select: {
+            primary_unit: { select: { unit_number: true } },
+            bays: {
+              where: { unit_status: 'unit_present', unit_id: { not: null } },
+              select: { unit: { select: { unit_number: true } } },
+            },
           },
         },
       },
-    },
-  })
+    }),
+    // Unclaimed pending persistent SW past due — no shift has claimed this work yet
+    prisma.scheduledWork.findMany({
+      where: {
+        status: 'pending',
+        claimed_by_log_id: null,
+        due_at: { lt: now },
+        chore_template: {
+          lifecycle: 'persistent',
+          is_critical: true,
+          name: { in: [...EXPIRE_TEMPLATE_NAMES] },
+        },
+      },
+      select: {
+        chore_template: { select: { name: true } },
+        unit: { select: { unit_number: true } },
+        narc_box: { select: { letter: true } },
+      },
+    }),
+  ])
 
-  const grouped = new Map<string, Set<number | 'Unassigned'>>()
+  const grouped = new Map<string, Set<number | string>>()
+
   for (const chore of chores) {
     const templateName = chore.chore_template.name as (typeof EXPIRE_TEMPLATE_NAMES)[number]
     if (!EXPIRE_TEMPLATE_NAMES.includes(templateName)) continue
@@ -63,8 +84,22 @@ export async function GET() {
       ? unitNumbers
       : chore.operations_log.primary_unit
         ? [chore.operations_log.primary_unit.unit_number]
-        : ['Unassigned' as const]
+        : ['Unassigned']
     for (const unitNumber of fallbackUnitNumbers) grouped.get(templateName)!.add(unitNumber)
+  }
+
+  // Merge unassigned SW — truck scope adds unit number, narc_box scope adds "Box X"
+  for (const sw of unassignedSw) {
+    const templateName = sw.chore_template.name as (typeof EXPIRE_TEMPLATE_NAMES)[number]
+    if (!EXPIRE_TEMPLATE_NAMES.includes(templateName)) continue
+    if (!grouped.has(templateName)) grouped.set(templateName, new Set())
+    if (sw.unit) {
+      grouped.get(templateName)!.add(sw.unit.unit_number)
+    } else if (sw.narc_box) {
+      grouped.get(templateName)!.add(`Box ${sw.narc_box.letter}`)
+    } else {
+      grouped.get(templateName)!.add('Unassigned')
+    }
   }
 
   const categories = EXPIRE_TEMPLATE_NAMES
@@ -74,11 +109,14 @@ export async function GET() {
       const units = [...unitSet].sort((a, b) => {
         if (a === 'Unassigned') return 1
         if (b === 'Unassigned') return -1
-        return a - b
+        if (typeof a === 'number' && typeof b === 'number') return a - b
+        if (typeof a === 'number') return -1
+        if (typeof b === 'number') return 1
+        return String(a).localeCompare(String(b))
       })
       return { name: DISPLAY_NAMES[name], units }
     })
-    .filter((category): category is { name: string; units: (number | 'Unassigned')[] } => category !== null)
+    .filter((category): category is { name: string; units: (number | string)[] } => category !== null)
 
   const text = categories.length > 0
     ? `Overdue: ${categories

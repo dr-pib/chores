@@ -9,9 +9,33 @@ import { nextServiceDate } from '@/lib/dates'
 import { formatEmployeeTitle } from '@/lib/employees'
 import SegmentedNav from '@/components/SegmentedNav'
 import { compareShiftProfiles } from '@/lib/shift-profiles'
+import { isSupervisorRole } from '@/lib/roles'
 
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+}
+
+function formatWorkDate(d: Date | string) {
+  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+}
+
+function formatDueAt(d: Date | string) {
+  const dt = new Date(d)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'America/Chicago',
+  }).formatToParts(dt)
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? ''
+  let hour = get('hour')
+  if (hour === '24') hour = '00'
+  return `${get('month')}/${get('day')} ${hour}:${get('minute')}`
+}
+
+function swAssetLabel(sw: { unit: { unit_number: number } | null; narc_box: { letter: string } | null }) {
+  if (sw.unit) return `Unit ${sw.unit.unit_number}`
+  if (sw.narc_box) return `Box ${sw.narc_box.letter}`
+  return 'Unassigned'
 }
 
 function formatShiftMil(d: Date | string) {
@@ -139,6 +163,41 @@ export default async function ChoresPage() {
     take: 20,
   })
 
+  const isSupervisor = isSupervisorRole(session.role)
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
+
+  // Section 1: unclaimed pending persistent critical SW — work that still needs to be done
+  const unassignedPersistent = !isSupervisor ? [] : await prisma.scheduledWork.findMany({
+    where: {
+      status: 'pending',
+      claimed_by_log_id: null,
+      chore_template: { lifecycle: 'persistent', is_critical: true },
+    },
+    include: {
+      chore_template: { select: { name: true } },
+      unit: { select: { unit_number: true } },
+      narc_box: { select: { letter: true } },
+    },
+    orderBy: { due_at: 'asc' },
+  })
+
+  // Section 2: missed forfeitable critical SW — coverage gaps needing documentation
+  const missedForfeitable = !isSupervisor ? [] : await prisma.scheduledWork.findMany({
+    where: {
+      status: 'missed',
+      chore_template: { lifecycle: 'forfeitable', is_critical: true },
+      work_date: { gte: thirtyDaysAgo },
+    },
+    include: {
+      chore_template: { select: { name: true } },
+      unit: { select: { unit_number: true } },
+      narc_box: { select: { letter: true } },
+      claimed_by_log: { select: { shift_profile: { select: { name: true } } } },
+    },
+    orderBy: [{ work_date: 'desc' }, { unit: { unit_number: 'asc' } }],
+    take: 60,
+  })
+
   const myLog = logs.find(l => l.primary_employee_id === session.userId || l.partner_employee_id === session.userId) ?? null
   const sortedLogs = [...logs].sort((a, b) => {
     if (a.id === myLog?.id) return -1
@@ -173,6 +232,53 @@ export default async function ChoresPage() {
               className="bg-blue-500 h-1.5 rounded-full transition-all"
               style={{ width: `${Math.round((doneToday / totalToday) * 100)}%` }}
             />
+          </div>
+        )}
+
+        {/* Section 1: Unassigned persistent critical SW — needs completion (supervisor only) */}
+        {isSupervisor && unassignedPersistent.length > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-4 mb-5">
+            <h2 className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">
+              Unassigned — Needs Completion
+            </h2>
+            <div className="space-y-2">
+              {unassignedPersistent.map(sw => (
+                <div key={sw.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  <span className="text-zinc-200 font-medium">{sw.chore_template.name}</span>
+                  <span className="text-zinc-300">{swAssetLabel(sw)}</span>
+                  <span className="text-zinc-500">{formatWorkDate(sw.work_date)}</span>
+                  <span className="text-zinc-600 text-xs">Due {formatDueAt(sw.due_at)}</span>
+                  <span className="text-xs text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded ml-auto">
+                    Unassigned
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Section 2: Missed forfeitable critical SW — coverage gaps (supervisor only) */}
+        {isSupervisor && missedForfeitable.length > 0 && (
+          <div className="bg-zinc-900 border border-yellow-600/25 rounded-xl p-4 mb-5">
+            <h2 className="text-xs font-semibold text-yellow-500/80 uppercase tracking-wider mb-1">
+              Coverage Gaps — Missed Forfeitable Work
+            </h2>
+            <p className="text-xs text-zinc-600 mb-3">Last 30 days. Cannot be made up — document with a reason in a future step.</p>
+            <div className="space-y-2">
+              {missedForfeitable.map(sw => (
+                <div key={sw.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  <span className="text-zinc-300 font-medium">{sw.chore_template.name}</span>
+                  <span className="text-zinc-400">{swAssetLabel(sw)}</span>
+                  <span className="text-zinc-500">{formatWorkDate(sw.work_date)}</span>
+                  {sw.claimed_by_log && (
+                    <span className="text-zinc-600 text-xs">{sw.claimed_by_log.shift_profile.name}</span>
+                  )}
+                  <span className="text-xs text-yellow-600/80 bg-yellow-500/10 px-1.5 py-0.5 rounded ml-auto">
+                    Missed
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
