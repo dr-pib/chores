@@ -128,6 +128,12 @@ The app should feel like a quiet operational tool: dense enough for repeated use
   - `/my-chores` and `/chores` live under the `Chores` nav concept.
   - `/log` and `/history` live under the `Roster` nav concept.
 - A later cleanup may consolidate to `/chores?view=my|everyone` and `/roster?view=today|history`.
+- `lib/lifecycle.ts` — `isPersistent(t)` and `isForfeitable(t)` helpers read `ChoreTemplate.lifecycle` (`'persistent'` | `'forfeitable'`). Always use these helpers; never compare `lifecycle_type` in new code.
+- `lib/chore-targeting.ts` — `resolvePresentTruckTargets`, `resolvePrimaryUnitTarget`, `resolveCrewTarget`, `targetKey`. Use `resolvePrimaryUnitTarget` for NARC Expires only; never route NARC through `resolvePresentTruckTargets`.
+- `lib/chore-generation.ts` — `buildChoreRows` (pure, no Prisma). `ChoreCreateData` for nested shift creation; `ChoreCreateManyData` (adds `operations_log_id`) for `prisma.chore.createMany`.
+- `lib/dates.ts` — `chicago0800(date)` converts a UTC-midnight `Date` to the 08:00 America/Chicago instant for that calendar date. Use this for all default `due_at` values on independently-generated `ScheduledWork` rows.
+- `ScheduledWork` table: `asset_type + asset_key` non-nullable dedup fields avoid Postgres nullable-unique pitfalls. `asset_key = String(unit.id)` for trucks; `String(narcBox.id)` for NARC boxes. `claimed_by_log_id` tracks shift ownership; `status` (`pending` | `complete` | `missed` | `not_applicable` | `voided`) tracks work state — these are independent concepts.
+- `ChoreTemplate.lifecycle_type` is intentionally preserved for the Chore Admin edit form and its API routes. All runtime lifecycle checks must use `ChoreTemplate.lifecycle` via `lib/lifecycle.ts`.
 
 ## Deployment Notes
 
@@ -140,8 +146,10 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 
 Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supervisor+ only):
 
-- **Backfill Missing Scheduled Chores** — adds any missing NARC/Monthly/Quarterly Expires to all currently active shifts. Run after fixing bay assignments or when a shift was built on a day those chores should have generated.
+- **Backfill Missing Scheduled Chores** — adds any missing NARC/Monthly/Quarterly Expires Chore rows to all currently active shifts. Run after fixing bay assignments or when a shift was built on a day those chores should have generated.
 - **Fix NARC Expires (Remove Bad Records)** — deletes NARC Expires records that have no `unit_id` or whose `unit_id` does not match the shift's `primary_unit_id`. Run this first if bad NARC records are present, then run Backfill to add correct ones back. This two-step process was needed after a code bug created NARC Expires for every bay unit (including backup trucks) instead of primary unit only.
+- **Generate Scheduled Work** — creates `ScheduledWork` rows service-wide for all eligible assets (units 1–11, 14, 20 and NARC boxes A–L) on qualifying dates in a given date range. Useful for backfilling unassigned asset work for trucks or NARC boxes that were never on any shift (at shop, in safe, etc.). Normal shift creation and edit now auto-ensure SW rows for the shift's specific assets, so this button is only needed for assets not claimed by any shift.
+- **Mark Missed Forfeitable Work** — transitions `pending` forfeitable `ScheduledWork` rows past their lock window to `status: 'missed'`. Safe to run repeatedly; designed to be called by a future cron job.
 
 ## Known Roadmap
 
@@ -162,19 +170,17 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
 - Operations Chief / command-level dashboard:
   - higher-level view for supervisors/chiefs who are not assigned to a truck
   - should surface coverage gaps, unassigned scheduled work, out-of-service/offsite trucks, unchecked expires, and eventually NARC box status
-- Future scheduled-work model:
-  - NARC, Monthly, Quarterly, and future persistent scheduled chores may need to generate from the calendar date independent of shift creation
-  - a crew/shift can take ownership when the relevant truck or asset is assigned to the shift
-  - work still needs to be visible when a truck is offsite, in Gerald's bays, at the shop, or never added to a shift
-- Future NARC box model:
-  - NARC tracking is by NARC box asset/letter, not only by truck/unit
-  - NARC boxes are labeled A-L
-  - primary ALS trucks carry NARC boxes, but boxes can also sit in the safe when fewer ALS trucks are staffed
-  - Harrison Supervisors are responsible for NARC expires on boxes not assigned to active trucks that day
-  - NARC Expires likely need to generate for every active NARC box on the 25th, independent of shift creation
-  - NARC boxes now have their own database table/model and Shift Setup can save one shift-level NARC box selection
-  - when a NARC box is selected in Shift Setup, the shift/crew should eventually take ownership of that box's open NARC Expires chore for that date
-  - NARC Expires displays should mention NARC box letter and unit number together when both are known, e.g. `NARC Expires Box C Unit 4`
+- Scheduled-work ownership model — **built** (Steps 1–8):
+  - `ScheduledWork` table tracks asset-level work independent of shift ownership
+  - `ChoreTemplate` now has `asset_scope`, `lifecycle`, `is_critical`, `generates_independently`, `station_scope` classification fields
+  - Shift creation and edit auto-ensure persistent `ScheduledWork` rows for the shift's specific present trucks (Monthly/Quarterly Expires) and NARC box (NARC Expires) on qualifying dates; no admin pre-run required
+  - Claim/unclaim/re-claim logic in `app/api/operations-logs/route.ts` links pending unclaimed SW to shift Chores and releases claims when assets are removed or swapped
+  - `ScheduledWork.is_late_completion` flag set when persistent work is completed after it was already `missed`
+  - Still to do: supervisor UI for unassigned/missed SW (Step 9), supervisor direct-complete/not-applicable route (Step 10), cron job for mark-missed transition
+- NARC box model — **built** (foundation complete):
+  - NARC boxes A–L have their own `NarcBox` table; Shift Setup saves one shift-level NARC box selection
+  - NARC Expires display shows box letter and unit number together when both are known, e.g. `NARC Expires Box C Unit 4`
+  - Unresolved: boxes in the safe are not yet auto-generated via shift creation (requires the admin generation endpoint or a future cron); the SW model is ready for it
 - Performance reporting — **built**: `lib/performance.ts`, `/api/performance`, `/api/performance/all`, `/report`, `/report/[id]`, stat strip on My Chores detail, performance card on profile. Supervisor nav shows "Report" link.
   - Still to do: on-time rate (completed before `due_at`), export/CSV, peer comparison
 - Deeper route cleanup for Chores/Roster after the current UX shape proves stable.
