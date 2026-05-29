@@ -171,8 +171,10 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - configure license/credential-based applicability when needed (for example NRP-only work)
   - configure repeating patterns such as day-of-week, third Tuesday, 25th of month, quarterly rules, or manual/ad hoc
   - UI should use appropriate controls for these independent dimensions: segmented controls/selects for scope/lifecycle/frequency, checkboxes/toggles for critical/generates independently/license restrictions, station/asset selectors for applicability
-- Supervisor/Admin/Dom truck coverage view:
-  - show trucks not assigned to active shifts today
+- Supervisor/Admin/Dom truck coverage view — **design settled, not yet built**:
+  - By 8am, any unit from Units 1–11, 14, or 20 Explorer that is NOT present in any active shift's bays (`unit_status = 'unit_present'`) needs to be visible to supervisors. Truck Checks are forfeitable — if no crew has claimed a unit, the window closes with no accountability. Supervisors must be able to see uncovered units early enough to act.
+  - Proposed: a third supervisor-only section in Everyone's Chores ("Uncovered Units") — pure query, no schema changes. Load eligible unit IDs, subtract those already in active bays, display the remainder.
+  - Three distinct supervisor situations that must stay visually separate: (1) Uncovered Units = no crew has this truck today, act now; (2) Coverage Gaps (existing Step 9) = crew had the truck but missed the check, document after; (3) Unassigned SW (existing Step 9) = persistent expires work exists but no shift claimed it, complete or mark N/A.
   - show trucks with unchecked persistent/scheduled chores
   - resolve the tracking gap for unit-specific Monthly/Quarterly chores when no shift is created for a truck or a truck is out of service
 - Operations Chief / command-level dashboard:

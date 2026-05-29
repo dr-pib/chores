@@ -2291,14 +2291,69 @@ Two supervisor-only sections added to `app/chores/page.tsx`, above the existing 
 - Supervisor truck coverage view (trucks not on any shift today)
 - Operations Chief command-level dashboard
 
+## Known Issues Found During Testing — 2026-05-28
+
+### Issue 1: Seeded shift times are 5 hours off (UTC vs CDT)
+
+**What happened:** `imports/seed-eso-shifts.ts` used `Date.UTC(year, month-1, day, startH, startM, 0)` which treats the CSV start times (06:00, 07:00, 08:00) as UTC. CDT (Central Daylight Time, in effect for May) is UTC-5, so those shifts should have been stored as UTC+5h. A 07:00 CDT start should be `12:00 UTC`, but was stored as `07:00 UTC` and displays as `02:00 CDT` on the roster.
+
+**Confirmed:** DB query shows Supervisor stored as `06:00 UTC (01:00 CDT)`, 24-7/Swing stored as `07:00 UTC (02:00 CDT)`, 24-8 stored as `08:00 UTC (03:00 CDT)`.
+
+**Recommended fix (two parts):**
+
+1. Fix the seeded shifts in the DB — update `actual_start` and `actual_end` for logs 50–73 by adding 5 hours (18,000,000 ms) to each. All May 2026 dates are CDT (UTC-5). A one-time SQL or Prisma script can do this safely.
+
+2. Fix `imports/seed-eso-shifts.ts` for future re-runs — parse the shift start time using an explicit CDT offset instead of UTC:
+   ```typescript
+   // Use explicit CDT offset (-05:00) for May dates
+   const actualStart = new Date(`${row.service_date}T${row.start_time}:00-05:00`)
+   const actualEnd = new Date(actualStart.getTime() + 24 * 3600 * 1000)
+   ```
+   A more robust version would detect the UTC offset for the given date dynamically using `Intl.DateTimeFormat` (handles DST transitions automatically), but the explicit `-05:00` is correct and safe for any seed date in May–October (CDT window).
+
+Do not change `actual_start` semantics in the app — the app already handles Chicago timezone correctly; only the seed script was wrong.
+
+### Issue 2: Uncovered units need proactive supervisor visibility
+
+**Concern (user-stated):** By 8am, if any unit from Units 1–11, 14, or 20 Explorer is NOT linked to an active shift (i.e., no crew has claimed it as a present truck in any bay), supervisors need to see this. Truck Checks are forfeitable — if no crew has the unit, no truck check will happen, and the window closes without any accountability. Supervisors need to know early enough to act.
+
+**Current gap:** Step 9 built two sections in Everyone's Chores:
+- "Unassigned SW" shows unclaimed persistent ScheduledWork — but Monthly/Quarterly/NARC Expires only generate on specific dates, so on most days this section is empty.
+- "Coverage Gaps" shows already-*missed* forfeitable SW — but that only appears after the lock window closes, which is too late to intervene.
+
+Neither section surfaces an uncovered unit *before* the truck check window closes.
+
+**Recommended approach:**
+
+Add a third supervisor-only section to Everyone's Chores (or Today's Roster): **Uncovered Units**.
+
+Query:
+1. Load all eligible unit IDs (unit_number IN [1..11, 14, 20]).
+2. Load all unit IDs currently in active shifts' bays where `unit_status = 'unit_present'`.
+3. The difference = uncovered units — no active crew has responsibility for them today.
+
+Display: list of unit numbers with no current shift assignment, surfaced as soon as it can be computed (show all day or filter by time-of-day if needed). Link to or alongside the active shift list so supervisors can act.
+
+This is a pure query — no ScheduledWork creation, no new schema. The data is already in `operations_log_bays`. Supervisors can then use Step 10 actions (not-applicable, manual assign) to address each uncovered unit.
+
+**Key design distinction:**
+- "Uncovered Units" = the truck has no active crew. Supervisor must act now.
+- "Coverage Gaps" (existing Step 9) = the truck had a crew but the check was missed. Supervisor documents after the fact.
+- "Unassigned SW" (existing Step 9) = persistent work (expires) exists but no shift claimed it. Supervisor completes or marks N/A.
+
+These are three different operational situations and should remain visually separate.
+
+**Deferred:** Do not implement until Codex reviews this design. No code changes yet.
+
 ## Current Next Step — 2026-05-28
 
-Steps 1 through 9 are complete. Ready for Step 10.
+Steps 1 through 9 are complete. Two issues found during testing (see above). Ready for Step 10 after issues are reviewed.
 
 Known deferred items:
+- **Fix seeded shift times** (Issue 1 above) — DB correction + seed script fix needed.
+- **Uncovered Units section** (Issue 2 above) — new supervisor section showing eligible units with no active crew; Codex review pending.
 - Standalone non-SW chores for removed assets may remain during the transition; expected to matter less once scheduled generation is reliable.
 - Server-local `serviceDate` calculation should be hardened later to avoid timezone-dependent SW lookup bugs.
-- Supervisor unassigned/missed UI is later Step 9.
 - Supervisor direct-complete/not-applicable route is later Step 10.
 - Chore Admin UI for the new classification fields remains future work.
 - ESO schedule import/parser is a future separate project; best current source is the daily `.xls` export.
