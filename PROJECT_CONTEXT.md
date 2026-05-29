@@ -117,10 +117,10 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Supervisors, Admin, and Dom can see broader operational/admin views.
 - Dom-only delete applies to change-log rows.
 - Dom-only edit applies to EMT numbers; the change is written to the change log with old and new value.
-- The change log houses multiple change types: chore status changes (chore_id + operations_log_id set) and employee record changes (target_employee_id set, chore_id/operations_log_id null). Both display in the same Change Log page.
+- The change log houses multiple change types: chore status changes (chore_id + operations_log_id set), employee record changes (target_employee_id set, chore_id/operations_log_id null), and supervisor direct actions on unassigned asset work (scheduled_work_id set). All display in the same Change Log page.
 - Past shift edits require supervisor-level permission and should be logged.
 - Audit/tracking should record the person who clicked, not just the employee assigned to the shift.
-- If a supervisor edits a past shift, the log should show that supervisor as the actor.
+- If a supervisor marks unassigned ScheduledWork complete or not-applicable, the log shows that supervisor as the actor.
 - Build audit history first; derive performance percentages later from trustworthy events.
 - Performance stats are computed from completed OperationsLogs (shifts where `actual_end` has passed). Active shifts are excluded from historical rates. Computation lives in `lib/performance.ts` (`computePerformanceStats`).
 - NARC Expires are excluded from a non-NRP employee's performance denominator entirely; NRP employees include them.
@@ -217,14 +217,15 @@ Located in **Chore Templates → Admin Utilities** (bottom of left sidebar, supe
   - 12:00 PM text to Brent: same summary. Fires regardless — send "all clear" too so silence never means good news.
   - SMS, not push notifications (no mobile app yet). Provider TBD (Twilio most common).
   - Do not implement until provider is chosen and credentials are available.
-- Scheduled-work ownership model — **built** (Steps 1–8):
+- Scheduled-work ownership model — **built** (Steps 1–10):
   - `ScheduledWork` table tracks asset-level work independent of shift ownership
   - `ChoreTemplate` now has `asset_scope`, `lifecycle`, `is_critical`, `generates_independently`, `station_scope` classification fields
   - Shift creation and edit auto-ensure persistent `ScheduledWork` rows for the shift's specific present trucks (Monthly/Quarterly Expires) and NARC box (NARC Expires) on qualifying dates; no admin pre-run required
   - Claim/unclaim/re-claim logic in `app/api/operations-logs/route.ts` links pending unclaimed SW to shift Chores and releases claims when assets are removed or swapped
   - `ScheduledWork.is_late_completion` flag set when persistent work is completed after it was already `missed`
   - Step 9 **built**: supervisor-only sections in Everyone's Chores surface unassigned pending persistent SW and missed forfeitable SW; overdue ticker extended to include unclaimed SW
-  - Still to do: supervisor direct-complete/not-applicable route (Step 10), cron job for mark-missed transition
+  - Step 10 **built**: supervisor direct-complete/not-applicable route and UI buttons for resolving unassigned work and coverage gaps.
+  - Still to do: cron job for mark-missed transition
 - NARC box model — **built** (foundation complete):
   - NARC boxes A–L have their own `NarcBox` table; Shift Setup saves one shift-level NARC box selection
   - NARC Expires display shows box letter and unit number together when both are known, e.g. `NARC Expires Box C Unit 4`
