@@ -116,11 +116,20 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
     .filter(bay => bay.unit_status === 'unit_present' && bay.unit_id !== null)
     .map(bay => bay.unit_id!)
 
+  const crewIds = [log.primary_employee_id, log.partner_employee_id].filter((x): x is number => x != null)
   const previousPersistentChores = await prisma.chore.findMany({
     where: {
-      status: 'pending',
       chore_template: { lifecycle: 'persistent' },
       operations_log: { service_date: { lt: log.service_date } },
+      // Still-pending carried-forward work, OR work this crew completed during
+      // this shift — so a made-up chore stays visible (checked off) instead of
+      // vanishing the moment it's no longer pending.
+      AND: [{
+        OR: [
+          { status: 'pending' },
+          { status: 'completed', completed_by_id: { in: crewIds }, completed_at: { gte: log.actual_start } },
+        ],
+      }],
       OR: [
         ...(currentUnitIds.length > 0
           ? [
@@ -415,7 +424,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                   )
                   return (
                     <div key={chore.id}>
-                      <ChoreItem chore={chore} userRole={session.role} isPastShift={true} narcBoxLetter={chore.operations_log.narc_box?.letter ?? null} hideNarcUnit={true} />
+                      <ChoreItem chore={chore} userRole={session.role} isPastShift={false} narcBoxLetter={chore.operations_log.narc_box?.letter ?? null} hideNarcUnit={true} />
                       <div className="ml-8 text-xs text-zinc-500">
                         From {chore.operations_log.shift_profile.name}
                         {isNarc && chore.unit && <> · Unit {chore.unit.unit_number}</>}

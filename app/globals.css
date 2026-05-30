@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
+  --background: #182c25;
   --foreground: #f4f4f5;
 }
 
@@ -12,8 +12,18 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* App-wide dotted green background. Painted on the body and on every full-page
+   wrapper (which all use `min-h-screen bg-zinc-950`). These rules are unlayered,
+   so they beat Tailwind's `.bg-zinc-950` utility without touching 21 page files.
+   Standalone `bg-zinc-950` elements (e.g. login list rows) keep their solid fill. */
+body,
+.min-h-screen.bg-zinc-950 {
+  background-color: #182c25;
+  background-image: radial-gradient(circle, #1e3a2f 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
 body {
-  background: var(--background);
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }

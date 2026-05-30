@@ -25,13 +25,16 @@ export async function POST(_req: NextRequest, ctx: RouteContext<'/api/chores/[id
   const serviceDate = new Date(chore.operations_log.service_date)
   const pastShift = isPastShift(serviceDate, chore.operations_log.actual_end)
   if (pastShift) {
-    if (!isSupervisor) {
+    // Persistent work carried into a later shift is legitimate make-up work and
+    // may be completed by the current crew (regular employees included).
+    // Forfeitable past-shift records stay supervisor-only.
+    if (!isSupervisor && !isPersistent(chore.chore_template)) {
       return NextResponse.json(
         { error: 'Past shift chores can only be edited by a supervisor' },
         { status: 403 },
       )
     }
-    // Supervisors may proceed — log the change after update
+    // Supervisors and make-up completions may proceed — log the change after update
   }
 
   // Daily chores: enforce both an early-availability and a late-lockout window
