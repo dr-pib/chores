@@ -37,6 +37,34 @@ export async function DELETE(_req: Request, ctx: RouteContext<'/api/operations-l
   const canDelete = log.primary_employee_id === session.userId || isSupervisorRole(session.role)
   if (!canDelete) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  await prisma.operationsLog.delete({ where: { id: Number(id) } })
+  const logId = Number(id)
+
+  // Deleting a shift purges ALL of its data. Chores and bays cascade via the
+  // schema. ScheduledWork claimed by this shift and ChangeLog rows tied to the
+  // shift/its chores/its claimed work only SetNull on delete, so remove them
+  // explicitly — otherwise unclaimed ScheduledWork resurfaces as "unassigned"
+  // and orphaned change-log rows linger. (Simple full purge for now.)
+  await prisma.$transaction(async (tx) => {
+    const chores = await tx.chore.findMany({
+      where: { operations_log_id: logId },
+      select: { id: true },
+    })
+    const choreIds = chores.map((c) => c.id)
+    const claimedSw = await tx.scheduledWork.findMany({
+      where: { claimed_by_log_id: logId },
+      select: { id: true },
+    })
+    const swIds = claimedSw.map((s) => s.id)
+
+    const changeLogOr = [
+      { operations_log_id: logId },
+      ...(choreIds.length ? [{ chore_id: { in: choreIds } }] : []),
+      ...(swIds.length ? [{ scheduled_work_id: { in: swIds } }] : []),
+    ]
+    await tx.changeLog.deleteMany({ where: { OR: changeLogOr } })
+    await tx.scheduledWork.deleteMany({ where: { claimed_by_log_id: logId } })
+    await tx.operationsLog.delete({ where: { id: logId } })
+  })
+
   return NextResponse.json({ ok: true })
 }

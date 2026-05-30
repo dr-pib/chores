@@ -38,12 +38,12 @@ const SECTIONS: TodoSection[] = [
       { status: 'done', title: 'Darker green dotted app background with wider dot spacing' },
       { status: 'done', title: 'Nav bar uses solid dark green (no dots)' },
       { status: 'done', title: 'NARC Expires shows the box letter only (no unit number) on every screen and in the overdue ticker' },
+      { status: 'done', title: 'Deleting a shift now fully purges its data (chores, completions, performance, claimed ScheduledWork, change-log rows)', note: 'Simple full purge for now — claimed asset work is deleted, not unclaimed.' },
     ],
   },
   {
     heading: 'Open / to review',
     items: [
-      { status: 'todo', title: 'Decide what happens to a shift’s NARC/Monthly/Quarterly ScheduledWork when the shift is deleted', note: 'Today deleting a shift unclaims its ScheduledWork (claimed_by_log_id → null) and it resurfaces as unassigned. Confirm that is the desired behavior or add cleanup.' },
       { status: 'todo', title: 'Cron job for the mark-missed forfeitable transition', note: 'Endpoint exists; needs scheduling.' },
       { status: 'todo', title: 'Performance report: date-range filtering, employee/crew/supervisor/station views, trend lines, printable/email-all-supervisors' },
       { status: 'todo', title: 'SMS notifications (10am supervisor, 12pm Brent)', note: 'Design captured; deferred until a provider is chosen.' },
