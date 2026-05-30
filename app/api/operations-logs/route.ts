@@ -272,7 +272,23 @@ export async function POST(req: NextRequest) {
       ? withTcSw(buildChoreRows([truckCheck], truckTargets, day2Date, startDt, DAY_2_OFFSET_MS))
       : []
 
-    // Phase 3: Main update: replace truck checks and update shift metadata.
+    // Preserve completed Truck Checks across the edit. Editing the shift (e.g. adding a
+    // secondary truck) must NOT wipe a check a crew member already completed. Only pending
+    // Truck Checks are deleted/recreated; completed ones stay with their credit intact, and
+    // we skip recreating any (unit, date) combo that already has a completed check.
+    const existingTruckChecks = await prisma.chore.findMany({
+      where: { operations_log_id: existing.id, chore_template_id: truckCheck.id, status: 'completed' },
+      select: { unit_id: true, chore_date: true },
+    })
+    const completedTcKeys = new Set(
+      existingTruckChecks.map(c => `${c.unit_id ?? 'none'}-${c.chore_date?.getTime() ?? 0}`)
+    )
+    const tcKey = (row: ChoreCreateData) => `${row.unit_id ?? 'none'}-${row.chore_date.getTime()}`
+    const truckChecksToCreate = [...day1TruckChecks, ...day2TruckChecks].filter(
+      row => !completedTcKeys.has(tcKey(row))
+    )
+
+    // Phase 3: Main update: replace pending truck checks and update shift metadata.
     await prisma.operationsLog.update({
       where: { id: existing.id },
       data: {
@@ -290,8 +306,8 @@ export async function POST(req: NextRequest) {
           create: bays.map((b) => ({ bay_label: b.bay_label, unit_id: b.unit_id, unit_status: b.unit_status, sort_order: b.sort_order })),
         },
         chores: {
-          deleteMany: { chore_template_id: truckCheck.id },
-          create: [...day1TruckChecks, ...day2TruckChecks],
+          deleteMany: { chore_template_id: truckCheck.id, status: 'pending' },
+          create: truckChecksToCreate,
         },
       },
     })
