@@ -50,11 +50,19 @@ export async function DELETE(_req: Request, ctx: RouteContext<'/api/operations-l
       select: { id: true },
     })
     const choreIds = chores.map((c) => c.id)
-    const claimedSw = await tx.scheduledWork.findMany({
+
+    // Pending claimed work is still genuinely needed: revert it to unassigned
+    // so supervisors still see it. Completed/resolved claimed work goes away
+    // with the shift (completions/performance are erased on purpose).
+    await tx.scheduledWork.updateMany({
+      where: { claimed_by_log_id: logId, status: 'pending' },
+      data: { claimed_by_log_id: null, claimed_at: null },
+    })
+    const swToDelete = await tx.scheduledWork.findMany({
       where: { claimed_by_log_id: logId },
       select: { id: true },
     })
-    const swIds = claimedSw.map((s) => s.id)
+    const swIds = swToDelete.map((s) => s.id)
 
     const changeLogOr = [
       { operations_log_id: logId },
