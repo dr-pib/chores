@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { ROSTER_ACTION_CLASS } from '@/lib/ui'
 
 export default function DeleteShiftButton({ logId }: { logId: number }) {
   const router = useRouter()
@@ -43,9 +44,9 @@ export default function DeleteShiftButton({ logId }: { logId: number }) {
   return (
     <button
       onClick={() => setConfirming(true)}
-      className="text-xs text-zinc-600 hover:text-red-400 transition-colors"
+      className={`${ROSTER_ACTION_CLASS} bg-red-500/20 text-red-400 hover:bg-red-500/30`}
     >
-      Delete shift
+      Delete
     </button>
   )
 }

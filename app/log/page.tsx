@@ -10,6 +10,7 @@ import SegmentedNav from '@/components/SegmentedNav'
 import { isSupervisorRole } from '@/lib/roles'
 import ConfirmShiftButton from '@/components/ConfirmShiftButton'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
+import { ROSTER_ACTION_CLASS } from '@/lib/ui'
 
 const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
 
@@ -229,7 +230,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                         <div className="flex items-center gap-1.5">
                           <Link
                             href={`/setup?logId=${log.id}`}
-                            className="text-xs text-zinc-500 hover:text-zinc-300 border border-zinc-700 hover:border-zinc-500 px-2 py-0.5 rounded transition-colors"
+                            className={`${ROSTER_ACTION_CLASS} bg-blue-500/20 text-blue-400 hover:bg-blue-500/30`}
                           >
                             Edit
                           </Link>

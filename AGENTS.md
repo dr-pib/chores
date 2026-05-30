@@ -11,6 +11,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 **Always start with:**
 - `AGENTS.md` — AI contributor rules and routing (this file).
 - `README.md` — local setup, build, deployment basics.
+- `CRITICAL_FEATURES.md` — load-bearing behaviors that have been broken before. **Read before touching chore carry-forward, persistent/forfeitable lifecycle, NARC box targeting, or the chore-complete permission gates. Do not remove or simplify anything listed there without maintainer sign-off.**
 
 **Read `PROJECT_CONTEXT.md` before changing:**
 - Product behavior or user-facing workflows
