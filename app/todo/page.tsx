@@ -45,6 +45,7 @@ const SECTIONS: TodoSection[] = [
   {
     heading: 'Open / to review',
     items: [
+      { status: 'todo', title: 'On shift delete, a COMPLETED NARC Expires must reappear as UNDONE, not vanish', note: 'Today completed claimed ScheduledWork is deleted with the shift. Instead, revert it to unassigned AND clear the completion (status pending, completed_by/at null) so the box’s NARC Expires shows as still needing to be done. Same likely applies to other completed persistent expires.' },
       { status: 'todo', title: 'Cron job for the mark-missed forfeitable transition', note: 'Endpoint exists; needs scheduling.' },
       { status: 'todo', title: 'Performance report: date-range filtering, employee/crew/supervisor/station views, trend lines, printable/email-all-supervisors' },
       { status: 'todo', title: 'SMS notifications (10am supervisor, 12pm Brent)', note: 'Design captured; deferred until a provider is chosen.' },
