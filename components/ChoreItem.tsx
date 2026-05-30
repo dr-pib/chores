@@ -55,12 +55,14 @@ export default function ChoreItem({
   isPastShift = false,
   completedElsewhere = false,
   narcBoxLetter = null,
+  hideNarcUnit = false,
 }: {
   chore: Chore
   userRole: string
   isPastShift?: boolean
   completedElsewhere?: boolean
   narcBoxLetter?: string | null
+  hideNarcUnit?: boolean
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -206,7 +208,7 @@ export default function ChoreItem({
             {isTruckCheck && chore.unit && (
               <span className="text-sm font-semibold text-blue-300">{formatUnit(chore.unit, false)}</span>
             )}
-            {!isTruckCheck && chore.unit && (
+            {!isTruckCheck && chore.unit && !(isNarcExpires && hideNarcUnit) && (
               <span className="text-xs text-blue-400">{formatUnit(chore.unit, false)}</span>
             )}
           </div>

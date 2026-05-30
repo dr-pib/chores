@@ -399,6 +399,36 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
         {/* Chores */}
         <div className="space-y-5">
+          {(isMyLog || isSupervisorRole(session.role)) && sortedPreviousPersistentChores.length > 0 && (
+            <div className="bg-zinc-900 border border-red-500/60 rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
+                Unfinished Chores From Previous Shifts
+              </h2>
+              <div className="space-y-2">
+                {sortedPreviousPersistentChores.map(chore => {
+                  const isNarc = chore.chore_template.name === 'NARC Expires'
+                  const crew = [
+                    chore.operations_log.primary_employee,
+                    chore.operations_log.partner_employee,
+                  ].filter((e): e is { name: string; licensure_level: string } =>
+                    e !== null && (!isNarc || e.licensure_level === 'NRP')
+                  )
+                  return (
+                    <div key={chore.id}>
+                      <ChoreItem chore={chore} userRole={session.role} isPastShift={true} narcBoxLetter={chore.operations_log.narc_box?.letter ?? null} hideNarcUnit={true} />
+                      <div className="ml-8 text-xs text-zinc-500">
+                        From {chore.operations_log.shift_profile.name}
+                        {isNarc && chore.unit && <> · Unit {chore.unit.unit_number}</>}
+                        {' · '}{formatDate(chore.operations_log.service_date)}
+                        {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(formatEmployeeTitle).join(' & ')}</span>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {day1Chores.length > 0 && (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
               <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
@@ -421,34 +451,6 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                 {day2Chores.map(chore => (
                   <ChoreItem key={chore.id} chore={chore} userRole={session.role} isPastShift={pastShift} completedElsewhere={completedElsewhereIds.has(chore.id)} narcBoxLetter={log.narc_box?.letter ?? null} />
                 ))}
-              </div>
-            </div>
-          )}
-
-          {isMyLog && sortedPreviousPersistentChores.length > 0 && (
-            <div className="bg-zinc-900 border border-red-500/60 rounded-xl p-4">
-              <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
-                Unfinished Chores From Previous Shifts
-              </h2>
-              <div className="space-y-2">
-                {sortedPreviousPersistentChores.map(chore => {
-                  const isNarc = chore.chore_template.name === 'NARC Expires'
-                  const crew = [
-                    chore.operations_log.primary_employee,
-                    chore.operations_log.partner_employee,
-                  ].filter((e): e is { name: string; licensure_level: string } =>
-                    e !== null && (!isNarc || e.licensure_level === 'NRP')
-                  )
-                  return (
-                    <div key={chore.id}>
-                      <ChoreItem chore={chore} userRole={session.role} isPastShift={true} narcBoxLetter={chore.operations_log.narc_box?.letter ?? null} />
-                      <div className="ml-8 text-xs text-zinc-500">
-                        From {chore.operations_log.shift_profile.name} · {formatDate(chore.operations_log.service_date)}
-                        {crew.length > 0 && <span className="text-zinc-600"> · {crew.map(formatEmployeeTitle).join(' & ')}</span>}
-                      </div>
-                    </div>
-                  )
-                })}
               </div>
             </div>
           )}
