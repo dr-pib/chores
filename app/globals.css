@@ -18,9 +18,9 @@
    Standalone `bg-zinc-950` elements (e.g. login list rows) keep their solid fill. */
 body,
 .min-h-screen.bg-zinc-950 {
-  background-color: #0f1d17;
+  background-color: #0a140f;
   background-image: radial-gradient(circle, #1e3a2f 1px, transparent 1px);
-  background-size: 12px 12px;
+  background-size: 24px 24px;
 }
 
 body {

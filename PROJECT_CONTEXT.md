@@ -72,6 +72,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Use bay language only where the actual bay selector/label is being discussed.
 - Main nav uses `Chores` with a switch for `My Chores` and `Everyone's Chores`.
 - Main nav uses `Roster` with a switch for `Today` and `History`.
+- The supervisor+ nav keeps only daily-operational links inline (Setup, Chores, Roster, Dashboard); config/admin pages (Report, Shift Profiles, Employees, Chore Templates, Change Log, Dev) collapse into an `Admin` dropdown so the bar does not sprawl. The Admin button highlights when the active route is one of its items. Regular employees see only Setup/Chores/Roster. The mobile hamburger lists every link flat. Lives in `components/NavBar.tsx` (`primaryLinks` / `adminLinks`).
 - Chores nav routing rules: if user has an active shift → their log. If no active shift and Supervisor/Admin/Dom → Everyone's Chores (nav click) or Setup (login). If no active shift and regular employee → Setup always.
 - Historical shift records use the same underlying detail page as active shifts, but should show a clear historical heading/state and a back link to Roster History.
 - Everyone's Chores should list the same active shifts as Today's Roster; it should additionally show unchecked past persistent chores in a separate overdue/persistent section.
@@ -90,6 +91,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Default internal shift sort order: Supervisor, 24-7, 24-8, Swing, Diamond City, Newton County.
 - Keep Diamond City and Newton County shift labels as they exist in the system, such as `DC-ALS` and `NC-ALS`, unless the user asks otherwise.
 - The active side of segmented switches should be visually obvious; current pattern is a blue selected pill.
+- App-wide background is a dark-green dotted field defined in `app/globals.css` (unlayered rules on `body` and `.min-h-screen.bg-zinc-950`, so they beat Tailwind's `bg-zinc-950` without editing every page). Current values: background `#0a140f`, dot color `#1e3a2f` at 1px, `background-size: 24px 24px` (dot spacing). Adjust there, not per-page.
 - Roster date navigation (Today's Roster) allows moving forward into future dates. Future dates with no shifts show the normal empty state. Only the back arrow suppresses navigation at a logical boundary (do not disable it either unless there is a specific reason). Do not hide or disable the forward arrow when the selected date is today.
 
 ## Badges And Alerts
@@ -109,6 +111,7 @@ The app should feel like a quiet operational tool: dense enough for repeated use
 - Everyone's Chores has two supervisor-only sections (Supervisor/Admin/Dom) above the existing overdue/shift lists:
   1. **Unassigned — Needs Completion** (amber): unclaimed pending persistent critical ScheduledWork. Shows template name, asset (Unit X or Box Y), work date, due time. Work that still needs to be done.
   2. **Coverage Gaps — Missed Forfeitable Work** (yellow/zinc): missed forfeitable critical ScheduledWork for the last 30 days. Truck Checks and future NARC Box Checks that closed without completion. Cannot be made up — documentation is Step 10. Shows template name, asset, work date, and which shift claimed it.
+- Everyone's Chores vertical section order is by urgency: red `Overdue / Unfinished` (persistent chores carried from previous shifts), then amber `Unassigned — Needs Completion`, then yellow `Missed Truck Checks`. Keep red above amber above yellow.
 - Regular employees never see these command-level sections.
 
 ## Permissions And Audit

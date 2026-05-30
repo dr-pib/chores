@@ -247,6 +247,25 @@ export default async function ChoresPage() {
           </div>
         )}
 
+        {/* Overdue unfinished chores from previous shifts */}
+        {openPersistent.length > 0 && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
+            <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
+              Overdue / Unfinished
+            </h2>
+            <div className="space-y-2">
+              {openPersistent.map(chore => (
+                <div key={chore.id} className="flex items-center gap-3">
+                  <ChoreItem chore={chore} userRole={session.role} narcBoxLetter={chore.operations_log.narc_box?.letter ?? null} />
+                  <Link href={`/log/${chore.operations_log_id}`} className="text-xs text-zinc-500 hover:text-zinc-300 shrink-0">
+                    {chore.operations_log.shift_profile.name}
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Section 1: Unassigned critical SW — needs completion (supervisor only) */}
         {isSupervisor && unassignedCriticalWork.length > 0 && (
           <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-4 mb-5">
@@ -284,25 +303,6 @@ export default async function ChoresPage() {
                     <span className="text-zinc-600 text-xs">{sw.claimed_by_log.shift_profile.name}</span>
                   )}
                   <ScheduledWorkActionButtons swId={sw.id} status={sw.status} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Overdue unfinished chores from previous shifts */}
-        {openPersistent.length > 0 && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
-            <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
-              Overdue / Unfinished
-            </h2>
-            <div className="space-y-2">
-              {openPersistent.map(chore => (
-                <div key={chore.id} className="flex items-center gap-3">
-                  <ChoreItem chore={chore} userRole={session.role} narcBoxLetter={chore.operations_log.narc_box?.letter ?? null} />
-                  <Link href={`/log/${chore.operations_log_id}`} className="text-xs text-zinc-500 hover:text-zinc-300 shrink-0">
-                    {chore.operations_log.shift_profile.name}
-                  </Link>
                 </div>
               ))}
             </div>

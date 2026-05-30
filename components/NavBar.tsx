@@ -44,6 +44,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
   const [badges, setBadges] = useState<BadgeState | null>(null)
   const [expireAlert, setExpireAlert] = useState<ExpireAlertState | null>(null)
 
@@ -51,18 +52,21 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
     href: '/setup',
     label: badges?.hasActiveShift ? 'Edit Current Shift' : 'Shift Setup',
   }
-  const links = isSupervisorRole(userRole)
+  // Daily-operational links shown inline; config/admin pages collapse into an "Admin" dropdown.
+  const primaryLinks = isSupervisorRole(userRole)
+    ? [setupLink, ...BASE_LINKS, { href: '/dashboard', label: 'Dashboard' }]
+    : [setupLink, ...BASE_LINKS]
+  const adminLinks = isSupervisorRole(userRole)
     ? [
-        setupLink, ...BASE_LINKS,
-        { href: '/dashboard', label: 'Dashboard' },
+        { href: '/report', label: 'Report' },
         { href: '/shift-profiles', label: 'Shift Profiles' },
         { href: '/employees', label: 'Employees' },
         { href: '/chore-templates', label: 'Chore Templates' },
         { href: '/change-log', label: 'Change Log' },
-        { href: '/report', label: 'Report' },
         ...(userRole === 'Dom' ? [{ href: '/dev', label: 'Dev' }] : []),
       ]
-    : [setupLink, ...BASE_LINKS]
+    : []
+  const links = [...primaryLinks, ...adminLinks]
 
   function isActive(href: string) {
     if (href === '/log') return pathname === '/log' || pathname === '/history'
@@ -142,7 +146,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-1">
-          {links.map((l) => (
+          {primaryLinks.map((l) => (
             <Link
               key={l.href}
               href={l.href}
@@ -155,6 +159,46 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
               {renderLinkLabel(l)}
             </Link>
           ))}
+
+          {adminLinks.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setAdminOpen((o) => !o)}
+                className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  adminLinks.some((l) => isActive(l.href))
+                    ? 'bg-zinc-700 text-zinc-100'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                }`}
+              >
+                Admin
+                <svg className={`w-3.5 h-3.5 transition-transform ${adminOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {adminOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setAdminOpen(false)} />
+                  <div className="absolute right-0 mt-1 w-48 rounded-lg border border-zinc-800 bg-zinc-900 py-1 shadow-xl z-50">
+                    {adminLinks.map((l) => (
+                      <Link
+                        key={l.href}
+                        href={l.href}
+                        onClick={() => setAdminOpen(false)}
+                        className={`block px-3 py-2 text-sm font-medium transition-colors ${
+                          isActive(l.href)
+                            ? 'bg-zinc-700 text-zinc-100'
+                            : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                        }`}
+                      >
+                        {l.label}
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="hidden md:flex items-center gap-3">
