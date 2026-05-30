@@ -58,11 +58,12 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
     : [setupLink, ...BASE_LINKS]
   const adminLinks = isSupervisorRole(userRole)
     ? [
-        { href: '/report', label: 'Report' },
-        { href: '/shift-profiles', label: 'Shift Profiles' },
-        { href: '/employees', label: 'Employees' },
-        { href: '/chore-templates', label: 'Chore Templates' },
+        { href: '/report', label: 'Performance Report' },
+        { href: '/shift-profiles', label: 'Shift Templates' },
+        { href: '/employees', label: 'Employee Profiles' },
+        { href: '/chore-templates', label: 'Chore Console' },
         { href: '/change-log', label: 'Change Log' },
+        { href: '/todo', label: 'To-Do' },
         ...(userRole === 'Dom' ? [{ href: '/dev', label: 'Dev' }] : []),
       ]
     : []
@@ -138,7 +139,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
   }
 
   return (
-    <nav className="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-50">
+    <nav className="bg-[#0a140f] border-b border-zinc-800 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
         <Link href="/setup" className="text-blue-600 font-bold text-lg tracking-tight">
           EMS Chores
@@ -179,7 +180,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
               {adminOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setAdminOpen(false)} />
-                  <div className="absolute right-0 mt-1 w-48 rounded-lg border border-zinc-800 bg-zinc-900 py-1 shadow-xl z-50">
+                  <div className="absolute right-0 mt-1 w-48 rounded-lg border border-zinc-800 bg-[#0a140f] py-1 shadow-xl z-50">
                     {adminLinks.map((l) => (
                       <Link
                         key={l.href}
@@ -243,7 +244,7 @@ export default function NavBar({ userName, userRole }: NavBarProps) {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden border-t border-zinc-800 bg-zinc-900 px-4 pb-4 pt-2 space-y-1">
+        <div className="md:hidden border-t border-zinc-800 bg-[#0a140f] px-4 pb-4 pt-2 space-y-1">
           {links.map((l) => (
             <Link
               key={l.href}

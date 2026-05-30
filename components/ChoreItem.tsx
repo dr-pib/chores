@@ -55,7 +55,7 @@ export default function ChoreItem({
   isPastShift = false,
   completedElsewhere = false,
   narcBoxLetter = null,
-  hideNarcUnit = false,
+  hideNarcUnit = true,
 }: {
   chore: Chore
   userRole: string

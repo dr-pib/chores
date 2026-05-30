@@ -43,6 +43,7 @@ export async function GET() {
         operations_log: {
           select: {
             primary_unit: { select: { unit_number: true } },
+            narc_box: { select: { letter: true } },
             bays: {
               where: { unit_status: 'unit_present', unit_id: { not: null } },
               select: { unit: { select: { unit_number: true } } },
@@ -77,6 +78,12 @@ export async function GET() {
     const templateName = chore.chore_template.name as (typeof EXPIRE_TEMPLATE_NAMES)[number]
     if (!EXPIRE_TEMPLATE_NAMES.includes(templateName)) continue
     if (!grouped.has(templateName)) grouped.set(templateName, new Set())
+    // NARC Expires is identified by its NARC box, never by unit number.
+    if (templateName === 'NARC Expires') {
+      const boxLetter = chore.operations_log.narc_box?.letter
+      grouped.get(templateName)!.add(boxLetter ? `Box ${boxLetter}` : 'Unassigned')
+      continue
+    }
     const unitNumbers = chore.unit
       ? [chore.unit.unit_number]
       : chore.operations_log.bays.map(bay => bay.unit?.unit_number).filter((n): n is number => n != null)
