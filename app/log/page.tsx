@@ -36,6 +36,7 @@ function toDateParam(d: Date) {
 function unitLine(
   log: {
     primary_unit: { unit_number: number } | null
+    narc_box: { letter: string } | null
     bays: { bay_label: string; unit: { unit_number: number } | null; unit_status: string }[]
   },
   isSupervisor: boolean,
@@ -61,12 +62,13 @@ function unitLine(
     return null
   }).filter(Boolean)
 
-  if (!primaryNum && secondaryItems.length === 0) return null
+  if (!primaryNum && secondaryItems.length === 0 && !log.narc_box) return null
 
   return (
     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
       {primaryNum && <span className="text-sm font-semibold text-zinc-100">Unit {primaryNum}</span>}
       {secondaryItems}
+      {log.narc_box && <span className="text-sm text-zinc-400">Narc {log.narc_box.letter}</span>}
     </div>
   )
 }
@@ -135,6 +137,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
         primary_employee: true,
         partner_employee: true,
         primary_unit: true,
+        narc_box: true,
         bays: { include: { unit: true }, orderBy: { sort_order: 'asc' } },
         chores: true,
       },

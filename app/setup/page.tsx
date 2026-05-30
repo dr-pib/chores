@@ -489,9 +489,15 @@ function SetupPageContent() {
                       aria-label="Unit"
                     >
                       <option value="">Select unit…</option>
-                      {units.map(u => (
-                        <option key={u.id} value={u.id}>{formatUnit(u)}</option>
-                      ))}
+                      {units.map(u => {
+                        const conflict = activeBayMap.get(u.id)
+                        const takenByOther = !!conflict && conflict.logId !== currentLogId
+                        return (
+                          <option key={u.id} value={u.id} disabled={takenByOther}>
+                            {takenByOther ? `${formatUnit(u)} — on ${conflict.shiftName}` : formatUnit(u)}
+                          </option>
+                        )
+                      })}
                     </select>
                     {(() => {
                       const conflict = bay.unit_id ? activeBayMap.get(bay.unit_id) : null

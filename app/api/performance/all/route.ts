@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { computePerformanceStats, choreStats } from '@/lib/performance'
+import { makeupCountsForEmployees } from '@/lib/makeups'
 
 
 export async function GET() {
@@ -61,12 +62,15 @@ export async function GET() {
     lateSwByEmployee.set(sw.completed_by_id, (lateSwByEmployee.get(sw.completed_by_id) ?? 0) + 1)
   }
 
+  const isNRPById = new Map(employees.map(e => [e.id, e.licensure_level === 'NRP']))
+  const makeupsByEmployee = await makeupCountsForEmployees(employeeIds, isNRPById, now)
+
   const results = employees.map(emp => {
     const empLogs = logs.filter(
       l => l.primary_employee_id === emp.id || l.partner_employee_id === emp.id
     )
     const isNRP = emp.licensure_level === 'NRP'
-    const windows = computePerformanceStats(isNRP, empLogs, now)
+    const windows = computePerformanceStats(isNRP, empLogs, now, makeupsByEmployee.get(emp.id))
     const activeLog = empLogs.find(
       l => l.actual_start.getTime() <= now.getTime() && l.actual_end.getTime() > now.getTime()
     )

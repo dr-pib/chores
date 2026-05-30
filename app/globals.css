@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #182c25;
+  --background: #0f1d17;
   --foreground: #f4f4f5;
 }
 
@@ -18,7 +18,7 @@
    Standalone `bg-zinc-950` elements (e.g. login list rows) keep their solid fill. */
 body,
 .min-h-screen.bg-zinc-950 {
-  background-color: #182c25;
+  background-color: #0f1d17;
   background-image: radial-gradient(circle, #1e3a2f 1px, transparent 1px);
   background-size: 12px 12px;
 }

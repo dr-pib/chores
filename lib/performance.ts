@@ -15,6 +15,18 @@ export interface WindowStats {
   done: number
   total: number
   shifts: number
+  // "Overall" = own-shift work PLUS persistent chores this employee personally
+  // completed on other crews' shifts (make-up work) in the window. Each make-up
+  // adds 1 to both numerator and denominator, so overall_rate >= rate.
+  overall_rate: number | null
+  overall_done: number
+  overall_total: number
+}
+
+// Make-up completions counted per window (chores done for other crews).
+export interface MakeupCounts {
+  d30: number
+  d60: number
 }
 
 export interface LastShiftStats {
@@ -39,7 +51,7 @@ function choreCount(chores: PerformanceChore[], isNRP: boolean) {
   }
 }
 
-function windowStats(logs: PerformanceLog[], isNRP: boolean): WindowStats {
+function windowStats(logs: PerformanceLog[], isNRP: boolean, makeups = 0): WindowStats {
   let done = 0
   let total = 0
   for (const log of logs) {
@@ -47,13 +59,24 @@ function windowStats(logs: PerformanceLog[], isNRP: boolean): WindowStats {
     done += c.done
     total += c.total
   }
-  return { rate: total > 0 ? done / total : null, done, total, shifts: logs.length }
+  const overallDone = done + makeups
+  const overallTotal = total + makeups
+  return {
+    rate: total > 0 ? done / total : null,
+    done,
+    total,
+    shifts: logs.length,
+    overall_rate: overallTotal > 0 ? overallDone / overallTotal : null,
+    overall_done: overallDone,
+    overall_total: overallTotal,
+  }
 }
 
 export function computePerformanceStats(
   isNRP: boolean,
   logs: PerformanceLog[],
   now: Date = new Date(),
+  makeups: MakeupCounts = { d30: 0, d60: 0 },
 ): PerformanceStats {
   const cutoff60 = new Date(now.getTime() - 60 * 24 * 3600 * 1000)
   const cutoff30 = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
@@ -81,8 +104,8 @@ export function computePerformanceStats(
   }
 
   return {
-    d60: windowStats(logs60, isNRP),
-    d30: windowStats(logs30, isNRP),
+    d60: windowStats(logs60, isNRP, makeups.d60),
+    d30: windowStats(logs30, isNRP, makeups.d30),
     last_shift,
   }
 }
@@ -98,6 +121,14 @@ export function trendArrow(d60Rate: number | null, d30Rate: number | null): '↑
 export function formatRate(rate: number | null): string {
   if (rate === null) return '—'
   return `${Math.round(rate * 100)}%`
+}
+
+// Renders an own/overall pair as "70%/81%". Collapses to a single value when the
+// employee did no make-up work that window (own === overall), to avoid "70%/70%".
+export function formatRatePair(stats: WindowStats): string {
+  const own = formatRate(stats.rate)
+  if (stats.overall_total === stats.total) return own
+  return `${own}/${formatRate(stats.overall_rate)}`
 }
 
 // Per-shift breakdown used in the per-employee detail page

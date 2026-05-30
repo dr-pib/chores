@@ -5,7 +5,8 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import NavBar from '@/components/NavBar'
 import { lastFirstName } from '@/lib/employees'
-import { computePerformanceStats, perShiftStats, trendArrow, formatRate } from '@/lib/performance'
+import { computePerformanceStats, perShiftStats, trendArrow, formatRate, formatRatePair } from '@/lib/performance'
+import { makeupCountsForEmployee } from '@/lib/makeups'
 
 
 function formatDate(d: Date | string) {
@@ -61,7 +62,8 @@ export default async function EmployeeReportPage({ params }: { params: Promise<{
   })
 
   const isNRP = employee.licensure_level === 'NRP'
-  const stats = computePerformanceStats(isNRP, logs, now)
+  const makeups = await makeupCountsForEmployee(employeeId, isNRP, now)
+  const stats = computePerformanceStats(isNRP, logs, now, makeups)
   const arrow = trendArrow(stats.d60.rate, stats.d30.rate)
 
   const completedLogs = logs.filter(l => new Date(l.actual_end).getTime() < now.getTime())
@@ -89,13 +91,19 @@ export default async function EmployeeReportPage({ params }: { params: Promise<{
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <p className="text-xs text-zinc-500 mb-0.5">Last 60 days</p>
-                <p className={`text-2xl font-semibold ${rateColor(stats.d60.rate)}`}>{formatRate(stats.d60.rate)}</p>
-                <p className="text-xs text-zinc-600 mt-0.5">{stats.d60.shifts} shift{stats.d60.shifts !== 1 ? 's' : ''}, {stats.d60.done}/{stats.d60.total} chores</p>
+                <p className={`text-2xl font-semibold ${rateColor(stats.d60.rate)}`}>{formatRatePair(stats.d60)}</p>
+                <p className="text-xs text-zinc-600 mt-0.5">
+                  {stats.d60.shifts} shift{stats.d60.shifts !== 1 ? 's' : ''}, {stats.d60.done}/{stats.d60.total} chores
+                  {makeups.d60 > 0 && <span className="text-zinc-500"> · +{makeups.d60} made up</span>}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-zinc-500 mb-0.5">Last 30 days</p>
-                <p className={`text-2xl font-semibold ${rateColor(stats.d30.rate)}`}>{formatRate(stats.d30.rate)}</p>
-                <p className="text-xs text-zinc-600 mt-0.5">{stats.d30.shifts} shift{stats.d30.shifts !== 1 ? 's' : ''}, {stats.d30.done}/{stats.d30.total} chores</p>
+                <p className={`text-2xl font-semibold ${rateColor(stats.d30.rate)}`}>{formatRatePair(stats.d30)}</p>
+                <p className="text-xs text-zinc-600 mt-0.5">
+                  {stats.d30.shifts} shift{stats.d30.shifts !== 1 ? 's' : ''}, {stats.d30.done}/{stats.d30.total} chores
+                  {makeups.d30 > 0 && <span className="text-zinc-500"> · +{makeups.d30} made up</span>}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-zinc-500 mb-0.5">Last shift</p>

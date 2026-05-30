@@ -8,6 +8,7 @@ import { todayChicago } from '@/lib/dates'
 import { ensureDailySW } from '@/lib/ensure-daily-sw'
 import { formatEmployeeTitle } from '@/lib/employees'
 import { choreStats } from '@/lib/performance'
+import { makeupCountsForEmployees } from '@/lib/makeups'
 
 const ELIGIBLE_UNIT_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 20]
 const SHIFT_ORDER = ['Supervisor', '24-7', '24-8', 'Swing']
@@ -80,6 +81,15 @@ export default async function DashboardPage() {
       take: 50,
     }),
   ])
+
+  // Crew make-up credit (persistent chores done for other crews, 60d window) so
+  // the Shift Status % can show a second "with make-ups" figure: 70%/81%.
+  const crewIsNRP = new Map<number, boolean>()
+  for (const s of activeShifts) {
+    if (s.primary_employee) crewIsNRP.set(s.primary_employee.id, s.primary_employee.licensure_level === 'NRP')
+    if (s.partner_employee) crewIsNRP.set(s.partner_employee.id, s.partner_employee.licensure_level === 'NRP')
+  }
+  const crewMakeups = await makeupCountsForEmployees([...crewIsNRP.keys()], crewIsNRP, now)
 
   // Collect unit IDs claimed by active shifts
   const claimedUnitIds = new Set<number>()
@@ -232,6 +242,13 @@ export default async function DashboardPage() {
                   const stats = choreStats(shift.chores, isNRP)
                   const pct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : null
                   const allDone = stats.total > 0 && stats.done === stats.total
+                  const shiftMakeups =
+                    (shift.primary_employee ? crewMakeups.get(shift.primary_employee.id)?.d60 ?? 0 : 0) +
+                    (shift.partner_employee ? crewMakeups.get(shift.partner_employee.id)?.d60 ?? 0 : 0)
+                  const overallPct = stats.total + shiftMakeups > 0
+                    ? Math.round(((stats.done + shiftMakeups) / (stats.total + shiftMakeups)) * 100)
+                    : null
+                  const showPair = shiftMakeups > 0 && overallPct !== pct
                   const crew = [
                     shift.primary_employee ? formatEmployeeTitle(shift.primary_employee) : null,
                     shift.partner_employee ? formatEmployeeTitle(shift.partner_employee) : null,
@@ -251,7 +268,7 @@ export default async function DashboardPage() {
                           )}
                         </div>
                         <div className={`text-sm font-bold shrink-0 tabular-nums ${allDone ? 'text-green-400' : pct !== null && pct > 0 ? 'text-blue-400' : 'text-zinc-600'}`}>
-                          {pct !== null ? `${pct}%` : '—'}
+                          {pct !== null ? (showPair ? `${pct}%/${overallPct}%` : `${pct}%`) : '—'}
                         </div>
                       </div>
                       {stats.total > 0 && (

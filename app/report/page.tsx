@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NavBar from '@/components/NavBar'
 import { lastFirstName, compareEmployeesByLastName } from '@/lib/employees'
-import { PerformanceStats, trendArrow, formatRate } from '@/lib/performance'
+import { PerformanceStats, trendArrow, formatRate, formatRatePair } from '@/lib/performance'
 import { isSupervisorRole } from '@/lib/roles'
 
 interface NowStats { rate: number | null; done: number; total: number }
@@ -90,11 +90,11 @@ export default function ReportPage() {
                 <span className="text-sm text-zinc-100">{lastFirstName(emp.name)}</span>
                 <span className="ml-2 text-xs text-zinc-500">{emp.licensure_level}</span>
               </div>
-              <div className={`w-14 shrink-0 text-sm font-medium ${sortKey === 'd60' ? 'text-zinc-100' : 'text-zinc-400'}`}>
-                {formatRate(emp.windows.d60.rate)}
+              <div className={`w-20 shrink-0 text-sm font-medium ${sortKey === 'd60' ? 'text-zinc-100' : 'text-zinc-400'}`}>
+                {formatRatePair(emp.windows.d60)}
               </div>
-              <div className={`w-14 shrink-0 text-sm font-medium ${sortKey === 'd30' ? 'text-zinc-100' : 'text-zinc-400'}`}>
-                {formatRate(emp.windows.d30.rate)}
+              <div className={`w-20 shrink-0 text-sm font-medium ${sortKey === 'd30' ? 'text-zinc-100' : 'text-zinc-400'}`}>
+                {formatRatePair(emp.windows.d30)}
               </div>
               <div className="w-14 shrink-0 text-sm text-zinc-400 font-medium">
                 {formatRate(emp.windows.last_shift?.rate ?? null)}
@@ -146,8 +146,8 @@ export default function ReportPage() {
         {/* Column headers */}
         <div className="flex items-center gap-3 px-4 pb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
           <div className="w-44 shrink-0">Employee</div>
-          <div className="w-14 shrink-0">60d</div>
-          <div className="w-14 shrink-0">30d</div>
+          <div className="w-20 shrink-0">60d</div>
+          <div className="w-20 shrink-0">30d</div>
           <div className="w-14 shrink-0">Last</div>
           <div className="w-14 shrink-0">Now</div>
           <div className="w-12 shrink-0">Shifts</div>

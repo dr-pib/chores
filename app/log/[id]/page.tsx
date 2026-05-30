@@ -7,7 +7,8 @@ import ChoreItem from '@/components/ChoreItem'
 import { formatUnit } from '@/lib/units'
 import { sortChores, getStationChoreForPost } from '@/lib/chore-rotation'
 import { isPastShift, todayChicago } from '@/lib/dates'
-import { computePerformanceStats, trendArrow, formatRate } from '@/lib/performance'
+import { computePerformanceStats, trendArrow, formatRate, formatRatePair } from '@/lib/performance'
+import { makeupCountsForEmployee } from '@/lib/makeups'
 import DeleteShiftButton from '@/components/DeleteShiftButton'
 import ConfirmShiftButton from '@/components/ConfirmShiftButton'
 import LiveClock from '@/components/LiveClock'
@@ -245,7 +246,8 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
     }
     if (me) {
       const isNRP = me.licensure_level === 'NRP'
-      perfStats = computePerformanceStats(isNRP, perfLogs)
+      const makeups = await makeupCountsForEmployee(session.userId, isNRP)
+      perfStats = computePerformanceStats(isNRP, perfLogs, new Date(), makeups)
       if (!pastShift) {
         const eligible = [...allDailyChores, ...persistentChores].filter(
           c => isNRP || c.chore_template.name !== 'NARC Expires'
@@ -333,10 +335,10 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         {(nowDone > 0 || (perfStats && (perfStats.d60.total > 0 || perfStats.d30.total > 0 || perfStats.last_shift !== null))) && (
           <div className="mb-4 flex items-center gap-5 text-xs">
             {perfStats && perfStats.d60.total > 0 && (
-              <span className="text-zinc-500">60d <span className="text-base text-zinc-200 font-medium">{formatRate(perfStats.d60.rate)}</span></span>
+              <span className="text-zinc-500">60d <span className="text-base text-zinc-200 font-medium">{formatRatePair(perfStats.d60)}</span></span>
             )}
             {perfStats && perfStats.d30.total > 0 && (
-              <span className="text-zinc-500">30d <span className="text-base text-zinc-200 font-medium">{formatRate(perfStats.d30.rate)}</span></span>
+              <span className="text-zinc-500">30d <span className="text-base text-zinc-200 font-medium">{formatRatePair(perfStats.d30)}</span></span>
             )}
             {perfStats && perfStats.last_shift !== null && (
               <>

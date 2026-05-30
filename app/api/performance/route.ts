@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { computePerformanceStats } from '@/lib/performance'
+import { makeupCountsForEmployee } from '@/lib/makeups'
 
 
 const LOG_SELECT = {
@@ -59,7 +60,8 @@ export async function GET(req: NextRequest) {
   ])
 
   const isNRP = employee.licensure_level === 'NRP'
-  const windows = computePerformanceStats(isNRP, logs, now)
+  const makeups = await makeupCountsForEmployee(employeeId, isNRP, now)
+  const windows = computePerformanceStats(isNRP, logs, now, makeups)
 
   return NextResponse.json({ employee_id: employeeId, licensure_level: employee.licensure_level, windows, late_sw_60d })
 }
